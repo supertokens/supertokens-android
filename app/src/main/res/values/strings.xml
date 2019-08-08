@@ -1,0 +1,7 @@
+<resources>
+    <string name="supertokensAntiCSRFTokenKey">supertokens-android-anticsrf-key</string>
+    <string name="supertokensSharedPrefsKey">supertokens-android-shared-preferences</string>
+    <string name="supertokensIdRefreshKey">supertokens-android-idrefreshtoken-key</string>
+    <string name="app_name">SuperTokens Android</string>
+    <string name="supertokensIdRefreshCookieKey">sIdRefreshToken</string>
+</resources>
