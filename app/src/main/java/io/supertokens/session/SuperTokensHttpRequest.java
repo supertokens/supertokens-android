@@ -41,6 +41,7 @@ public class SuperTokensHttpRequest {
                 int responseCode = connection.getResponseCode();
                 if ( responseCode == SuperTokens.sessionExpiryStatusCode ) {
                     // Network call threw UnauthorisedAccess, try to call the refresh token endpoint and retry original call
+                    connection.disconnect();
                     boolean retry = SuperTokensHttpRequest.handleUnauthorised(context, preRequestIdRefreshToken);
                     if(!retry) {
                         return output;
@@ -52,7 +53,7 @@ public class SuperTokensHttpRequest {
 
                     // Store the anti-CSRF token from the response headers
                     SuperTokensHttpRequest.saveAntiCSRFFromConnection(context, connection);
-
+                    connection.disconnect();
                     return output;
                 }
             }
@@ -91,8 +92,8 @@ public class SuperTokensHttpRequest {
             }
 
             // Ideally if there was an API error this would throw to the user directly, this condition is a safety
-            Log.e(SuperTokens.TAG, refreshTokenConnection.getResponseCode() + "");
             if ( refreshTokenConnection.getResponseCode() != 200 ) {
+                refreshTokenConnection.disconnect();
                 throw new IOException(refreshTokenConnection.getResponseMessage());
             }
 
@@ -102,6 +103,7 @@ public class SuperTokensHttpRequest {
             SuperTokensHttpRequest.saveAntiCSRFFromConnection(context, refreshTokenConnection);
 
             if (IdRefreshToken.getToken(context) == null) {
+                refreshTokenConnection.disconnect();
                 return false;
             }
         }

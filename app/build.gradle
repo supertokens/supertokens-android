@@ -4,6 +4,26 @@ apply plugin: 'kotlin-android'
 
 apply plugin: 'kotlin-android-extensions'
 
+apply plugin: 'com.novoda.bintray-release'
+
+apply plugin: 'com.android.library'
+
+publish {
+
+    def groupProjectID = 'io.supertokens'
+    def artifactProjectID = 'session'
+    def publishVersionID = '0.0.2'
+
+    userOrg = 'supertokens'
+    repoName = 'SuperTokensAndroid'
+    groupId = groupProjectID
+    artifactId = artifactProjectID
+    publishVersion = publishVersionID
+    desc = 'SuperTokens session management implementation for Android apps'
+    website = 'https://github.com/supertokens/supertokens-android'
+
+}
+
 android {
     compileSdkVersion 28
     defaultConfig {
