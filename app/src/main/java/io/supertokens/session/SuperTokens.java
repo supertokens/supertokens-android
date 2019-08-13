@@ -1,11 +1,13 @@
 package io.supertokens.session;
 
+import android.app.Application;
 import android.content.Context;
 import android.text.TextUtils;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import io.supertokens.session.utils.IdRefreshToken;
 
+import java.lang.ref.WeakReference;
 import java.net.MalformedURLException;
 import java.util.ArrayList;
 
@@ -16,13 +18,15 @@ public class SuperTokens {
     static boolean isInitCalled = false;
     static final String TAG = "io.supertokens.session";
     static String refreshTokenEndpoint;
+    static WeakReference<Application> contextWeakReference;
 
 
     @SuppressWarnings("unused")
-    public static void init(@NonNull String refreshTokenEndpoint, @Nullable Integer sessionExpiryStatusCode) throws MalformedURLException {
+    public static void init(Application applicationContext, @NonNull String refreshTokenEndpoint, @Nullable Integer sessionExpiryStatusCode) throws MalformedURLException {
         if ( SuperTokens.isInitCalled ) {
             return;
         }
+        contextWeakReference = new WeakReference<Application>(applicationContext);
         SuperTokens.isInitCalled = true;
         SuperTokens.refreshTokenEndpoint = refreshTokenEndpoint;
         if ( sessionExpiryStatusCode != null ) {
