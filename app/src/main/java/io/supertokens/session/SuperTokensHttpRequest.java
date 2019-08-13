@@ -1,7 +1,6 @@
 package io.supertokens.session;
 
 import android.content.Context;
-import android.util.Log;
 import io.supertokens.session.utils.AntiCSRF;
 import io.supertokens.session.utils.IdRefreshToken;
 
