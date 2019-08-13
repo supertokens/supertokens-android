@@ -15,7 +15,7 @@ import java.net.HttpCookie;
 import java.util.List;
 
 @SuppressWarnings("unused")
-public class SuperTokensRequestInterceptor implements Interceptor {
+public class SuperTokensInterceptor implements Interceptor {
     private static final Object refreshTokenLock = new Object();
 
     @NotNull
@@ -52,13 +52,13 @@ public class SuperTokensRequestInterceptor implements Interceptor {
                 Response response =  chain.proceed(request);
 
                 if ( response.code() == SuperTokens.sessionExpiryStatusCode ) {
-                    Boolean retry = SuperTokensRequestInterceptor.handleUnauthorised(applicationContext, preRequestIdRefreshToken, chain);
+                    Boolean retry = SuperTokensInterceptor.handleUnauthorised(applicationContext, preRequestIdRefreshToken, chain);
                     if ( !retry ) {
                         return response;
                     }
                 } else {
-                    SuperTokensRequestInterceptor.saveAntiCSRFFromResponse(applicationContext, response);
-                    SuperTokensRequestInterceptor.saveIdRefreshFromSetCookie(applicationContext, manager, response);
+                    SuperTokensInterceptor.saveAntiCSRFFromResponse(applicationContext, response);
+                    SuperTokensInterceptor.saveIdRefreshFromSetCookie(applicationContext, manager, response);
 
                     return response;
                 }
@@ -106,8 +106,8 @@ public class SuperTokensRequestInterceptor implements Interceptor {
                 throw new IOException(refreshResponse.message());
             }
 
-            SuperTokensRequestInterceptor.saveIdRefreshFromSetCookie(applicationContext, cookieManager, refreshResponse);
-            SuperTokensRequestInterceptor.saveAntiCSRFFromResponse(applicationContext, refreshResponse);
+            SuperTokensInterceptor.saveIdRefreshFromSetCookie(applicationContext, cookieManager, refreshResponse);
+            SuperTokensInterceptor.saveAntiCSRFFromResponse(applicationContext, refreshResponse);
 
             if ( IdRefreshToken.getToken(applicationContext) == null ) {
                 refreshResponse.close();
