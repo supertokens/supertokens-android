@@ -13,7 +13,7 @@ import java.util.List;
 public class SuperTokensHttpRequest {
     private static final Object refreshTokenLock = new Object();
 
-    public static <T> T newRequest(URL url, SuperTokensHttpCallback<T> callback) throws IllegalAccessException, IOException {
+    public static <T> T newRequest(URL url, SuperTokensHttpCallback<T> callback) throws IllegalAccessException, IOException, URISyntaxException {
         if ( !SuperTokens.isInitCalled ) {
             throw new IllegalAccessException("SuperTokens.init function needs to be called before using newRequest");
         }
@@ -37,7 +37,8 @@ public class SuperTokensHttpRequest {
                 // Get the default cookie manager that is used, if null set a new one
                 CookieManager cookieManager = (CookieManager)CookieManager.getDefault();
                 if ( cookieManager == null ) {
-                    cookieManager = new CookieManager();
+                    // Passing null for cookie policy to use default
+                    cookieManager = new CookieManager(SuperTokens.persistentCookieStore, null);
                     CookieManager.setDefault(cookieManager);
                 }
 
@@ -54,7 +55,7 @@ public class SuperTokensHttpRequest {
                 } else {
                     // Get the cookies from the response and store the idRefreshToken to storage
                     List<String> cookies = connection.getHeaderFields().get(applicationContext.getString(R.string.supertokensSetCookieHeaderKey));
-                    SuperTokensHttpRequest.saveIdRefreshTokenFromSetCookie(applicationContext, cookies, cookieManager);
+                    SuperTokensHttpRequest.saveIdRefreshTokenFromSetCookie(applicationContext, cookies, cookieManager, connection);
 
                     // Store the anti-CSRF token from the response headers
                     SuperTokensHttpRequest.saveAntiCSRFFromConnection(applicationContext, connection);
@@ -69,7 +70,7 @@ public class SuperTokensHttpRequest {
         }
     }
 
-    private static boolean handleUnauthorised(Context context, String preRequestIdRefreshToken) throws IOException {
+    private static boolean handleUnauthorised(Application context, String preRequestIdRefreshToken) throws IOException, URISyntaxException {
         if ( preRequestIdRefreshToken == null ) {
             String idRefreshToken = IdRefreshToken.getToken(context);
             return idRefreshToken != null;
@@ -92,7 +93,7 @@ public class SuperTokensHttpRequest {
 
             CookieManager cookieManager = (CookieManager)CookieManager.getDefault();
             if ( cookieManager == null ) {
-                cookieManager = new CookieManager();
+                cookieManager = new CookieManager(SuperTokens.persistentCookieStore, null);
                 CookieManager.setDefault(cookieManager);
             }
 
@@ -103,7 +104,7 @@ public class SuperTokensHttpRequest {
             }
 
             List<String> cookies = refreshTokenConnection.getHeaderFields().get(context.getString(R.string.supertokensSetCookieHeaderKey));
-            SuperTokensHttpRequest.saveIdRefreshTokenFromSetCookie(context, cookies, cookieManager);
+            SuperTokensHttpRequest.saveIdRefreshTokenFromSetCookie(context, cookies, cookieManager, refreshTokenConnection);
 
             SuperTokensHttpRequest.saveAntiCSRFFromConnection(context, refreshTokenConnection);
 
@@ -123,11 +124,11 @@ public class SuperTokensHttpRequest {
         return true;
     }
 
-    private static void saveIdRefreshTokenFromSetCookie(Context context, List<String> setCookie, CookieManager cookieManager) {
+    private static void saveIdRefreshTokenFromSetCookie(Context context, List<String> setCookie, CookieManager cookieManager, HttpURLConnection connection) throws URISyntaxException {
         if ( setCookie != null ) {
             for(int i=0; i<setCookie.size(); i++) {
                 HttpCookie currentCookie = HttpCookie.parse(setCookie.get(i)).get(0);
-                cookieManager.getCookieStore().add(null, currentCookie);
+                cookieManager.getCookieStore().add(connection.getURL().toURI(), currentCookie);
                 if (currentCookie.getName().equals(context.getString(R.string.supertokensIdRefreshCookieKey))) {
                     if ( currentCookie.hasExpired() ) {
                         IdRefreshToken.removeToken(context);

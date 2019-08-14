@@ -6,4 +6,7 @@
     <string name="supertokensIdRefreshCookieKey">sIdRefreshToken</string>
     <string name="supertokensAntiCSRFHeaderKey">anti-csrf</string>
     <string name="supertokensSetCookieHeaderKey">Set-Cookie</string>
+
+    <string name="superTokensCookieSharedPrefsKey">supertokens-cookie-shared-prefs</string>
+    <string name="superTokensCookieNameStoreKey">supertokens-cookie-names</string>
 </resources>

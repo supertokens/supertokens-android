@@ -4,6 +4,7 @@ import android.app.Application;
 import android.util.Log;
 import io.supertokens.session.utils.AntiCSRF;
 import io.supertokens.session.utils.IdRefreshToken;
+import okhttp3.FormBody;
 import okhttp3.Interceptor;
 import okhttp3.Request;
 import okhttp3.Response;
@@ -11,6 +12,7 @@ import org.jetbrains.annotations.NotNull;
 
 import java.io.IOException;
 import java.net.CookieManager;
+import java.net.CookieStore;
 import java.net.HttpCookie;
 import java.util.List;
 
@@ -27,15 +29,14 @@ public class SuperTokensInterceptor implements Interceptor {
 
         Application applicationContext = SuperTokens.contextWeakReference.get();
         if ( applicationContext == null ) {
-            Log.e(SuperTokens.TAG, "Application context is null");
-            return chain.proceed(chain.request());
+            throw new IOException("Application context is null");
         }
 
-        CookieManager manager = (CookieManager) CookieManager.getDefault();
-        if ( manager == null ) {
-            manager = new CookieManager();
-            CookieManager.setDefault(manager);
-        }
+//        CookieManager manager = (CookieManager) CookieManager.getDefault();
+//        if ( manager == null ) {
+//            manager = new CookieManager((CookieStore)SuperTokens.persistentCookieStore, null);
+//            CookieManager.setDefault(manager);
+//        }
 
         try {
             while (true) {
@@ -52,13 +53,14 @@ public class SuperTokensInterceptor implements Interceptor {
                 Response response =  chain.proceed(request);
 
                 if ( response.code() == SuperTokens.sessionExpiryStatusCode ) {
+                    response.close();
                     Boolean retry = SuperTokensInterceptor.handleUnauthorised(applicationContext, preRequestIdRefreshToken, chain);
                     if ( !retry ) {
                         return response;
                     }
                 } else {
                     SuperTokensInterceptor.saveAntiCSRFFromResponse(applicationContext, response);
-                    SuperTokensInterceptor.saveIdRefreshFromSetCookie(applicationContext, manager, response);
+                    SuperTokensInterceptor.saveIdRefreshFromSetCookie(applicationContext, response);
 
                     return response;
                 }
@@ -90,7 +92,7 @@ public class SuperTokensInterceptor implements Interceptor {
 
             Request.Builder refreshRequestBuilder = new Request.Builder();
             refreshRequestBuilder.url(SuperTokens.refreshTokenEndpoint);
-            refreshRequestBuilder.method("POST", null);
+            refreshRequestBuilder.method("POST", new FormBody.Builder().build());
 
             CookieManager cookieManager = (CookieManager)CookieManager.getDefault();
             if ( cookieManager == null ) {
@@ -106,7 +108,7 @@ public class SuperTokensInterceptor implements Interceptor {
                 throw new IOException(refreshResponse.message());
             }
 
-            SuperTokensInterceptor.saveIdRefreshFromSetCookie(applicationContext, cookieManager, refreshResponse);
+            SuperTokensInterceptor.saveIdRefreshFromSetCookie(applicationContext, refreshResponse);
             SuperTokensInterceptor.saveAntiCSRFFromResponse(applicationContext, refreshResponse);
 
             if ( IdRefreshToken.getToken(applicationContext) == null ) {
@@ -132,12 +134,11 @@ public class SuperTokensInterceptor implements Interceptor {
         }
     }
 
-    private static void saveIdRefreshFromSetCookie(Application applicationContext, CookieManager manager, Response response) {
+    private static void saveIdRefreshFromSetCookie(Application applicationContext, Response response) {
         List<String> setCookie = response.headers(applicationContext.getString(R.string.supertokensSetCookieHeaderKey));
         if ( setCookie.size() > 0 ) {
             for(int i = 0; i < setCookie.size(); i++) {
                 HttpCookie currentCookie = HttpCookie.parse(setCookie.get(i)).get(0);
-                manager.getCookieStore().add(null, currentCookie);
                 if (currentCookie.getName().equals(applicationContext.getString(R.string.supertokensIdRefreshCookieKey))) {
                     if ( currentCookie.hasExpired() ) {
                         IdRefreshToken.removeToken(applicationContext);
