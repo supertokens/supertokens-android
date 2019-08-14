@@ -37,7 +37,7 @@ class SuperTokensSerializableHttpCookie implements Serializable {
         return byteArrayToHexString(os.toByteArray());
     }
 
-    public HttpCookie decode(String encodedCookie) {
+    HttpCookie decode(String encodedCookie) {
         byte[] bytes = hexStringToByteArray(encodedCookie);
         ByteArrayInputStream byteArrayInputStream = new ByteArrayInputStream(
                 bytes);
@@ -61,8 +61,6 @@ class SuperTokensSerializableHttpCookie implements Serializable {
             initFieldHttpOnly();
             return (boolean) fieldHttpOnly.get(cookie);
         } catch (Exception e) {
-            // NoSuchFieldException || IllegalAccessException ||
-            // IllegalArgumentException
             Log.w(TAG, e);
         }
         return false;
@@ -80,6 +78,7 @@ class SuperTokensSerializableHttpCookie implements Serializable {
         }
     }
 
+    @SuppressWarnings("JavaReflectionMemberAccess")
     private void initFieldHttpOnly() throws NoSuchFieldException {
         fieldHttpOnly = cookie.getClass().getDeclaredField("httpOnly");
         fieldHttpOnly.setAccessible(true);

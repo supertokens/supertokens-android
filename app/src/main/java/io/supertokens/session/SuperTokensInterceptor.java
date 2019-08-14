@@ -1,7 +1,6 @@
 package io.supertokens.session;
 
 import android.app.Application;
-import android.util.Log;
 import io.supertokens.session.utils.AntiCSRF;
 import io.supertokens.session.utils.IdRefreshToken;
 import okhttp3.FormBody;
@@ -12,7 +11,6 @@ import org.jetbrains.annotations.NotNull;
 
 import java.io.IOException;
 import java.net.CookieManager;
-import java.net.CookieStore;
 import java.net.HttpCookie;
 import java.util.List;
 
@@ -31,12 +29,6 @@ public class SuperTokensInterceptor implements Interceptor {
         if ( applicationContext == null ) {
             throw new IOException("Application context is null");
         }
-
-//        CookieManager manager = (CookieManager) CookieManager.getDefault();
-//        if ( manager == null ) {
-//            manager = new CookieManager((CookieStore)SuperTokens.persistentCookieStore, null);
-//            CookieManager.setDefault(manager);
-//        }
 
         try {
             while (true) {
@@ -80,7 +72,6 @@ public class SuperTokensInterceptor implements Interceptor {
 
         synchronized (refreshTokenLock) {
             String postLockIdRefreshToken = IdRefreshToken.getToken(applicationContext);
-//            String postLockAntiCSRF = AntiCSRF.getToken(applicationContext, postLockIdRefreshToken);
 
             if ( postLockIdRefreshToken == null ) {
                 return false;

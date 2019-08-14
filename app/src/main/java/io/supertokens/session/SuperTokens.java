@@ -15,8 +15,10 @@ import java.util.ArrayList;
 @SuppressWarnings({"Convert2Diamond", "ManualArrayToCollectionCopy"})
 public class SuperTokens {
     static int sessionExpiryStatusCode = 440;
-    static String apiDomain;
+    @SuppressWarnings("unused")
+    private static String apiDomain;
     static boolean isInitCalled = false;
+    @SuppressWarnings("unused")
     static final String TAG = "io.supertokens.session";
     static String refreshTokenEndpoint;
     static WeakReference<Application> contextWeakReference;

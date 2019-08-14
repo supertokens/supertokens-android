@@ -12,6 +12,7 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.*;
 
+@SuppressWarnings({"Convert2Diamond", "RegExpEmptyAlternationBranch"})
 public class SuperTokensPersistentCookieStore implements CookieStore {
     private static final String TAG = SuperTokensPersistentCookieStore.class
             .getSimpleName();
@@ -75,9 +76,8 @@ public class SuperTokensPersistentCookieStore implements CookieStore {
      * Get the real URI from the cookie "domain" and "path" attributes, if they
      * are not set then uses the URI provided (coming from the response)
      *
-     * @param uri
-     * @param cookie
-     * @return
+     * @param uri cookie uri
+     * @param cookie http cookie
      */
     private static URI cookieUri(URI uri, HttpCookie cookie) {
         URI cookieUri = uri;
@@ -131,7 +131,10 @@ public class SuperTokensPersistentCookieStore implements CookieStore {
             if (checkDomainsMatch(storedUri.getHost(), uri.getHost())) {
                 // Check if the paths match according to RFC 6265
                 if (checkPathsMatch(storedUri.getPath(), uri.getPath())) {
-                    targetCookies.addAll(allCookies.get(storedUri));
+                    Set<HttpCookie> allCookiesSet = allCookies.get(storedUri);
+                    if ( allCookiesSet != null ) {
+                        targetCookies.addAll(allCookiesSet);
+                    }
                 }
             }
         }
