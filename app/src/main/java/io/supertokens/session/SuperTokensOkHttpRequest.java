@@ -3,66 +3,65 @@ package io.supertokens.session;
 import android.app.Application;
 import io.supertokens.session.utils.AntiCSRF;
 import io.supertokens.session.utils.IdRefreshToken;
-import okhttp3.FormBody;
-import okhttp3.Interceptor;
-import okhttp3.Request;
-import okhttp3.Response;
-import org.jetbrains.annotations.NotNull;
+import okhttp3.*;
 
 import java.io.IOException;
 import java.util.List;
 
 @SuppressWarnings("unused")
-public class SuperTokensInterceptor implements Interceptor {
+class SuperTokensOkHttpRequest {
     private static final Object refreshTokenLock = new Object();
 
-    @NotNull
-    @Override
-    public Response intercept(@NotNull Chain chain) throws IOException {
+    public static Response newCall(Request originalRequest, OkHttpClient client) throws IllegalAccessException, IOException {
         if ( !SuperTokens.isInitCalled ) {
-            throw new IOException("SuperTokens.init function needs to be called before using interceptors");
+            throw new IllegalAccessException("SuperTokens.init function needs to be called before using interceptors");
         }
 
         Application applicationContext = SuperTokens.contextWeakReference.get();
         if ( applicationContext == null ) {
-            throw new IOException("Application context is null");
+            throw new IllegalAccessException("Application context is null");
         }
 
         try {
             while (true) {
-                Request.Builder requestBuilder = chain.request().newBuilder();
+                // Creating a new builder to modify headers while keeping everything else the same
+                Request.Builder newBuilder = originalRequest.newBuilder();
 
+                // Adding anticsrf token to request headers if present
                 String preRequestIdRefreshToken = IdRefreshToken.getToken(applicationContext);
                 String antiCSRFToken = AntiCSRF.getToken(applicationContext, preRequestIdRefreshToken);
 
                 if ( antiCSRFToken != null ) {
-                    requestBuilder.header(applicationContext.getString(R.string.supertokensAntiCSRFHeaderKey), antiCSRFToken);
+                    newBuilder.header(applicationContext.getString(R.string.supertokensAntiCSRFHeaderKey), antiCSRFToken);
                 }
 
-                Request request = requestBuilder.build();
-                Response response =  chain.proceed(request);
+                Request stRequest = newBuilder.build();
+                Response stResponse =  client.newCall(stRequest).execute();
 
-                if ( response.code() == SuperTokens.sessionExpiryStatusCode ) {
-                    response.close();
-                    Boolean retry = SuperTokensInterceptor.handleUnauthorised(applicationContext, preRequestIdRefreshToken, chain);
+                // if response code is that of session expired try calling refresh token endpoint and retry
+                if ( stResponse.code() == SuperTokens.sessionExpiryStatusCode ) {
+                    stResponse.close();
+                    Boolean retry = SuperTokensOkHttpRequest.handleUnauthorised(applicationContext, preRequestIdRefreshToken, client);
                     if ( !retry ) {
-                        return response;
+                        return stResponse;
                     }
                 } else {
-                    SuperTokensInterceptor.saveAntiCSRFFromResponse(applicationContext, response);
-                    SuperTokensInterceptor.saveIdRefreshFromSetCookie(applicationContext, response);
+                    // If the response is success, save the response idRefresh and antiCSRF tokens
+                    SuperTokensOkHttpRequest.saveAntiCSRFFromResponse(applicationContext, stResponse);
+                    SuperTokensOkHttpRequest.saveIdRefreshFromSetCookie(applicationContext, stResponse);
 
-                    return response;
+                    return stResponse;
                 }
             }
         } finally {
+            // If idRefresh is absent, clear antiCSRF
             if ( IdRefreshToken.getToken(applicationContext) == null ) {
                 AntiCSRF.removeToken(applicationContext);
             }
         }
     }
 
-    private static Boolean handleUnauthorised(Application applicationContext, String preRequestIdRefreshToken, Chain chain) throws IOException {
+    private static Boolean handleUnauthorised(Application applicationContext, String preRequestIdRefreshToken, OkHttpClient client) throws IOException {
         if ( preRequestIdRefreshToken == null ) {
             String idRefresh = IdRefreshToken.getToken(applicationContext);
             return idRefresh != null;
@@ -84,15 +83,15 @@ public class SuperTokensInterceptor implements Interceptor {
             refreshRequestBuilder.method("POST", new FormBody.Builder().build());
 
             Request refreshRequest = refreshRequestBuilder.build();
-            Response refreshResponse = chain.proceed(refreshRequest);
+            Response refreshResponse = client.newCall(refreshRequest).execute();
 
             if ( refreshResponse.code() != 200 ) {
                 refreshResponse.close();
                 throw new IOException(refreshResponse.message());
             }
 
-            SuperTokensInterceptor.saveIdRefreshFromSetCookie(applicationContext, refreshResponse);
-            SuperTokensInterceptor.saveAntiCSRFFromResponse(applicationContext, refreshResponse);
+            SuperTokensOkHttpRequest.saveIdRefreshFromSetCookie(applicationContext, refreshResponse);
+            SuperTokensOkHttpRequest.saveAntiCSRFFromResponse(applicationContext, refreshResponse);
 
             if ( IdRefreshToken.getToken(applicationContext) == null ) {
                 refreshResponse.close();

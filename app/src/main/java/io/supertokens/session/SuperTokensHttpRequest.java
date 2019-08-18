@@ -124,20 +124,8 @@ public class SuperTokensHttpRequest {
         return true;
     }
 
-    private static void saveIdRefreshTokenFromSetCookie(Context context, List<String> setCookie, CookieManager cookieManager, HttpURLConnection connection) throws URISyntaxException {
-        if ( setCookie != null ) {
-            for(int i=0; i<setCookie.size(); i++) {
-                HttpCookie currentCookie = HttpCookie.parse(setCookie.get(i)).get(0);
-                cookieManager.getCookieStore().add(connection.getURL().toURI(), currentCookie);
-                if (currentCookie.getName().equals(context.getString(R.string.supertokensIdRefreshCookieKey))) {
-                    if ( currentCookie.hasExpired() ) {
-                        IdRefreshToken.removeToken(context);
-                    } else {
-                        IdRefreshToken.setToken(context, currentCookie.getValue());
-                    }
-                }
-            }
-        }
+    private static void saveIdRefreshTokenFromSetCookie(Application context, List<String> setCookie, CookieManager cookieManager, HttpURLConnection connection) throws URISyntaxException {
+        IdRefreshToken.saveIdRefreshFromSetCookieHttpUrlConnection(context, setCookie, connection, cookieManager);
     }
 
     private static void saveAntiCSRFFromConnection(Context context, HttpURLConnection connection) {
