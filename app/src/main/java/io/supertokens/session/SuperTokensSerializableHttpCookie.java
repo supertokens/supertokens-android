@@ -1,4 +1,4 @@
-package io.supertokens.session.utils;
+package io.supertokens.session;
 
 import android.util.Log;
 
