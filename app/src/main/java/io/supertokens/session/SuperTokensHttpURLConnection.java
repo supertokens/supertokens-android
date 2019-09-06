@@ -40,8 +40,10 @@ public class SuperTokensHttpURLConnection {
                     CookieManager cookieManager = (CookieManager) CookieManager.getDefault();
                     if (cookieManager == null) {
                         // Passing null for cookie policy to use default
-                        cookieManager = new CookieManager(SuperTokens.persistentCookieStore, null);
-                        CookieManager.setDefault(cookieManager);
+                        throw new IllegalAccessException("Please initialise a CookieManager.\n" +
+                                "For example: new CookieManager(new SuperTokensPersistentCookieStore(context), null).\n" +
+                                "SuperTokens provides a persistent cookie store called SuperTokensPersistentCookieStore.\n" +
+                                "For more information visit our documentation.");
                     }
 
                     // This will execute all the steps the user wants to do with the connection and returns the output that the user has configured
@@ -118,8 +120,10 @@ public class SuperTokensHttpURLConnection {
 
             CookieManager cookieManager = (CookieManager)CookieManager.getDefault();
             if ( cookieManager == null ) {
-                cookieManager = new CookieManager(SuperTokens.persistentCookieStore, null);
-                CookieManager.setDefault(cookieManager);
+                throw new IllegalAccessException("Please initialise a CookieManager.\n" +
+                    "For example: new CookieManager(new SuperTokensPersistentCookieStore(context), null).\n" +
+                "SuperTokens provides a persistent cookie store called SuperTokensPersistentCookieStore.\n" +
+                        "For more information visit our documentation.");
             }
             refreshTokenConnection.connect();
 

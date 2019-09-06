@@ -21,7 +21,6 @@ public class SuperTokens {
     static final String TAG = "io.supertokens.session";
     static String refreshTokenEndpoint;
     static WeakReference<Application> contextWeakReference;
-    static SuperTokensPersistentCookieStore persistentCookieStore;
 
 
     @SuppressWarnings("unused")
@@ -29,7 +28,6 @@ public class SuperTokens {
         if ( SuperTokens.isInitCalled ) {
             return;
         }
-        persistentCookieStore = new SuperTokensPersistentCookieStore(applicationContext);
         contextWeakReference = new WeakReference<Application>(applicationContext);
         SuperTokens.refreshTokenEndpoint = refreshTokenEndpoint;
         if ( sessionExpiryStatusCode != null ) {
