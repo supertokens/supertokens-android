@@ -51,12 +51,10 @@ public class SuperTokensInterceptor implements Interceptor {
                 SuperTokensResponseCookieHandler.saveIdRefreshFromSetCookieOkhttp(applicationContext, setCookie);
 
                 if ( response.code() == SuperTokens.sessionExpiryStatusCode ) {
+                    response.close();
                     Boolean retry = this.handleUnauthorised(applicationContext, preRequestIdRefreshToken, chain);
                     if ( !retry ) {
                         return response;
-                    } else {
-                        // closing existing response object because it will loop and create another
-                        response.close();
                     }
                 } else {
                     String antiCSRF = response.header(applicationContext.getString(R.string.supertokensAntiCSRFHeaderKey));
