@@ -57,7 +57,7 @@ public class SuperTokensPersistentCookieStore implements CookieStore {
                 }
                 targetCookies.add(cookie);
             } catch (URISyntaxException e) {
-                Log.w(TAG, e);
+//                Log.w(TAG, e);
             }
         }
     }
@@ -97,7 +97,7 @@ public class SuperTokensPersistentCookieStore implements CookieStore {
                         : uri.getScheme(), domain,
                         cookie.getPath() == null ? "/" : cookie.getPath(), null);
             } catch (URISyntaxException e) {
-                Log.w(TAG, e);
+//                Log.w(TAG, e);
             }
         }
         return cookieUri;

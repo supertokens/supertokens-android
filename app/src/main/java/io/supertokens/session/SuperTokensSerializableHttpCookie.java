@@ -1,11 +1,10 @@
 package io.supertokens.session;
 
-import android.util.Log;
-
 import java.io.*;
 import java.lang.reflect.Field;
 import java.net.HttpCookie;
 
+@SuppressWarnings("CatchMayIgnoreException")
 class SuperTokensSerializableHttpCookie implements Serializable {
     private static final String TAG = SuperTokensSerializableHttpCookie.class
             .getSimpleName();
@@ -30,7 +29,6 @@ class SuperTokensSerializableHttpCookie implements Serializable {
             ObjectOutputStream outputStream = new ObjectOutputStream(os);
             outputStream.writeObject(this);
         } catch (IOException e) {
-            Log.d(TAG, "IOException in encodeCookie", e);
             return null;
         }
 
@@ -47,9 +45,7 @@ class SuperTokensSerializableHttpCookie implements Serializable {
                     byteArrayInputStream);
             cookie = ((SuperTokensSerializableHttpCookie) objectInputStream.readObject()).cookie;
         } catch (IOException e) {
-            Log.d(TAG, "IOException in decodeCookie", e);
         } catch (ClassNotFoundException e) {
-            Log.d(TAG, "ClassNotFoundException in decodeCookie", e);
         }
 
         return cookie;
@@ -61,7 +57,6 @@ class SuperTokensSerializableHttpCookie implements Serializable {
             initFieldHttpOnly();
             return (boolean) fieldHttpOnly.get(cookie);
         } catch (Exception e) {
-            Log.w(TAG, e);
         }
         return false;
     }
@@ -74,7 +69,6 @@ class SuperTokensSerializableHttpCookie implements Serializable {
         } catch (Exception e) {
             // NoSuchFieldException || IllegalAccessException ||
             // IllegalArgumentException
-            Log.w(TAG, e);
         }
     }
 
