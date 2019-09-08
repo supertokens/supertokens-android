@@ -8,7 +8,7 @@ publish {
 
     def groupProjectID = 'io.supertokens'
     def artifactProjectID = 'session'
-    def publishVersionID = '0.1.5'
+    def publishVersionID = '0.1.6'
 
     userOrg = 'supertokens'
     repoName = 'SuperTokensAndroid'
