@@ -167,6 +167,33 @@ public class SuperTokensHttpURLConnection {
         }
     }
 
+    /**
+     *
+     * @return
+     * @throws {@link IllegalAccessException} if SuperTokens.init is not called or application context is null
+     * @throws {@link IOException} if request fails
+     */
+    public static boolean attemptRefreshingSession() throws IllegalAccessException, IOException {
+        if ( !SuperTokens.isInitCalled ) {
+            throw new IllegalAccessException("SuperTokens.init function needs to be called before using attemptRefreshingSession");
+        }
+
+        Application applicationContext = SuperTokens.contextWeakReference.get();
+        if ( applicationContext == null ) {
+            throw new IllegalAccessException("Application context is null");
+        }
+
+        try {
+            String preRequestIdRefreshToken = IdRefreshToken.getToken(applicationContext);
+            return handleUnauthorised(applicationContext, preRequestIdRefreshToken);
+        } finally {
+            String idRefreshToken = IdRefreshToken.getToken(applicationContext);
+            if ( idRefreshToken == null ) {
+                AntiCSRF.removeToken(applicationContext);
+            }
+        }
+    }
+
     public interface SuperTokensHttpURLConnectionCallback<T> {
         T runOnConnection(HttpURLConnection con) throws IOException;
     }
