@@ -39,6 +39,8 @@ class AntiCSRF {
         SharedPreferences.Editor editor = sharedPreferences.edit();
         editor.remove(getSharedPrefsAntiCSRFKey(context));
         editor.commit();
+
+        antiCSRFTokenInfo = null;
     }
 
     @SuppressLint("ApplySharedPref")

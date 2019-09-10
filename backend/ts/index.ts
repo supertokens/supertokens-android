@@ -11,6 +11,8 @@ import testLogin from './testLogin';
 import testUserInfo from './testUserInfo';
 import testRefreshtoken from './testRefreshtoken';
 import testLogout from './testLogout';
+import resetConfig from './resetConfig';
+import { testGetRefreshCounter } from './getRefreshTokenCounter';
 
 let app = express();
 app.use(cookieParser());
@@ -40,56 +42,71 @@ SuperTokens.init({
 
 function initRoutesAndServer() {
     app.post("/api/login", function (req, res) {
-        login(req, res).catch(err => {
-            console.log(err);
-            res.status(500).send("");
-        });
+        if (process.env.TEST_MODE === "testing") {
+            testLogin(req, res).catch(err => {
+                console.log(err);
+                res.status(500).send("");
+            });
+        } else {
+            login(req, res).catch(err => {
+                console.log(err);
+                res.status(500).send("");
+            });
+        }
+        
     });
 
     app.get("/api/userInfo", function (req, res) {
-        userInfo(req, res).catch(err => {
-            console.log(err);
-            res.status(500).send("");
-        });
+        if (process.env.TEST_MODE === "testing") {
+            testUserInfo(req, res).catch(err => {
+                console.log(err);
+                res.status(500).send("");
+            });
+        } else {
+            userInfo(req, res).catch(err => {
+                console.log(err);
+                res.status(500).send("");
+            });
+        }
     });
 
     app.post("/api/refreshtoken", function (req, res) {
-        refreshtoken(req, res).catch(err => {
-            console.log(err);
-            res.status(500).send("");
-        });
+        if (process.env.TEST_MODE === "testing") {
+            testRefreshtoken(req, res).catch(err => {
+                console.log(err);
+                res.status(500).send("");
+            });
+        } else {
+            refreshtoken(req, res).catch(err => {
+                console.log(err);
+                res.status(500).send("");
+            });   
+        }
     });
 
     app.post("/api/logout", function (req, res) {
-        logout(req, res).catch(err => {
+        if (process.env.TEST_MODE === "testing") {
+            testLogout(req, res).catch(err => {
+                console.log(err);
+                res.status(500).send("");
+            });
+        } else {
+            logout(req, res).catch(err => {
+                console.log(err);
+                res.status(500).send("");
+            });   
+        }
+    });
+
+    app.post("/api/testReset", function (req, res) {
+        resetConfig(req, res).catch(err => {
             console.log(err);
             res.status(500).send("");
         });
     });
 
-    app.post("/api/testLogin", function (req, res) {
-        testLogin(req, res).catch(err => {
-            console.log(err);
-            res.status(500).send("");
-        });
-    });
-
-    app.get("/api/testUserInfo", function (req, res) {
-        testUserInfo(req, res).catch(err => {
-            console.log(err);
-            res.status(500).send("");
-        });
-    });
-
-    app.post("/api/testRefreshtoken", function (req, res) {
-        testRefreshtoken(req, res).catch(err => {
-            console.log(err);
-            res.status(500).send("");
-        });
-    });
-
-    app.post("/api/testLogout", function (req, res) {
-        testLogout(req, res).catch(err => {
+    app.get("/api/testRefreshCounter", function (req, res) {
+        testGetRefreshCounter(req, res).catch(err => {
             console.log(err);
             res.status(500).send("");
         });

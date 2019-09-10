@@ -6,10 +6,12 @@ import { AuthError, generateError } from "supertokens-node-mysql-ref-jwt/lib/bui
 import {getRefreshTokenFromCookie, getIdRefreshTokenFromCookie} from 'supertokens-node-mysql-ref-jwt/lib/build/cookieAndHeaders';
 import {clearSessionFromCookie, attachAccessTokenToCookie, attachRefreshTokenToCookie, attachIdRefreshTokenToCookie} from './utils';
 import {setAntiCsrfTokenInHeadersIfRequired} from 'supertokens-node-mysql-ref-jwt/lib/build/cookieAndHeaders';
+import RefreshTokenCounter from './refreshTokenCounter';
 
 export default async function testRefreshtoken(req: express.Request, res: express.Response) {
     try {
         await refreshSession(req, res);
+        RefreshTokenCounter.incrementRefreshTokenCount();
         res.send("");
     } catch (err) {
         if (SuperTokens.Error.isErrorFromAuth(err) && err.errType !== SuperTokens.Error.GENERAL_ERROR) {
