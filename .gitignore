@@ -15,3 +15,4 @@ releaseToBintray.sh
 backend/build
 node_modules
 .settings
+.vscode/

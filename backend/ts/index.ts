@@ -7,6 +7,10 @@ import login from './login';
 import logout from './logout';
 import refreshtoken from './refreshtoken';
 import userInfo from './userInfo';
+import testLogin from './testLogin';
+import testUserInfo from './testUserInfo';
+import testRefreshtoken from './testRefreshtoken';
+import testLogout from './testLogout';
 
 let app = express();
 app.use(cookieParser());
@@ -58,6 +62,34 @@ function initRoutesAndServer() {
 
     app.post("/api/logout", function (req, res) {
         logout(req, res).catch(err => {
+            console.log(err);
+            res.status(500).send("");
+        });
+    });
+
+    app.post("/api/testLogin", function (req, res) {
+        testLogin(req, res).catch(err => {
+            console.log(err);
+            res.status(500).send("");
+        });
+    });
+
+    app.get("/api/testUserInfo", function (req, res) {
+        testUserInfo(req, res).catch(err => {
+            console.log(err);
+            res.status(500).send("");
+        });
+    });
+
+    app.post("/api/testRefreshtoken", function (req, res) {
+        testRefreshtoken(req, res).catch(err => {
+            console.log(err);
+            res.status(500).send("");
+        });
+    });
+
+    app.post("/api/testLogout", function (req, res) {
+        testLogout(req, res).catch(err => {
             console.log(err);
             res.status(500).send("");
         });
