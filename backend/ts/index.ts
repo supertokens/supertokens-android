@@ -15,8 +15,7 @@ import resetConfig from './resetConfig';
 import { testGetRefreshCounter } from './getRefreshTokenCounter';
 
 let app = express();
-app.use(cookieParser());
-SuperTokens.init({
+export const defaultConfig = {
     cookie: {
         domain: "192.168.29.145",
         secure: false
@@ -24,7 +23,8 @@ SuperTokens.init({
     mysql: {
         password: "root",
         user: "root",
-        database: "auth_session"
+        database: "auth_session",
+        connectionLimit: 10000,
     },
     tokens: {
         refreshToken: {
@@ -34,7 +34,9 @@ SuperTokens.init({
             validity: 10
         }
     },
-}).then(() => {
+}
+app.use(cookieParser());
+SuperTokens.init(defaultConfig).then(() => {
     initRoutesAndServer();
 }).catch((err: any) => {
     console.log("error while initing auth service!", err);

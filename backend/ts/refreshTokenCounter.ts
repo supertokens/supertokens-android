@@ -2,6 +2,7 @@ export default class RefreshTokenCounter {
     static refreshTokenCounter = 0;
 
     static resetRefreshTokenCount() {
+        console.log("RESET COUNTER");
         RefreshTokenCounter.refreshTokenCounter = 0;
     }
 

@@ -3,6 +3,8 @@ import * as SuperTokens from 'supertokens-node-mysql-ref-jwt/express';
 import { TypeInputConfig } from 'supertokens-node-mysql-ref-jwt/lib/build/helpers/types';
 import {reset} from "supertokens-node-mysql-ref-jwt/lib/build/helpers/utils";
 import RefreshTokenCounter from './refreshTokenCounter';
+import { defaultConfig } from './index';
+import Config from 'supertokens-node-mysql-ref-jwt/lib/build/config';
 
 export default async function resetConfig(req: express.Request, res: express.Response) {
     try {
@@ -10,26 +12,19 @@ export default async function resetConfig(req: express.Request, res: express.Res
             let inputValidity = req.headers.atvalidity as string;
             let inputValidityInt = parseInt(inputValidity.trim());
             let newConfig: TypeInputConfig = {
-                cookie: {
-                    domain: "192.168.29.145",
-                    secure: false
-                },
-                mysql: {
-                    password: "root",
-                    user: "root",
-                    database: "auth_session"
-                },
+                ...defaultConfig,
                 tokens: {
-                    refreshToken: {
-                        renewTokenPath: "/api/refreshtoken"
-                    },
+                    ...defaultConfig.tokens,
                     accessToken: {
+                        ...defaultConfig.tokens.accessToken,
                         validity: inputValidityInt,
                     }
-                },
+                }
             }
             RefreshTokenCounter.resetRefreshTokenCount();
             await reset(newConfig);
+            let config = Config.get();
+            console.log("VALIDITY", config.tokens.accessToken.validity);
             res.status(200).send("");
         } else {
             console.log(`Invalid parameter type provided for atvalidity. Should be string but was ${typeof req.headers.atvalidity}`)

@@ -45,7 +45,6 @@ public class SuperTokensHttpURLConnection {
                                 "SuperTokens provides a persistent cookie store called SuperTokensPersistentCookieStore.\n" +
                                 "For more information visit our documentation.");
                     }
-
                     // This will execute all the steps the user wants to do with the connection and returns the output that the user has configured
                     T output = callback.runOnConnection(connection);
                     // Get the cookies from the response and store the idRefreshToken to storage

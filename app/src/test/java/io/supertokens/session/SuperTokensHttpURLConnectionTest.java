@@ -2,6 +2,7 @@ package io.supertokens.session;
 
 import android.app.Application;
 import android.content.Context;
+import android.os.Looper;
 import android.text.TextUtils;
 import com.google.gson.Gson;
 import io.supertokens.session.android.MockSharedPrefs;
@@ -20,10 +21,13 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.logging.Handler;
 
 import static org.junit.Assert.assertTrue;
 
-@SuppressWarnings({"CatchMayIgnoreException", "FieldCanBeLocal"})
+@SuppressWarnings({"CatchMayIgnoreException", "FieldCanBeLocal", "StatementWithEmptyBody", "SingleStatementInBlock"})
 @RunWith(MockitoJUnitRunner.class)
 public class SuperTokensHttpURLConnectionTest {
     private final String testBaseURL = "http://192.168.29.145:8080/api/";
@@ -53,6 +57,8 @@ public class SuperTokensHttpURLConnectionTest {
     public void beforeAll() {
         SuperTokens.isInitCalled = false;
         Mockito.mock(TextUtils.class);
+        Mockito.mock(Looper.class);
+        Mockito.mock(Handler.class);
         mockSharedPrefs = new MockSharedPrefs();
         Mockito.when(application.getSharedPreferences(Mockito.anyString(), Mockito.anyInt())).thenReturn(mockSharedPrefs);
         Mockito.when(context.getSharedPreferences(Mockito.anyString(), Mockito.anyInt())).thenReturn(mockSharedPrefs);
@@ -100,6 +106,7 @@ public class SuperTokensHttpURLConnectionTest {
     public void httpURLConnection_requestFailsIfInitNotCalled() {
         boolean failed = true;
         try {
+            resetAccessTokenValidity(10);
             SuperTokensHttpURLConnection.newRequest(new URL(testBaseURL), new SuperTokensHttpURLConnection.SuperTokensHttpURLConnectionCallback<Integer>() {
                 @SuppressWarnings("RedundantThrows")
                 @Override
@@ -120,6 +127,7 @@ public class SuperTokensHttpURLConnectionTest {
     public void httpURLConnection_refreshFailsIfInitNotCalled() {
         boolean failed = true;
         try {
+            resetAccessTokenValidity(10);
             SuperTokensHttpURLConnection.attemptRefreshingSession();
         } catch (IllegalAccessException e) {
             if ( e.getMessage().equals("SuperTokens.init function needs to be called before using attemptRefreshingSession") ) {
@@ -135,6 +143,7 @@ public class SuperTokensHttpURLConnectionTest {
         boolean failed = true;
         CookieManager.setDefault(null);
         try {
+            resetAccessTokenValidity(10);
             SuperTokens.init(application, refreshTokenEndpoint, sessionExpiryCode);
             SuperTokensHttpURLConnection.newRequest(new URL(testAPiURL), new SuperTokensHttpURLConnection.SuperTokensHttpURLConnectionCallback<Integer>() {
                 @Override
@@ -316,9 +325,10 @@ public class SuperTokensHttpURLConnectionTest {
 
             Thread.sleep(10000);
             List<Runnable> runnables = new ArrayList<>();
-            final List<Boolean> runnableFailures = new ArrayList<>();
+            final List<Boolean> runnableResults = new ArrayList<>();
             int runnableCount = 100;
             for(int i = 0; i < runnableCount; i++) {
+                final int position = i;
                 runnables.add(new Runnable() {
                     @Override
                     public void run() {
@@ -328,6 +338,7 @@ public class SuperTokensHttpURLConnectionTest {
                                 public Integer runOnConnection(HttpURLConnection con) throws IOException {
                                     con.setRequestMethod("GET");
                                     con.connect();
+                                    int responseCode = con.getResponseCode();
                                     return con.getResponseCode();
                                 }
                             });
@@ -335,24 +346,25 @@ public class SuperTokensHttpURLConnectionTest {
                                 throw new Exception("Error connecting to userInfo");
                             }
 
-
+                            runnableResults.add(true);
                         } catch (Exception e) {
-                            runnableFailures.set(0, true);
+                            runnableResults.add(false);
                         }
                     }
                 });
             }
-
+            ExecutorService executorService = Executors.newFixedThreadPool(runnableCount);
             for ( int i = 0; i < runnables.size(); i++ ) {
                 Runnable currentRunnable = runnables.get(i);
-                currentRunnable.run();
+                executorService.submit(currentRunnable);
             }
 
-            if ( !runnableFailures.isEmpty() ) {
-                // The only time we add to the list is when something fails
-                throw new Exception("One of the calls failed");
-            }
+            Thread.sleep(5000);
 
+            if ( runnableResults.contains(false) ) {
+                throw new Exception("One of the API calls failed");
+            }
+//
             int refreshCount = getRefreshTokenCounter();
             if ( refreshCount != 1 ) {
                 throw new Exception("Refresh token counter value is not the same as the expected value");

@@ -17,10 +17,10 @@ class IdRefreshToken {
 
     @SuppressLint("ApplySharedPref")
     static void setToken(Context context, String idRefreshToken) {
+        idRefreshTokenInMemory = idRefreshToken;
         SharedPreferences.Editor editor = getSharedPreferences(context).edit();
         editor.putString(getSharedPrefsIdRefreshKey(context), idRefreshToken);
         editor.commit();
-        idRefreshTokenInMemory = idRefreshToken;
     }
 
     @SuppressLint("ApplySharedPref")
