@@ -169,9 +169,14 @@ public class SuperTokensInterceptor implements Interceptor {
         }
     }
 
-    public static boolean attemptRefreshingSession(OkHttpClient client, Application applicationContext) throws IOException, IllegalAccessException {
+    public static boolean attemptRefreshingSession(OkHttpClient client) throws IOException, IllegalAccessException {
         if ( !SuperTokens.isInitCalled ) {
             throw new IllegalAccessException("SuperTokens.init function needs to be called before using attemptRefreshingSession");
+        }
+
+        Application applicationContext = SuperTokens.contextWeakReference.get();
+        if ( applicationContext == null ) {
+            throw new IllegalAccessException("Application context is null");
         }
 
         try {
