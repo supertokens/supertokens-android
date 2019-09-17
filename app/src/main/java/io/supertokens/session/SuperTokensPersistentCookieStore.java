@@ -109,7 +109,7 @@ public class SuperTokensPersistentCookieStore implements CookieStore {
         editor.putString(uri.toString() + SP_KEY_DELIMITER + cookie.getName(),
                 new SuperTokensSerializableHttpCookie().encode(cookie));
 
-        editor.commit();
+        editor.apply();
     }
 
     @Override
@@ -201,7 +201,7 @@ public class SuperTokensPersistentCookieStore implements CookieStore {
             editor.remove(uri.toString() + SP_KEY_DELIMITER
                     + cookieToRemove.getName());
         }
-        editor.commit();
+        editor.apply();
     }
 
     @Override
@@ -225,7 +225,7 @@ public class SuperTokensPersistentCookieStore implements CookieStore {
         SharedPreferences.Editor editor = sharedPreferences.edit();
         editor.remove(uri.toString() + SP_KEY_DELIMITER
                 + cookieToRemove.getName());
-        editor.commit();
+        editor.apply();
     }
 
     @Override
@@ -236,7 +236,7 @@ public class SuperTokensPersistentCookieStore implements CookieStore {
     }
 
     private void removeAllFromPersistence() {
-        sharedPreferences.edit().clear().commit();
+        sharedPreferences.edit().clear().apply();
     }
 
 }

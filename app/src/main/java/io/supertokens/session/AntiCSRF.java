@@ -33,17 +33,15 @@ class AntiCSRF {
         return antiCSRFTokenInfo.antiCSRF;
     }
 
-    @SuppressLint("ApplySharedPref")
     static void removeToken(Context context) {
         SharedPreferences sharedPreferences = getSharedPreferences(context);
         SharedPreferences.Editor editor = sharedPreferences.edit();
         editor.remove(getSharedPrefsAntiCSRFKey(context));
-        editor.commit();
+        editor.apply();
 
         antiCSRFTokenInfo = null;
     }
 
-    @SuppressLint("ApplySharedPref")
     static void setToken(Context context, @Nullable String associatedRefreshToken, String antiCSRFToken) {
         if ( associatedRefreshToken == null ) {
             antiCSRFTokenInfo = null;
@@ -53,7 +51,7 @@ class AntiCSRF {
         SharedPreferences sharedPreferences = getSharedPreferences(context);
         SharedPreferences.Editor editor = sharedPreferences.edit();
         editor.putString(getSharedPrefsAntiCSRFKey(context), antiCSRFToken);
-        editor.commit();
+        editor.apply();
 
         antiCSRFTokenInfo = new AntiCSRFTokenInfo(antiCSRFToken, associatedRefreshToken);
     }

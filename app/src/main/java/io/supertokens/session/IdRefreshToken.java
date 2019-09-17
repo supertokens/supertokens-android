@@ -20,14 +20,14 @@ class IdRefreshToken {
         idRefreshTokenInMemory = idRefreshToken;
         SharedPreferences.Editor editor = getSharedPreferences(context).edit();
         editor.putString(getSharedPrefsIdRefreshKey(context), idRefreshToken);
-        editor.commit();
+        editor.apply();
     }
 
     @SuppressLint("ApplySharedPref")
     static void removeToken(Context context) {
         SharedPreferences.Editor editor = getSharedPreferences(context).edit();
         editor.remove(getSharedPrefsIdRefreshKey(context));
-        editor.commit();
+        editor.apply();
         idRefreshTokenInMemory = null;
     }
 
