@@ -327,6 +327,7 @@ public class SuperTokensHttpURLConnectionTest {
             List<Runnable> runnables = new ArrayList<>();
             final List<Boolean> runnableResults = new ArrayList<>();
             int runnableCount = 100;
+            final Object lock = new Object();
             for(int i = 0; i < runnableCount; i++) {
                 final int position = i;
                 runnables.add(new Runnable() {
@@ -345,10 +346,13 @@ public class SuperTokensHttpURLConnectionTest {
                             if ( userInfoResponseCode != 200 ) {
                                 throw new Exception("Error connecting to userInfo");
                             }
-
-                            runnableResults.add(true);
+                            synchronized (lock) {
+                                runnableResults.add(true);
+                            }
                         } catch (Exception e) {
-                            runnableResults.add(false);
+                            synchronized (lock) {
+                                runnableResults.add(false);
+                            }
                         }
                     }
                 });
@@ -359,7 +363,12 @@ public class SuperTokensHttpURLConnectionTest {
                 executorService.submit(currentRunnable);
             }
 
-            Thread.sleep(5000);
+            while(true) {
+                Thread.sleep(1000);
+                if ( runnableResults.size() == runnableCount ) {
+                    break;
+                }
+            }
 
             if ( runnableResults.contains(false) ) {
                 throw new Exception("One of the API calls failed");
