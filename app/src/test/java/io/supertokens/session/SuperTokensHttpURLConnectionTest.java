@@ -373,7 +373,7 @@ public class SuperTokensHttpURLConnectionTest {
             if ( runnableResults.contains(false) ) {
                 throw new Exception("One of the API calls failed");
             }
-//
+
             int refreshCount = getRefreshTokenCounter();
             if ( refreshCount != 1 ) {
                 throw new Exception("Refresh token counter value is not the same as the expected value");
