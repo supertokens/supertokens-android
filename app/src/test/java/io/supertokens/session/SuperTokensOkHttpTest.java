@@ -346,4 +346,41 @@ public class SuperTokensOkHttpTest {
 
         assertTrue(!failed);
     }
+
+    @Test
+    public void okHttp_userInfoSucceedsAfterLoginWithoutCallingRefresh() {
+        boolean failed = false;
+        try {
+            resetAccessTokenValidity(3);
+            SuperTokens.init(application, refreshTokenEndpoint, sessionExpiryCode);
+            RequestBody loginReqBody = RequestBody.create(MediaType.parse("application/json; charset=utf-8"), "{}");
+            Request request = new Request.Builder()
+                    .url(loginAPIURL)
+                    .method("POST", loginReqBody)
+                    .build();
+            Response loginResponse = okHttpClient.newCall(request).execute();
+            if (loginResponse.code() != 200) {
+                throw new Exception("Error making login request");
+            }
+            loginResponse.close();
+
+            Request userInfoRequest = new Request.Builder()
+                    .url(userInfoAPIURL)
+                    .build();
+
+            Response userInfoResponse = okHttpClient.newCall(userInfoRequest).execute();
+            if ( userInfoResponse.code() != 200 ) {
+                throw new Exception("User info API failed even after calling refresh");
+            }
+
+            int refreshTokenCounter = getRefreshTokenCounter();
+            if ( refreshTokenCounter != 0 ) {
+                throw new Exception("Refresh token counter value is not the same as the expected value");
+            }
+        } catch(Exception e) {
+            failed = true;
+        }
+
+        assertTrue(!failed);
+    }
 }

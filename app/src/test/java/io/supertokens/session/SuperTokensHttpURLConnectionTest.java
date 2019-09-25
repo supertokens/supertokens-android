@@ -385,4 +385,47 @@ public class SuperTokensHttpURLConnectionTest {
         assertTrue(!failed);
     }
 
+    @Test
+    public void httpURLConnection_userInfoSucceedsAfterLoginWithoutCallingRefresh() {
+        boolean failed = false;
+        try {
+            resetAccessTokenValidity(10);
+            SuperTokens.init(application, refreshTokenEndpoint, sessionExpiryCode);
+            CookieManager.setDefault(new CookieManager(new SuperTokensPersistentCookieStore(application), null));
+            int loginRequestCode = SuperTokensHttpURLConnection.newRequest(new URL(loginAPIURL), new SuperTokensHttpURLConnection.SuperTokensHttpURLConnectionCallback<Integer>() {
+                @Override
+                public Integer runOnConnection(HttpURLConnection con) throws IOException {
+                    con.setRequestMethod("POST");
+                    con.connect();
+                    return con.getResponseCode();
+                }
+            });
+            if ( loginRequestCode != 200 ) {
+                throw new Exception("Error making login request");
+            }
+
+            int userInfoResponseCode = SuperTokensHttpURLConnection.newRequest(new URL(userInfoAPIURL), new SuperTokensHttpURLConnection.SuperTokensHttpURLConnectionCallback<Integer>() {
+                @Override
+                public Integer runOnConnection(HttpURLConnection con) throws IOException {
+                    con.setRequestMethod("GET");
+                    con.connect();
+                    return con.getResponseCode();
+                }
+            });
+
+            if ( userInfoResponseCode != 200 ) {
+                throw new Exception("User info API failed even after calling refresh");
+            }
+
+            int refreshTokenCounter = getRefreshTokenCounter();
+            if ( refreshTokenCounter != 0 ) {
+                throw new Exception("Refresh token counter value is not the same as the expected value");
+            }
+        } catch (Exception e) {
+            failed = true;
+        }
+
+        assertTrue(!failed);
+    }
+
 }
