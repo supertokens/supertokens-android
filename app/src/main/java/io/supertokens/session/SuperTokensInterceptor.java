@@ -8,10 +8,12 @@ import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 @SuppressWarnings("unused")
 public class SuperTokensInterceptor implements Interceptor {
     private static final Object refreshTokenLock = new Object();
+    private static final ReentrantReadWriteLock refreshAPILock = new ReentrantReadWriteLock();
 
     private static Response makeRequest(Chain chain, Request request) throws IOException {
         return chain.proceed(request);
@@ -47,18 +49,24 @@ public class SuperTokensInterceptor implements Interceptor {
         try {
             while (true) {
                 Request.Builder requestBuilder = chain.request().newBuilder();
+                String preRequestIdRefreshToken;
+                Response response;
+                refreshAPILock.readLock().lock();
+                try {
+                    preRequestIdRefreshToken = IdRefreshToken.getToken(applicationContext);
+                    String antiCSRFToken = AntiCSRF.getToken(applicationContext, preRequestIdRefreshToken);
 
-                String preRequestIdRefreshToken = IdRefreshToken.getToken(applicationContext);
-                String antiCSRFToken = AntiCSRF.getToken(applicationContext, preRequestIdRefreshToken);
+                    if ( antiCSRFToken != null ) {
+                        requestBuilder.header(applicationContext.getString(R.string.supertokensAntiCSRFHeaderKey), antiCSRFToken);
+                    }
 
-                if ( antiCSRFToken != null ) {
-                    requestBuilder.header(applicationContext.getString(R.string.supertokensAntiCSRFHeaderKey), antiCSRFToken);
+                    Request request = requestBuilder.build();
+                    response =  makeRequest(chain, request);
+                    List<String> setCookie = response.headers(applicationContext.getString(R.string.supertokensSetCookieHeaderKey));
+                    SuperTokensResponseCookieHandler.saveIdRefreshFromSetCookieOkhttp(applicationContext, setCookie);
+                } finally {
+                    refreshAPILock.readLock().unlock();
                 }
-
-                Request request = requestBuilder.build();
-                Response response =  makeRequest(chain, request);
-                List<String> setCookie = response.headers(applicationContext.getString(R.string.supertokensSetCookieHeaderKey));
-                SuperTokensResponseCookieHandler.saveIdRefreshFromSetCookieOkhttp(applicationContext, setCookie);
 
                 if ( response.code() == SuperTokens.sessionExpiryStatusCode ) {
                     response.close();
@@ -117,37 +125,42 @@ public class SuperTokensInterceptor implements Interceptor {
                     return new SuperTokensUtils.Unauthorised(SuperTokensUtils.Unauthorised.UnauthorisedStatus.RETRY);
                 }
 
-                Request.Builder refreshRequestBuilder = new Request.Builder();
-                refreshRequestBuilder.url(refreshTokenUrl);
-                refreshRequestBuilder.method("POST", new FormBody.Builder().build());
+                refreshAPILock.writeLock().lock();
+                try {
+                    Request.Builder refreshRequestBuilder = new Request.Builder();
+                    refreshRequestBuilder.url(refreshTokenUrl);
+                    refreshRequestBuilder.method("POST", new FormBody.Builder().build());
 
-                Request refreshRequest = refreshRequestBuilder.build();
-                if ( client != null ) {
-                    refreshResponse = makeRequest(client, refreshRequest);
-                } else {
-                    refreshResponse = makeRequest(chain, refreshRequest);
+                    Request refreshRequest = refreshRequestBuilder.build();
+                    if ( client != null ) {
+                        refreshResponse = makeRequest(client, refreshRequest);
+                    } else {
+                        refreshResponse = makeRequest(chain, refreshRequest);
+                    }
+
+                    List<String> setCookie = refreshResponse.headers(applicationContext.getString(R.string.supertokensSetCookieHeaderKey));
+                    SuperTokensResponseCookieHandler.saveIdRefreshFromSetCookieOkhttp(applicationContext, setCookie);
+
+                    if ( refreshResponse.code() != 200 ) {
+                        String responseMessage = refreshResponse.message();
+                        throw new IOException(responseMessage);
+                    }
+
+                    String idRefreshAfterResponse = IdRefreshToken.getToken(applicationContext);
+                    if ( idRefreshAfterResponse == null ) {
+                        // removed by server
+                        return new SuperTokensUtils.Unauthorised(SuperTokensUtils.Unauthorised.UnauthorisedStatus.SESSION_EXPIRED);
+                    }
+
+                    String antiCSRF = refreshResponse.header(applicationContext.getString(R.string.supertokensAntiCSRFHeaderKey));
+                    if ( antiCSRF != null ) {
+                        AntiCSRF.setToken(applicationContext, IdRefreshToken.getToken(applicationContext), antiCSRF);
+                    }
+
+                    return new SuperTokensUtils.Unauthorised(SuperTokensUtils.Unauthorised.UnauthorisedStatus.RETRY);
+                } finally {
+                    refreshAPILock.writeLock().unlock();
                 }
-
-                List<String> setCookie = refreshResponse.headers(applicationContext.getString(R.string.supertokensSetCookieHeaderKey));
-                SuperTokensResponseCookieHandler.saveIdRefreshFromSetCookieOkhttp(applicationContext, setCookie);
-
-                if ( refreshResponse.code() != 200 ) {
-                    String responseMessage = refreshResponse.message();
-                    throw new IOException(responseMessage);
-                }
-
-                String idRefreshAfterResponse = IdRefreshToken.getToken(applicationContext);
-                if ( idRefreshAfterResponse == null ) {
-                    // removed by server
-                    return new SuperTokensUtils.Unauthorised(SuperTokensUtils.Unauthorised.UnauthorisedStatus.SESSION_EXPIRED);
-                }
-
-                String antiCSRF = refreshResponse.header(applicationContext.getString(R.string.supertokensAntiCSRFHeaderKey));
-                if ( antiCSRF != null ) {
-                    AntiCSRF.setToken(applicationContext, IdRefreshToken.getToken(applicationContext), antiCSRF);
-                }
-
-                return new SuperTokensUtils.Unauthorised(SuperTokensUtils.Unauthorised.UnauthorisedStatus.RETRY);
 
             } catch (Exception e) {
                 IOException ioe = new IOException(e);
