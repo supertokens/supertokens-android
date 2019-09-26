@@ -1,5 +1,11 @@
 version: 2
 jobs:
+  publish:
+    docker:
+      - image: rishabhpoddar/android-node-mysql-git
+    steps:
+      - checkout
+      - run: ./gradlew clean build bintrayUpload -PbintrayUser=supertokens -PbintrayKey=$BINTRAY_KEY -PdryRun=false
   test:
     docker: 
       - image: rishabhpoddar/android-node-mysql-git
@@ -20,6 +26,12 @@ workflows:
   version: 2
   tagged-build:
     jobs:
+      - publish:
+          filters:
+            tags:
+              only: /v[0-9]+(\.[0-9]+)*/
+            branches:
+              ignore: /.*/
       - test:
           filters:
             branches:
