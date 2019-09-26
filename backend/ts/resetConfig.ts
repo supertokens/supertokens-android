@@ -24,7 +24,6 @@ export default async function resetConfig(req: express.Request, res: express.Res
             RefreshTokenCounter.resetRefreshTokenCount();
             await reset(newConfig);
             let config = Config.get();
-            console.log("VALIDITY", config.tokens.accessToken.validity);
             res.status(200).send("");
         } else {
             console.log(`Invalid parameter type provided for atvalidity. Should be string but was ${typeof req.headers.atvalidity}`)
