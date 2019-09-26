@@ -32,7 +32,7 @@ import static org.junit.Assert.assertTrue;
 @SuppressWarnings({"CatchMayIgnoreException", "FieldCanBeLocal"})
 @RunWith(MockitoJUnitRunner.class)
 public class SuperTokensRetrofitTest {
-    private final String testBaseURL = "http://192.168.29.145:8080/api/";
+    private final String testBaseURL = "http://127.0.0.1:8080/api/";
     private final String refreshTokenEndpoint = testBaseURL + "refreshtoken";
 
     private final int sessionExpiryCode = 440;

@@ -17,7 +17,7 @@ import { testGetRefreshCounter } from './getRefreshTokenCounter';
 let app = express();
 export const defaultConfig = {
     cookie: {
-        domain: "192.168.29.145",
+        domain: "127.0.0.1",
         secure: false
     },
     mysql: {
