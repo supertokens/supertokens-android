@@ -1,0 +1,16 @@
+version: 2
+jobs:
+  run_unit_tests:
+    docker:
+    environment:
+      JVM_OPTS: -Xmx3200m
+    steps:
+      - checkout
+      - run:
+          name: Download gradle dependencies
+          command: ./gradlew androidDependencies
+      - run:
+          name: Unit tests
+          command: ./gradlew test
+      - store_test_results:
+          path: app/build/test-results
