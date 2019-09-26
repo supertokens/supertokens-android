@@ -10,9 +10,9 @@ jobs:
       - run: mysql -u root --password=root -e "CREATE DATABASE auth_session;"
       - run: mysql -u root --password=root -e "set global max_connections = 10000;"
       - checkout
-      - run: cd supertokens-android/backend/ && npm i -d && ./node_modules/.bin/tsc -p tsconfig.json
-      - run: cd supertokens-android/backend/ && TEST_MODE=testing node build/index.js &
-      - run: cd supertokens-android/ && ./gradlew test
+      - run: cd backend/ && npm i -d && ./node_modules/.bin/tsc -p tsconfig.json
+      - run: cd backend/ && TEST_MODE=testing node build/index.js &
+      - run: ./gradlew test
 
 workflows:
   version: 2
