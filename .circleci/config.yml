@@ -1,7 +1,8 @@
 version: 2
 jobs:
   test:
-    docker: rishabhpoddar/android-node-mysql-git
+    docker: 
+      - image: rishabhpoddar/android-node-mysql-git
     environment:
       JVM_OPTS: -Xmx3200m
     steps:
