@@ -50,4 +50,6 @@ dependencies {
     testImplementation 'com.google.code.gson:gson:2.8.5'
     testImplementation 'com.squareup.okhttp3:okhttp:4.1.0'
     testImplementation 'com.github.franmontiel:PersistentCookieJar:v1.0.1'
+    testImplementation 'com.squareup.retrofit2:retrofit:2.3.0'
+    testImplementation 'com.squareup.retrofit2:converter-gson:2.3.0'
 }
