@@ -1,16 +1,25 @@
 version: 2
 jobs:
-  run_unit_tests:
-    docker:
+  test:
+    docker: rishabhpoddar/android-node-mysql-git
     environment:
       JVM_OPTS: -Xmx3200m
     steps:
+      - run: (cd / && ./runMySQL.sh)
+      - run: mysql -u root --password=root -e "CREATE DATABASE auth_session;"
+      - run: mysql -u root --password=root -e "set global max_connections = 10000;"
       - checkout
-      - run:
-          name: Download gradle dependencies
-          command: ./gradlew androidDependencies
-      - run:
-          name: Unit tests
-          command: ./gradlew test
-      - store_test_results:
-          path: app/build/test-results
+      - run: cd supertokens-android/backend/ && npm i -d && ./node_modules/.bin/tsc -p tsconfig.json
+      - run: cd supertokens-android/backend/ && TEST_MODE=testing node build/index.js &
+      - run: cd supertokens-android/ && ./gradlew test
+
+workflows:
+  version: 2
+  tagged-build:
+    jobs:
+      - test:
+          filters:
+            branches:
+              only: 
+                - dev
+                - master
