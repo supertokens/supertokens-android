@@ -11,7 +11,9 @@ jobs:
       - run: mysql -u root --password=root -e "set global max_connections = 10000;"
       - checkout
       - run: cd backend/ && npm i -d && ./node_modules/.bin/tsc -p tsconfig.json
-      - run: cd backend/ && TEST_MODE=testing node build/index.js
+      - run: 
+          command: cd backend/ && TEST_MODE=testing node build/index.js
+          background: true
       - run: ./gradlew test
 
 workflows:
