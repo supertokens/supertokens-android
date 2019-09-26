@@ -262,6 +262,6 @@ public class SuperTokensRetrofitTest {
             failed = true;
         }
 
-        assertTrue(!failed);
+        assertTrue(failed);
     }
 }
