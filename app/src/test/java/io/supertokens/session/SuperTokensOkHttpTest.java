@@ -26,6 +26,7 @@ import java.util.concurrent.Executors;
 import java.util.logging.Handler;
 
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 @SuppressWarnings({"CatchMayIgnoreException", "FieldCanBeLocal"})
 @RunWith(MockitoJUnitRunner.class)
@@ -34,6 +35,7 @@ public class SuperTokensOkHttpTest {
     private final String refreshTokenEndpoint = testBaseURL + "refreshtoken";
     private final String testAPiURL = testBaseURL + "testing";
     private final String loginAPIURL = testBaseURL + "login";
+    private final String logoutAPIURL = testBaseURL + "logout";
     private final String resetAPIURL = testBaseURL + "testReset";
     private final String refreshCounterAPIURL = testBaseURL + "testRefreshCounter";
     private final String userInfoAPIURL = testBaseURL + "userInfo";
@@ -378,6 +380,45 @@ public class SuperTokensOkHttpTest {
                 throw new Exception("Refresh token counter value is not the same as the expected value");
             }
         } catch(Exception e) {
+            failed = true;
+        }
+
+        assertTrue(!failed);
+    }
+
+    @Test
+    public void okHttp_sessionPossiblyExistsIsFalseAfterServerClearsIdRefresh() {
+        boolean failed = false;
+        try {
+            resetAccessTokenValidity(10);
+            SuperTokens.init(application, refreshTokenEndpoint, sessionExpiryCode);
+
+            RequestBody loginReqBody = RequestBody.create(MediaType.parse("application/json; charset=utf-8"), "{}");
+            Request loginRequest = new Request.Builder()
+                    .url(loginAPIURL)
+                    .method("POST", loginReqBody)
+                    .build();
+            Response loginResponse = okHttpClient.newCall(loginRequest).execute();
+            if (loginResponse.code() != 200) {
+                throw new Exception("Error making login request");
+            }
+            loginResponse.close();
+
+            RequestBody logoutReqBody = RequestBody.create(MediaType.parse("application/json; charset=utf-8"), "{}");
+            Request logoutRequest = new Request.Builder()
+                    .url(logoutAPIURL)
+                    .method("POST", logoutReqBody)
+                    .build();
+            Response logoutResponse = okHttpClient.newCall(logoutRequest).execute();
+            if (logoutResponse.code() != 200) {
+                throw new Exception("Error making logout request");
+            }
+            logoutResponse.close();
+
+            if (SuperTokens.sessionPossiblyExists(application)) {
+                throw new Exception("Session active even after logout");
+            }
+        } catch (Exception e) {
             failed = true;
         }
 

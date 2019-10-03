@@ -11,6 +11,9 @@ public interface RetrofitTestAPIService {
     @GET("userInfo")
     Call<Void> userInfo();
 
+    @POST("logout")
+    Call<Void> logout();
+
     @POST("testReset")
     @Headers({
         "Content-Type: application/json",

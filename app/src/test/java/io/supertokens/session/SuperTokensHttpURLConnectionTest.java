@@ -34,6 +34,7 @@ public class SuperTokensHttpURLConnectionTest {
     private final String refreshTokenEndpoint = testBaseURL + "refreshtoken";
     private final String testAPiURL = testBaseURL + "testing";
     private final String loginAPIURL = testBaseURL + "login";
+    private final String logoutURL = testBaseURL + "logout";
     private final String resetAPIURL = testBaseURL + "testReset";
     private final String refreshCounterAPIURL = testBaseURL + "testRefreshCounter";
     private final String userInfoAPIURL = testBaseURL + "userInfo";
@@ -422,6 +423,48 @@ public class SuperTokensHttpURLConnectionTest {
                 throw new Exception("Refresh token counter value is not the same as the expected value");
             }
         } catch (Exception e) {
+            failed = true;
+        }
+
+        assertTrue(!failed);
+    }
+
+    @Test
+    public void httpURLConnection_sessionPossiblyExistsIsFalseAfterServerClearsIdRefresh() {
+        boolean failed = false;
+        try {
+            resetAccessTokenValidity(10);
+            SuperTokens.init(application, refreshTokenEndpoint, sessionExpiryCode);
+            CookieManager.setDefault(new CookieManager(new SuperTokensPersistentCookieStore(application), null));
+            int loginRequestCode = SuperTokensHttpURLConnection.newRequest(new URL(loginAPIURL), new SuperTokensHttpURLConnection.SuperTokensHttpURLConnectionCallback<Integer>() {
+                @Override
+                public Integer runOnConnection(HttpURLConnection con) throws IOException {
+                    con.setRequestMethod("POST");
+                    con.connect();
+                    return con.getResponseCode();
+                }
+            });
+            if ( loginRequestCode != 200 ) {
+                throw new Exception("Error making login request");
+            }
+
+            int logoutRequestCode = SuperTokensHttpURLConnection.newRequest(new URL(logoutURL), new SuperTokensHttpURLConnection.SuperTokensHttpURLConnectionCallback<Integer>() {
+                @Override
+                public Integer runOnConnection(HttpURLConnection con) throws IOException {
+                    con.setRequestMethod("POST");
+                    con.connect();
+                    return con.getResponseCode();
+                }
+            });
+
+            if (logoutRequestCode != 200) {
+                throw new Exception("Error making logout request");
+            }
+
+            if ( SuperTokens.sessionPossiblyExists(application) ) {
+                throw new Exception("Session active even after logout");
+            }
+        } catch(Exception e) {
             failed = true;
         }
 

@@ -264,4 +264,59 @@ public class SuperTokensRetrofitTest {
 
         assertTrue(!failed);
     }
+
+    @Test
+    public void retrofit_userInfoSucceedsAfterLoginWithoutCallingRefresh() {
+        boolean failed = false;
+        try {
+            resetAccessTokenValidity(3);
+            SuperTokens.init(application, refreshTokenEndpoint, sessionExpiryCode);
+
+            Response<Void> loginResponse = retrofitTestAPIService.login().execute();
+            if ( loginResponse.code() != 200 ) {
+                throw new Exception("Error making login request");
+            }
+
+            Response<Void> userInfoResponse = retrofitTestAPIService.userInfo().execute();
+            if ( userInfoResponse.code() != 200 ) {
+                throw new Exception("User info API failed even after calling refresh");
+            }
+
+            int refreshTokenCounter = getRefreshTokenCounter();
+            if ( refreshTokenCounter != 0 ) {
+                throw new Exception("Refresh token counter value is not the same as the expected value");
+            }
+        } catch(Exception e) {
+            failed = true;
+        }
+
+        assertTrue(!failed);
+    }
+
+    @Test
+    public void retrofit_sessionPossiblyExistsIsFalseAfterServerClearsIdRefresh() {
+        boolean failed = false;
+        try {
+            resetAccessTokenValidity(10);
+            SuperTokens.init(application, refreshTokenEndpoint, sessionExpiryCode);
+
+            Response<Void> loginResponse = retrofitTestAPIService.login().execute();
+            if ( loginResponse.code() != 200 ) {
+                throw new Exception("Error making login request");
+            }
+
+            Response<Void> logoutResponse = retrofitTestAPIService.logout().execute();
+            if (logoutResponse.code() != 200) {
+                throw new Exception("Error making logout request");
+            }
+
+            if ( SuperTokens.sessionPossiblyExists(application) ) {
+                throw new Exception("Session active even after logout");
+            }
+        } catch(Exception e) {
+            failed = true;
+        }
+
+        assertTrue(!failed);
+    }
 }

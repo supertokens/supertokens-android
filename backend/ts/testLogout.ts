@@ -7,6 +7,8 @@ export default async function testLogout(req: express.Request, res: express.Resp
     try {
         let session = await getSession(req, res, true);
         await session.revokeSession();
+        // Clearing set cookie from response because android Mockito cannot read httpOnlyCookies
+        res.removeHeader("Set-Cookie");
         clearSessionFromCookie(res);
         res.send("");
     } catch (err) {
