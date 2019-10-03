@@ -20,7 +20,7 @@ else
 fi
 
 # get version------------
-version=`cat app/build.gradle | grep -e "publishVersionID =" -e "publishVersionID ="`
+version=`cat app/build.gradle | grep -e "publishVersionID =" -e "publishVersionID="`
 
 while IFS="'" read -ra ADDR; do
     counter=0
