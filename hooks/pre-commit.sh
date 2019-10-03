@@ -1,7 +1,7 @@
 #!/bin/sh
 # get current version----------
 version=`cat app/build.gradle | grep -e "publishVersionID =" -e "publishVersionID="`
-while IFS='"' read -ra ADDR; do
+while IFS="'" read -ra ADDR; do
     counter=0
     for i in "${ADDR[@]}"; do
         if [ $counter == 1 ]
