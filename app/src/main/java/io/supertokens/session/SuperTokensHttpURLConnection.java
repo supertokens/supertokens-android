@@ -112,70 +112,66 @@ public class SuperTokensHttpURLConnection {
 
     private static SuperTokensUtils.Unauthorised onUnauthorisedResponse(String refreshTokenEndpoint, String preRequestIdRefreshToken, Application applicationContext) {
         // this is intentionally not put in a loop because the loop in other projects is because locking has a timeout
-        synchronized (refreshTokenLock) {
-            HttpURLConnection refreshTokenConnection = null;
-            try {
-                String postLockIdRefreshToken = IdRefreshToken.getToken(applicationContext);
-                if ( postLockIdRefreshToken == null ) {
-                    return new SuperTokensUtils.Unauthorised(SuperTokensUtils.Unauthorised.UnauthorisedStatus.SESSION_EXPIRED);
-                }
+        HttpURLConnection refreshTokenConnection = null;
+        try {
+            refreshAPILock.writeLock().lock();
+            String postLockIdRefreshToken = IdRefreshToken.getToken(applicationContext);
+            if ( postLockIdRefreshToken == null ) {
+                return new SuperTokensUtils.Unauthorised(SuperTokensUtils.Unauthorised.UnauthorisedStatus.SESSION_EXPIRED);
+            }
 
-                if ( !postLockIdRefreshToken.equals(preRequestIdRefreshToken) ) {
-                    return new SuperTokensUtils.Unauthorised(SuperTokensUtils.Unauthorised.UnauthorisedStatus.RETRY);
-                }
-                refreshAPILock.writeLock().lock();
-                try {
-                    URL refreshTokenUrl = new URL(refreshTokenEndpoint);
-                    refreshTokenConnection = (HttpURLConnection) refreshTokenUrl.openConnection();
-                    refreshTokenConnection.setRequestMethod("POST");
+            if ( !postLockIdRefreshToken.equals(preRequestIdRefreshToken) ) {
+                return new SuperTokensUtils.Unauthorised(SuperTokensUtils.Unauthorised.UnauthorisedStatus.RETRY);
+            }
 
-                    CookieManager cookieManager = (CookieManager) CookieManager.getDefault();
-                    if (cookieManager == null) {
-                        throw new IllegalAccessException("Please initialise a CookieManager.\n" +
-                                "For example: new CookieManager(new SuperTokensPersistentCookieStore(context), null).\n" +
-                                "SuperTokens provides a persistent cookie store called SuperTokensPersistentCookieStore.\n" +
-                                "For more information visit our documentation.");
-                    }
-                    refreshTokenConnection.connect();
+            URL refreshTokenUrl = new URL(refreshTokenEndpoint);
+            refreshTokenConnection = (HttpURLConnection) refreshTokenUrl.openConnection();
+            refreshTokenConnection.setRequestMethod("POST");
 
-                    List<String> cookies = refreshTokenConnection.getHeaderFields().get(applicationContext.getString(R.string.supertokensSetCookieHeaderKey));
-                    SuperTokensResponseCookieHandler.saveIdRefreshFromSetCookieHttpUrlConnection(applicationContext, cookies, refreshTokenConnection, cookieManager);
+            CookieManager cookieManager = (CookieManager) CookieManager.getDefault();
+            if (cookieManager == null) {
+                throw new IllegalAccessException("Please initialise a CookieManager.\n" +
+                        "For example: new CookieManager(new SuperTokensPersistentCookieStore(context), null).\n" +
+                        "SuperTokens provides a persistent cookie store called SuperTokensPersistentCookieStore.\n" +
+                        "For more information visit our documentation.");
+            }
+            refreshTokenConnection.connect();
 
-                    if (refreshTokenConnection.getResponseCode() != 200) {
-                        throw new IOException(refreshTokenConnection.getResponseMessage());
-                    }
+            List<String> cookies = refreshTokenConnection.getHeaderFields().get(applicationContext.getString(R.string.supertokensSetCookieHeaderKey));
+            SuperTokensResponseCookieHandler.saveIdRefreshFromSetCookieHttpUrlConnection(applicationContext, cookies, refreshTokenConnection, cookieManager);
 
-                    String idRefreshAfterResponse = IdRefreshToken.getToken(applicationContext);
-                    if (idRefreshAfterResponse == null) {
-                        // removed by server
-                        return new SuperTokensUtils.Unauthorised(SuperTokensUtils.Unauthorised.UnauthorisedStatus.SESSION_EXPIRED);
-                    }
+            if (refreshTokenConnection.getResponseCode() != 200) {
+                throw new IOException(refreshTokenConnection.getResponseMessage());
+            }
 
-                    String responseAntiCSRFToken = refreshTokenConnection.getHeaderField(applicationContext.getString(R.string.supertokensAntiCSRFHeaderKey));
-                    if (responseAntiCSRFToken != null) {
-                        AntiCSRF.setToken(applicationContext, IdRefreshToken.getToken(applicationContext), responseAntiCSRFToken);
-                    }
+            String idRefreshAfterResponse = IdRefreshToken.getToken(applicationContext);
+            if (idRefreshAfterResponse == null) {
+                // removed by server
+                return new SuperTokensUtils.Unauthorised(SuperTokensUtils.Unauthorised.UnauthorisedStatus.SESSION_EXPIRED);
+            }
 
-                    return new SuperTokensUtils.Unauthorised(SuperTokensUtils.Unauthorised.UnauthorisedStatus.RETRY);
-                } finally {
-                    refreshAPILock.writeLock().unlock();
-                }
-            } catch (Exception e) {
-                IOException ioe = new IOException(e);
-                if (e instanceof IOException) {
-                    ioe = (IOException) e;
-                }
-                String idRefreshToken = IdRefreshToken.getToken(applicationContext);
-                if ( idRefreshToken == null ) {
-                    return new SuperTokensUtils.Unauthorised(SuperTokensUtils.Unauthorised.UnauthorisedStatus.SESSION_EXPIRED);
-                }
+            String responseAntiCSRFToken = refreshTokenConnection.getHeaderField(applicationContext.getString(R.string.supertokensAntiCSRFHeaderKey));
+            if (responseAntiCSRFToken != null) {
+                AntiCSRF.setToken(applicationContext, IdRefreshToken.getToken(applicationContext), responseAntiCSRFToken);
+            }
 
-                return new SuperTokensUtils.Unauthorised(SuperTokensUtils.Unauthorised.UnauthorisedStatus.API_ERROR, ioe);
+            return new SuperTokensUtils.Unauthorised(SuperTokensUtils.Unauthorised.UnauthorisedStatus.RETRY);
+        } catch (Exception e) {
+            IOException ioe = new IOException(e);
+            if (e instanceof IOException) {
+                ioe = (IOException) e;
+            }
+            String idRefreshToken = IdRefreshToken.getToken(applicationContext);
+            if ( idRefreshToken == null ) {
+                return new SuperTokensUtils.Unauthorised(SuperTokensUtils.Unauthorised.UnauthorisedStatus.SESSION_EXPIRED);
+            }
 
-            } finally {
-                if ( refreshTokenConnection != null ) {
-                    refreshTokenConnection.disconnect();
-                }
+            return new SuperTokensUtils.Unauthorised(SuperTokensUtils.Unauthorised.UnauthorisedStatus.API_ERROR, ioe);
+
+        } finally {
+            refreshAPILock.writeLock().unlock();
+            if ( refreshTokenConnection != null ) {
+                refreshTokenConnection.disconnect();
             }
         }
     }
