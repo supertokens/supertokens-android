@@ -71,7 +71,7 @@ public class SuperTokensInterceptor implements Interceptor {
                 if ( response.code() == SuperTokens.sessionExpiryStatusCode ) {
                     // Cloning the response object, if retry is false then we return this
                     Response clonedResponse = new Response.Builder()
-                            .body(response.body())
+                            .body(response.peekBody(Long.MAX_VALUE))
                             .cacheResponse(response.cacheResponse())
                             .code(response.code())
                             .handshake(response.handshake())
