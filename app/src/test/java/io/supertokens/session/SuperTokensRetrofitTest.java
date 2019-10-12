@@ -229,6 +229,7 @@ public class SuperTokensRetrofitTest {
                                 runnableResults.add(true);
                             }
                         } catch (Exception e) {
+                            e.printStackTrace();
                             synchronized (lock) {
                                 runnableResults.add(false);
                             }
@@ -259,6 +260,7 @@ public class SuperTokensRetrofitTest {
                 throw new Exception("Refresh token counter value is not the same as the expected value");
             }
         } catch(Exception e) {
+            e.printStackTrace();
             failed = true;
         }
 
@@ -314,6 +316,61 @@ public class SuperTokensRetrofitTest {
                 throw new Exception("Session active even after logout");
             }
         } catch(Exception e) {
+            failed = true;
+        }
+
+        assertTrue(!failed);
+    }
+
+    @Test
+    public void retrofit_apisWithoutAuthSucceedAfterLogout() {
+        boolean failed = false;
+        try {
+            resetAccessTokenValidity(10);
+            SuperTokens.init(application, refreshTokenEndpoint, sessionExpiryCode);
+            Response<Void> loginResponse = retrofitTestAPIService.login().execute();
+            if ( loginResponse.code() != 200 ) {
+                throw new Exception("Error making login request");
+            }
+
+            Response<Void> logoutResponse = retrofitTestAPIService.logout().execute();
+            if (logoutResponse.code() != 200) {
+                throw new Exception("Error making logout request");
+            }
+
+            Response<GetRefreshCounterResponse> refreshCounterResponse = retrofitTestAPIService.refreshCounter().execute();
+            if (refreshCounterResponse.code() != 200) {
+                throw new Exception("Manual call to refresh counter returned status code: " + refreshCounterResponse.code());
+            }
+        } catch (Exception e) {
+            failed = true;
+        }
+
+        assertTrue(!failed);
+    }
+
+    @Test
+    public void retrofit_userInfoAfterLogoutReturnsSessionExpired() {
+        boolean failed = false;
+        try {
+            resetAccessTokenValidity(10);
+            SuperTokens.init(application, refreshTokenEndpoint, sessionExpiryCode);
+            Response<Void> loginResponse = retrofitTestAPIService.login().execute();
+            if ( loginResponse.code() != 200 ) {
+                throw new Exception("Error making login request");
+            }
+
+            Response<Void> logoutResponse = retrofitTestAPIService.logout().execute();
+            if (logoutResponse.code() != 200) {
+                throw new Exception("Error making logout request");
+            }
+
+            Response<Void> userInfoResponse = retrofitTestAPIService.userInfo().execute();
+            if (userInfoResponse.code() != sessionExpiryCode) {
+                throw new Exception("User info did not return session expiry");
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
             failed = true;
         }
 

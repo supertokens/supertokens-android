@@ -69,10 +69,25 @@ public class SuperTokensInterceptor implements Interceptor {
                 }
 
                 if ( response.code() == SuperTokens.sessionExpiryStatusCode ) {
+                    // Cloning the response object, if retry is false then we return this
+                    Response clonedResponse = new Response.Builder()
+                            .body(response.body())
+                            .cacheResponse(response.cacheResponse())
+                            .code(response.code())
+                            .handshake(response.handshake())
+                            .headers(response.headers())
+                            .message(response.message())
+                            .networkResponse(response.networkResponse())
+                            .priorResponse(response.priorResponse())
+                            .protocol(response.protocol())
+                            .receivedResponseAtMillis(response.receivedResponseAtMillis())
+                            .request(response.request())
+                            .sentRequestAtMillis(response.sentRequestAtMillis())
+                            .build();
                     response.close();
                     Boolean retry = handleUnauthorised(applicationContext, preRequestIdRefreshToken, chain, null);
                     if ( !retry ) {
-                        return response;
+                        return clonedResponse;
                     }
                 } else {
                     String antiCSRF = response.header(applicationContext.getString(R.string.supertokensAntiCSRFHeaderKey));

@@ -509,7 +509,6 @@ public class SuperTokensOkHttpTest {
             }
             userInfoResponse.close();
         } catch (Exception e) {
-            e.printStackTrace();
             failed = true;
         }
 
