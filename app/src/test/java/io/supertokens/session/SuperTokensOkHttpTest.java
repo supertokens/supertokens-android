@@ -26,14 +26,12 @@ import java.util.concurrent.Executors;
 import java.util.logging.Handler;
 
 import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
 
-@SuppressWarnings({"CatchMayIgnoreException", "FieldCanBeLocal"})
+@SuppressWarnings({"CatchMayIgnoreException", "FieldCanBeLocal", "deprecation"})
 @RunWith(MockitoJUnitRunner.class)
 public class SuperTokensOkHttpTest {
     private final String testBaseURL = "http://127.0.0.1:8080/api/";
     private final String refreshTokenEndpoint = testBaseURL + "refreshtoken";
-    private final String testAPiURL = testBaseURL + "testing";
     private final String loginAPIURL = testBaseURL + "login";
     private final String logoutAPIURL = testBaseURL + "logout";
     private final String resetAPIURL = testBaseURL + "testReset";
@@ -92,6 +90,7 @@ public class SuperTokensOkHttpTest {
         }
     }
 
+    @SuppressWarnings("ConstantConditions")
     private int getRefreshTokenCounter() throws IOException {
         OkHttpClient refreshTokenCounterClient = new OkHttpClient.Builder().build();
         Request request = new Request.Builder()
@@ -271,6 +270,7 @@ public class SuperTokensOkHttpTest {
         assertTrue(!failed);
     }
 
+    @SuppressWarnings("ConditionalBreakInInfiniteLoop")
     @Test
     public void okHttp_refreshShouldBeCalledOnlyOnceForMultipleThreads() {
         boolean failed = false;
@@ -296,7 +296,6 @@ public class SuperTokensOkHttpTest {
             final Object lock = new Object();
 
             for(int i = 0; i < runnableCount; i++) {
-                final int position = i;
                 runnables.add(new Runnable() {
                     @Override
                     public void run() {
@@ -419,6 +418,98 @@ public class SuperTokensOkHttpTest {
                 throw new Exception("Session active even after logout");
             }
         } catch (Exception e) {
+            failed = true;
+        }
+
+        assertTrue(!failed);
+    }
+
+    @Test
+    public void okHttp_apisWithoutAuthSucceedAfterLogout() {
+        boolean failed = false;
+        try {
+            resetAccessTokenValidity(10);
+            SuperTokens.init(application, refreshTokenEndpoint, sessionExpiryCode);
+
+            RequestBody loginReqBody = RequestBody.create(MediaType.parse("application/json; charset=utf-8"), "{}");
+            Request loginRequest = new Request.Builder()
+                    .url(loginAPIURL)
+                    .method("POST", loginReqBody)
+                    .build();
+            Response loginResponse = okHttpClient.newCall(loginRequest).execute();
+            if (loginResponse.code() != 200) {
+                throw new Exception("Error making login request");
+            }
+            loginResponse.close();
+
+            RequestBody logoutReqBody = RequestBody.create(MediaType.parse("application/json; charset=utf-8"), "{}");
+            Request logoutRequest = new Request.Builder()
+                    .url(logoutAPIURL)
+                    .method("POST", logoutReqBody)
+                    .build();
+            Response logoutResponse = okHttpClient.newCall(logoutRequest).execute();
+            if (logoutResponse.code() != 200) {
+                throw new Exception("Error making logout request");
+            }
+            logoutResponse.close();
+
+            Request refreshCounterRequest = new Request.Builder()
+                    .url(new URL(refreshCounterAPIURL))
+                    .build();
+            Response refreshCounterResponse = okHttpClient.newCall(refreshCounterRequest).execute();
+
+            if (refreshCounterResponse.code() != 200) {
+                throw new Exception("Manual call to refresh counter returned status code: " + refreshCounterResponse.code());
+            }
+
+            refreshCounterResponse.close();
+        } catch (Exception e) {
+            failed = true;
+        }
+
+        assertTrue(!failed);
+    }
+
+    @Test
+    public void okHttp_userInfoAfterLogoutReturnsSessionExpired() {
+        boolean failed = false;
+        try {
+            resetAccessTokenValidity(10);
+            SuperTokens.init(application, refreshTokenEndpoint, sessionExpiryCode);
+
+            RequestBody loginReqBody = RequestBody.create(MediaType.parse("application/json; charset=utf-8"), "{}");
+            Request loginRequest = new Request.Builder()
+                    .url(loginAPIURL)
+                    .method("POST", loginReqBody)
+                    .build();
+            Response loginResponse = okHttpClient.newCall(loginRequest).execute();
+            if (loginResponse.code() != 200) {
+                throw new Exception("Error making login request");
+            }
+            loginResponse.close();
+
+            RequestBody logoutReqBody = RequestBody.create(MediaType.parse("application/json; charset=utf-8"), "{}");
+            Request logoutRequest = new Request.Builder()
+                    .url(logoutAPIURL)
+                    .method("POST", logoutReqBody)
+                    .build();
+            Response logoutResponse = okHttpClient.newCall(logoutRequest).execute();
+            if (logoutResponse.code() != 200) {
+                throw new Exception("Error making logout request");
+            }
+            logoutResponse.close();
+
+            Request userInfoRequest = new Request.Builder()
+                    .url(userInfoAPIURL)
+                    .build();
+
+            Response userInfoResponse = okHttpClient.newCall(userInfoRequest).execute();
+            if ( userInfoResponse.code() != sessionExpiryCode ) {
+                throw new Exception("User info did not return session expiry");
+            }
+            userInfoResponse.close();
+        } catch (Exception e) {
+            e.printStackTrace();
             failed = true;
         }
 

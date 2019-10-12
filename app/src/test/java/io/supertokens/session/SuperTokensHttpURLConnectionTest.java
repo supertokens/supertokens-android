@@ -502,26 +502,16 @@ public class SuperTokensHttpURLConnectionTest {
                 throw new Exception("Error making logout request");
             }
 
-            SuperTokensHttpURLConnection.newRequest(new URL(refreshCounterAPIURL), new SuperTokensHttpURLConnection.SuperTokensHttpURLConnectionCallback<Integer>() {
+            SuperTokensHttpURLConnection.newRequest(new URL(refreshCounterAPIURL), new SuperTokensHttpURLConnection.SuperTokensHttpURLConnectionCallback<Void>() {
 
                 @Override
-                public Integer runOnConnection(HttpURLConnection con) throws IOException {
+                public Void runOnConnection(HttpURLConnection con) throws IOException {
                     int responseCode = con.getResponseCode();
                     if (responseCode != 200) {
                         throw new IOException("Manual call to refresh counter returned status code: " + responseCode);
                     }
 
-                    BufferedReader reader = new BufferedReader(new InputStreamReader(con.getInputStream()));
-                    StringBuilder builder = new StringBuilder();
-                    String line = reader.readLine();
-                    while (line != null) {
-                        builder.append(line).append("\n");
-                        line = reader.readLine();
-                    }
-
-                    reader.close();
-                    UserInfoResponse response = new Gson().fromJson(builder.toString(), UserInfoResponse.class);
-                    return response.counter;
+                    return null;
                 }
             });
         } catch(Exception e) {
