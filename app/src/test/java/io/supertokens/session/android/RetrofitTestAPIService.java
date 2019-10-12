@@ -23,4 +23,7 @@ public interface RetrofitTestAPIService {
 
     @GET("testRefreshCounter")
     Call<SuperTokensRetrofitTest.GetRefreshCounterResponse> refreshCounter();
+
+    @GET("testHeader")
+    Call<SuperTokensRetrofitTest.HeaderTestResponse> testHeader(@Header("st-custom-header") String header);
 }

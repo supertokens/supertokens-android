@@ -53,6 +53,10 @@ public class SuperTokensRetrofitTest {
         int counter;
     }
 
+    public class HeaderTestResponse {
+        boolean success;
+    }
+
     @Before
     public void beforeAll() {
         SuperTokens.isInitCalled = false;
@@ -67,6 +71,8 @@ public class SuperTokensRetrofitTest {
         Mockito.when(application.getString(R.string.supertokensSetCookieHeaderKey)).thenReturn("Set-Cookie");
         Mockito.when(application.getString(R.string.supertokensAntiCSRFHeaderKey)).thenReturn("anti-csrf");
         Mockito.when(application.getString(R.string.supertokensIdRefreshCookieKey)).thenReturn("sIdRefreshToken");
+        Mockito.when(application.getString(R.string.supertokensNameHeaderKey)).thenReturn("supertokens-sdk-name");
+        Mockito.when(application.getString(R.string.supertokensVersionHeaderKey)).thenReturn("supertokens-sdk-version");
         OkHttpClient.Builder clientBuilder = new OkHttpClient.Builder();
         clientBuilder.interceptors().add(new SuperTokensInterceptor());
         clientBuilder.cookieJar(new PersistentCookieJar(new SetCookieCache(), new SharedPrefsCookiePersistor(context)));
@@ -229,7 +235,6 @@ public class SuperTokensRetrofitTest {
                                 runnableResults.add(true);
                             }
                         } catch (Exception e) {
-                            e.printStackTrace();
                             synchronized (lock) {
                                 runnableResults.add(false);
                             }
@@ -260,7 +265,6 @@ public class SuperTokensRetrofitTest {
                 throw new Exception("Refresh token counter value is not the same as the expected value");
             }
         } catch(Exception e) {
-            e.printStackTrace();
             failed = true;
         }
 
@@ -370,7 +374,33 @@ public class SuperTokensRetrofitTest {
                 throw new Exception("User info did not return session expiry");
             }
         } catch (Exception e) {
-            e.printStackTrace();
+            failed = true;
+        }
+
+        assertTrue(!failed);
+    }
+
+    @Test
+    public void retrofit_testThatCustomHeadersAreSent() {
+        boolean failed = false;
+        try {
+            resetAccessTokenValidity(10);
+            SuperTokens.init(application, refreshTokenEndpoint, sessionExpiryCode);
+
+            Response<HeaderTestResponse> response = retrofitTestAPIService.testHeader("st").execute();
+            if (response.code() != 200) {
+                throw new IOException("testHeader API failed");
+            }
+
+            HeaderTestResponse headerTestResponse = response.body();
+            if (headerTestResponse == null) {
+                throw new Exception("testHeaderAPI returned with invalid response");
+            }
+
+            if (!headerTestResponse.success) {
+                throw new Exception("testHeader API returned false");
+            }
+        } catch (Exception e) {
             failed = true;
         }
 

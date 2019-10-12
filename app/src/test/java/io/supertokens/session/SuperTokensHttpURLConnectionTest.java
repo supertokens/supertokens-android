@@ -38,6 +38,7 @@ public class SuperTokensHttpURLConnectionTest {
     private final String resetAPIURL = testBaseURL + "testReset";
     private final String refreshCounterAPIURL = testBaseURL + "testRefreshCounter";
     private final String userInfoAPIURL = testBaseURL + "userInfo";
+    private final String testHeaderAPIURL = testBaseURL + "testHeader";
 
     private final int sessionExpiryCode = 440;
     private static MockSharedPrefs mockSharedPrefs;
@@ -47,6 +48,10 @@ public class SuperTokensHttpURLConnectionTest {
 
     class UserInfoResponse {
         int counter;
+    }
+
+    class HeaderTestResponse {
+        boolean success;
     }
 
     @Mock
@@ -68,6 +73,8 @@ public class SuperTokensHttpURLConnectionTest {
         Mockito.when(application.getString(R.string.supertokensSetCookieHeaderKey)).thenReturn("Set-Cookie");
         Mockito.when(application.getString(R.string.supertokensAntiCSRFHeaderKey)).thenReturn("anti-csrf");
         Mockito.when(application.getString(R.string.supertokensIdRefreshCookieKey)).thenReturn("sIdRefreshToken");
+        Mockito.when(application.getString(R.string.supertokensNameHeaderKey)).thenReturn("supertokens-sdk-name");
+        Mockito.when(application.getString(R.string.supertokensVersionHeaderKey)).thenReturn("supertokens-sdk-version");
     }
 
     private void resetAccessTokenValidity(int lifetime) throws IOException {
@@ -562,6 +569,48 @@ public class SuperTokensHttpURLConnectionTest {
 
             if (userInfoRequestCode != sessionExpiryCode) {
                 throw new Exception("User info did not return session expiry");
+            }
+        } catch (Exception e) {
+            failed = true;
+        }
+
+        assertTrue(!failed);
+    }
+
+    @Test
+    public void httpURLConnection_testThatCustomHeadersAreSent() {
+        boolean failed = false;
+        try {
+            resetAccessTokenValidity(10);
+            SuperTokens.init(application, refreshTokenEndpoint, sessionExpiryCode);
+            CookieManager.setDefault(new CookieManager(new SuperTokensPersistentCookieStore(application), null));
+            HeaderTestResponse headerTestResponse = SuperTokensHttpURLConnection.newRequest(new URL(testHeaderAPIURL), new SuperTokensHttpURLConnection.SuperTokensHttpURLConnectionCallback<HeaderTestResponse>() {
+                @Override
+                public HeaderTestResponse runOnConnection(HttpURLConnection con) throws IOException {
+                    con.setRequestProperty("st-custom-header", "st");
+                    con.connect();
+
+                    if(con.getResponseCode() != 200) {
+                        throw new IOException("testHeader API failed");
+                    }
+
+                    BufferedReader reader = new BufferedReader(new InputStreamReader(con.getInputStream()));
+                    StringBuilder builder = new StringBuilder();
+                    String line = reader.readLine();
+                    while (line != null) {
+                        builder.append(line).append("\n");
+                        line = reader.readLine();
+                    }
+
+                    reader.close();
+
+                    HeaderTestResponse response = new Gson().fromJson(builder.toString(), HeaderTestResponse.class);
+                    return response;
+                }
+            });
+
+            if (!headerTestResponse.success) {
+                throw new Exception("testHeader API returned false");
             }
         } catch (Exception e) {
             failed = true;

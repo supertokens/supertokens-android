@@ -43,6 +43,10 @@ public class SuperTokensHttpURLConnection {
                             connection.setRequestProperty(applicationContext.getString(R.string.supertokensAntiCSRFHeaderKey), antiCSRFToken);
                         }
 
+                        // Add package information to headers
+                        connection.setRequestProperty(applicationContext.getString(R.string.supertokensNameHeaderKey), SuperTokensUtils.PACKAGE_PLATFORM);
+                        connection.setRequestProperty(applicationContext.getString(R.string.supertokensVersionHeaderKey), BuildConfig.VERSION_NAME);
+
                         // Get the default cookie manager that is used, if null set a new one
                         CookieManager cookieManager = (CookieManager) CookieManager.getDefault();
                         if (cookieManager == null) {
@@ -127,6 +131,10 @@ public class SuperTokensHttpURLConnection {
             URL refreshTokenUrl = new URL(refreshTokenEndpoint);
             refreshTokenConnection = (HttpURLConnection) refreshTokenUrl.openConnection();
             refreshTokenConnection.setRequestMethod("POST");
+
+            // Add package information to headers
+            refreshTokenConnection.setRequestProperty(applicationContext.getString(R.string.supertokensNameHeaderKey), SuperTokensUtils.PACKAGE_PLATFORM);
+            refreshTokenConnection.setRequestProperty(applicationContext.getString(R.string.supertokensVersionHeaderKey), BuildConfig.VERSION_NAME);
 
             CookieManager cookieManager = (CookieManager) CookieManager.getDefault();
             if (cookieManager == null) {

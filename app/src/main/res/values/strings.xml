@@ -10,4 +10,6 @@
     <string name="superTokensCookieNameStoreKey">supertokens-cookie-names</string>
     <string name="supertokensUsageModeOkhttp">supertokens-usage-okhttp</string>
     <string name="supertokensUsageModeURLConn">supertokens-usage-httpurlconnection</string>
+    <string name="supertokensNameHeaderKey">supertokens-sdk-name</string>
+    <string name="supertokensVersionHeaderKey">supertokens-sdk-version</string>
 </resources>

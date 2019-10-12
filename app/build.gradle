@@ -4,11 +4,12 @@ apply plugin: 'com.novoda.bintray-release'
 
 apply plugin: 'com.android.library'
 
+def publishVersionID = '0.1.11'
+
 publish {
 
     def groupProjectID = 'io.supertokens'
     def artifactProjectID = 'session'
-    def publishVersionID = '0.1.11'
 
     userOrg = 'supertokens'
     repoName = 'SuperTokensAndroid'
@@ -26,7 +27,7 @@ android {
         minSdkVersion 22
         targetSdkVersion 28
         versionCode 1
-        versionName "1.0"
+        versionName publishVersionID
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
     buildTypes {

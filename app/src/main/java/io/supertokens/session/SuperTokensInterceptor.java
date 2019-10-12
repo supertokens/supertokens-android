@@ -60,6 +60,10 @@ public class SuperTokensInterceptor implements Interceptor {
                         requestBuilder.header(applicationContext.getString(R.string.supertokensAntiCSRFHeaderKey), antiCSRFToken);
                     }
 
+                    // Add package information to headers
+                    requestBuilder.header(applicationContext.getString(R.string.supertokensNameHeaderKey), SuperTokensUtils.PACKAGE_PLATFORM);
+                    requestBuilder.header(applicationContext.getString(R.string.supertokensVersionHeaderKey), BuildConfig.VERSION_NAME);
+
                     Request request = requestBuilder.build();
                     response =  makeRequest(chain, request);
                     List<String> setCookie = response.headers(applicationContext.getString(R.string.supertokensSetCookieHeaderKey));
@@ -143,6 +147,10 @@ public class SuperTokensInterceptor implements Interceptor {
             Request.Builder refreshRequestBuilder = new Request.Builder();
             refreshRequestBuilder.url(refreshTokenUrl);
             refreshRequestBuilder.method("POST", new FormBody.Builder().build());
+
+            // Add package information to headers
+            refreshRequestBuilder.header(applicationContext.getString(R.string.supertokensNameHeaderKey), SuperTokensUtils.PACKAGE_PLATFORM);
+            refreshRequestBuilder.header(applicationContext.getString(R.string.supertokensVersionHeaderKey), BuildConfig.VERSION_NAME);
 
             Request refreshRequest = refreshRequestBuilder.build();
             if ( client != null ) {
