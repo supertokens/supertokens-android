@@ -27,7 +27,7 @@ import java.util.logging.Handler;
 
 import static org.junit.Assert.assertTrue;
 
-@SuppressWarnings({"CatchMayIgnoreException", "FieldCanBeLocal", "StatementWithEmptyBody", "SingleStatementInBlock"})
+@SuppressWarnings({"CatchMayIgnoreException", "FieldCanBeLocal", "SingleStatementInBlock"})
 @RunWith(MockitoJUnitRunner.class)
 public class SuperTokensHttpURLConnectionTest {
     private final String testBaseURL = "http://127.0.0.1:8080/api/";
@@ -305,6 +305,7 @@ public class SuperTokensHttpURLConnectionTest {
         assertTrue(!failed);
     }
 
+    @SuppressWarnings("ConditionalBreakInInfiniteLoop")
     @Test
     public void httpURLConnection_refreshShouldBeCalledOnlyOnceForMultipleThreads() {
         boolean failed = false;
@@ -330,7 +331,6 @@ public class SuperTokensHttpURLConnectionTest {
             int runnableCount = 100;
             final Object lock = new Object();
             for(int i = 0; i < runnableCount; i++) {
-                final int position = i;
                 runnables.add(new Runnable() {
                     @Override
                     public void run() {
@@ -340,7 +340,6 @@ public class SuperTokensHttpURLConnectionTest {
                                 public Integer runOnConnection(HttpURLConnection con) throws IOException {
                                     con.setRequestMethod("GET");
                                     con.connect();
-                                    int responseCode = con.getResponseCode();
                                     return con.getResponseCode();
                                 }
                             });
@@ -465,6 +464,116 @@ public class SuperTokensHttpURLConnectionTest {
                 throw new Exception("Session active even after logout");
             }
         } catch(Exception e) {
+            failed = true;
+        }
+
+        assertTrue(!failed);
+    }
+
+    @Test
+    public void httpURLConnection_apisWithoutAuthSucceedAfterLogout() {
+        boolean failed = false;
+        try {
+            resetAccessTokenValidity(10);
+            SuperTokens.init(application, refreshTokenEndpoint, sessionExpiryCode);
+            CookieManager.setDefault(new CookieManager(new SuperTokensPersistentCookieStore(application), null));
+            int loginRequestCode = SuperTokensHttpURLConnection.newRequest(new URL(loginAPIURL), new SuperTokensHttpURLConnection.SuperTokensHttpURLConnectionCallback<Integer>() {
+                @Override
+                public Integer runOnConnection(HttpURLConnection con) throws IOException {
+                    con.setRequestMethod("POST");
+                    con.connect();
+                    return con.getResponseCode();
+                }
+            });
+            if ( loginRequestCode != 200 ) {
+                throw new Exception("Error making login request");
+            }
+
+            int logoutRequestCode = SuperTokensHttpURLConnection.newRequest(new URL(logoutURL), new SuperTokensHttpURLConnection.SuperTokensHttpURLConnectionCallback<Integer>() {
+                @Override
+                public Integer runOnConnection(HttpURLConnection con) throws IOException {
+                    con.setRequestMethod("POST");
+                    con.connect();
+                    return con.getResponseCode();
+                }
+            });
+
+            if (logoutRequestCode != 200) {
+                throw new Exception("Error making logout request");
+            }
+
+            SuperTokensHttpURLConnection.newRequest(new URL(refreshCounterAPIURL), new SuperTokensHttpURLConnection.SuperTokensHttpURLConnectionCallback<Integer>() {
+
+                @Override
+                public Integer runOnConnection(HttpURLConnection con) throws IOException {
+                    int responseCode = con.getResponseCode();
+                    if (responseCode != 200) {
+                        throw new IOException("Manual call to refresh counter returned status code: " + responseCode);
+                    }
+
+                    BufferedReader reader = new BufferedReader(new InputStreamReader(con.getInputStream()));
+                    StringBuilder builder = new StringBuilder();
+                    String line = reader.readLine();
+                    while (line != null) {
+                        builder.append(line).append("\n");
+                        line = reader.readLine();
+                    }
+
+                    reader.close();
+                    UserInfoResponse response = new Gson().fromJson(builder.toString(), UserInfoResponse.class);
+                    return response.counter;
+                }
+            });
+        } catch(Exception e) {
+            failed = true;
+        }
+
+        assertTrue(!failed);
+    }
+
+    @Test
+    public void httpURLConnection_userInfoAfterLogoutReturnsSessionExpired() {
+        boolean failed = false;
+        try {
+            resetAccessTokenValidity(10);
+            SuperTokens.init(application, refreshTokenEndpoint, sessionExpiryCode);
+            CookieManager.setDefault(new CookieManager(new SuperTokensPersistentCookieStore(application), null));
+            int loginRequestCode = SuperTokensHttpURLConnection.newRequest(new URL(loginAPIURL), new SuperTokensHttpURLConnection.SuperTokensHttpURLConnectionCallback<Integer>() {
+                @Override
+                public Integer runOnConnection(HttpURLConnection con) throws IOException {
+                    con.setRequestMethod("POST");
+                    con.connect();
+                    return con.getResponseCode();
+                }
+            });
+            if ( loginRequestCode != 200 ) {
+                throw new Exception("Error making login request");
+            }
+
+            int logoutRequestCode = SuperTokensHttpURLConnection.newRequest(new URL(logoutURL), new SuperTokensHttpURLConnection.SuperTokensHttpURLConnectionCallback<Integer>() {
+                @Override
+                public Integer runOnConnection(HttpURLConnection con) throws IOException {
+                    con.setRequestMethod("POST");
+                    con.connect();
+                    return con.getResponseCode();
+                }
+            });
+
+            if (logoutRequestCode != 200) {
+                throw new Exception("Error making logout request");
+            }
+
+            int userInfoRequestCode = SuperTokensHttpURLConnection.newRequest(new URL(userInfoAPIURL), new SuperTokensHttpURLConnection.SuperTokensHttpURLConnectionCallback<Integer>() {
+                @Override
+                public Integer runOnConnection(HttpURLConnection con) throws IOException {
+                    return con.getResponseCode();
+                }
+            });
+
+            if (userInfoRequestCode != sessionExpiryCode) {
+                throw new Exception("User info did not return session expiry");
+            }
+        } catch (Exception e) {
             failed = true;
         }
 
