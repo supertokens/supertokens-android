@@ -16,3 +16,5 @@ backend/build
 node_modules
 .settings
 .vscode/
+apiPassword
+releasePassword
