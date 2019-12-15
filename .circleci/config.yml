@@ -12,8 +12,9 @@ jobs:
     environment:
       JVM_OPTS: -Xmx3200m
     steps:
-      - run: update-java-alternatives -s /usr/java/jdk-12.0.2/
-      - run: export JAVA_HOME=/usr/java/jdk-12.0.2/
+      - run: mv -r /usr/java/jdk-12.0.2 /usr/lib/jvm/
+      - run: update-java-alternatives -s jdk-12.0.2/
+      - run: export JAVA_HOME=/usr/lib/jvm/jdk-12.0.2/
       - run: export PATH=$PATH:$JAVA_HOME
       - checkout
       - run: (cd / && ./runMySQL.sh)
