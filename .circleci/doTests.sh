@@ -4,8 +4,8 @@ frontendDriverArray=`echo $frontendDriverJson | jq ".versions"`
 echo "got frontend driver relations"
 
 # get sdk version
-version=`cat ../SuperTokensSession.podspec | grep -e "spec.version      =" -e "spec.version="`
-while IFS='"' read -ra ADDR; do
+version=`cat ../app/build.gradle | grep -e "publishVersionID =" -e "publishVersionID="`
+while IFS="'" read -ra ADDR; do
     counter=0
     for i in "${ADDR[@]}"; do
         if [ $counter == 1 ]
