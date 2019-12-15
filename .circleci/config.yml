@@ -12,8 +12,7 @@ jobs:
     environment:
       JVM_OPTS: -Xmx3200m
     steps:
-      - run: update-alternatives --config java
-      - run: update-java-alternatives -s jdk-12.0.2
+      - run: update-java-alternatives -s /usr/java/jdk-12.0.2/
       - run: export JAVA_HOME=/usr/java/jdk-12.0.2/
       - run: export PATH=$PATH:$JAVA_HOME
       - checkout
