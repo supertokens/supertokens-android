@@ -12,17 +12,6 @@ jobs:
     environment:
       JVM_OPTS: -Xmx3200m
     steps:
-      - run: echo 'JAVA_HOME=/usr/java/jdk-12.0.2' >> /etc/profile
-      - run: echo $JAVA_HOME
-      - run: echo 'PATH=$PATH:$HOME/bin:$JAVA_HOME/bin' >> /etc/profile
-      - run: echo 'export JAVA_HOME' >> /etc/profile
-      - run: echo 'export JRE_HOME' >> /etc/profile
-      - run: echo 'export PATH' >> /etc/profile
-      - run: update-alternatives --install "/usr/bin/java" "java" "/usr/java/jdk-12.0.2/bin/java" 1
-      - run: update-alternatives --install "/usr/bin/javac" "javac" "/usr/java/jdk-12.0.2/bin/javac" 1
-      - run: source /etc/profile
-      - run: echo $JAVA_HOME
-      - run: java -version
       - checkout
       - run: (cd / && ./runMySQL.sh)
       - run: mysql -u root --password=root -e "CREATE DATABASE auth_session;"
