@@ -1,11 +1,86 @@
 package io.supertokens.session;
 
+import android.app.Application;
+import android.content.Context;
+import android.os.Looper;
+import android.text.TextUtils;
+import com.franmontiel.persistentcookiejar.PersistentCookieJar;
+import com.franmontiel.persistentcookiejar.cache.SetCookieCache;
+import com.franmontiel.persistentcookiejar.persistence.SharedPrefsCookiePersistor;
+import io.supertokens.session.android.MockSharedPrefs;
+import okhttp3.OkHttpClient;
+import org.junit.AfterClass;
+import org.junit.Before;
+import org.junit.BeforeClass;
+import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.mockito.Mock;
+import org.mockito.Mockito;
 import org.mockito.runners.MockitoJUnitRunner;
+
+import java.io.File;
+import java.util.logging.Handler;
 
 @SuppressWarnings({"CatchMayIgnoreException", "FieldCanBeLocal", "SingleStatementInBlock"})
 @RunWith(MockitoJUnitRunner.class)
 public class SuperTokensHttpURLConnectionTest {
+    private final String testBaseURL = "http://127.0.0.1:8080/";
+    private final String refreshTokenEndpoint = testBaseURL + "refresh";
+    private final String loginAPIURL = testBaseURL + "login";
+    private final String userInfoAPIURL = testBaseURL + "userInfo";
+    private final String logoutAPIURL = testBaseURL + "logout";
+    private final String testHeaderAPIURL = testBaseURL + "header";
+
+    private final int sessionExpiryCode = 440;
+    private static MockSharedPrefs mockSharedPrefs;
+    private static OkHttpClient okHttpClient;
+
+    @Mock
+    Application application;
+    @Mock
+    Context context;
+
+    @BeforeClass
+    public static void beforeAll() throws Exception {
+        ProcessBuilder pb = new ProcessBuilder("./testHelpers/startServer", "../com-root");
+        pb.directory(new File("../"));
+        Process process = pb.start();
+        Thread.sleep(1000);
+    }
+
+    @Before
+    public void beforeEach() {
+        SuperTokens.isInitCalled = false;
+        Mockito.mock(TextUtils.class);
+        Mockito.mock(Looper.class);
+        Mockito.mock(Handler.class);
+        mockSharedPrefs = new MockSharedPrefs();
+        Mockito.when(application.getSharedPreferences(Mockito.anyString(), Mockito.anyInt())).thenReturn(mockSharedPrefs);
+        Mockito.when(context.getSharedPreferences(Mockito.anyString(), Mockito.anyInt())).thenReturn(mockSharedPrefs);
+        Mockito.when(application.getString(R.string.supertokensIdRefreshSharedPrefsKey)).thenReturn("supertokens-android-idrefreshtoken-key");
+        Mockito.when(application.getString(R.string.supertokensAntiCSRFTokenKey)).thenReturn("supertokens-android-anticsrf-key");
+        Mockito.when(application.getString(R.string.supertokensAntiCSRFHeaderKey)).thenReturn("anti-csrf");
+        Mockito.when(application.getString(R.string.supertokensIdRefreshHeaderKey)).thenReturn("id-refresh-token");
+        Mockito.when(application.getString(R.string.supertokensNameHeaderKey)).thenReturn("supertokens-sdk-name");
+        Mockito.when(application.getString(R.string.supertokensVersionHeaderKey)).thenReturn("supertokens-sdk-version");
+        OkHttpClient.Builder clientBuilder = new OkHttpClient.Builder();
+        clientBuilder.interceptors().add(new SuperTokensInterceptor());
+        clientBuilder.cookieJar(new PersistentCookieJar(new SetCookieCache(), new SharedPrefsCookiePersistor(context)));
+        okHttpClient = clientBuilder.build();
+
+        TestUtils.callBeforeEachAPI();
+    }
+
+    @AfterClass
+    public static void after() {
+        TestUtils.callAfterAPI();
+        TestUtils.stopAPI();
+    }
+
+    @Test
+    public void dummy() {
+
+    }
 //    private final String testBaseURL = "http://127.0.0.1:8080/api/";
 //    private final String refreshTokenEndpoint = testBaseURL + "refreshtoken";
 //    private final String testAPiURL = testBaseURL + "testing";

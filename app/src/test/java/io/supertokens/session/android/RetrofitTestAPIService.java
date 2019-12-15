@@ -1,8 +1,11 @@
 package io.supertokens.session.android;
 
-import io.supertokens.session.SuperTokensRetrofitTest;
+import io.supertokens.session.TestUtils;
 import retrofit2.Call;
-import retrofit2.http.*;
+import retrofit2.http.GET;
+import retrofit2.http.Header;
+import retrofit2.http.Headers;
+import retrofit2.http.POST;
 
 // TODO: Nemi, what is this for?
 public interface RetrofitTestAPIService {
@@ -23,8 +26,8 @@ public interface RetrofitTestAPIService {
     Call<Void> reset(@Header("atValidity") int validity);
 
     @GET("testRefreshCounter")
-    Call<SuperTokensRetrofitTest.GetRefreshCounterResponse> refreshCounter();
+    Call<TestUtils.GetRefreshCounterResponse> refreshCounter();
 
     @GET("testHeader")
-    Call<SuperTokensRetrofitTest.HeaderTestResponse> testHeader(@Header("st-custom-header") String header);
+    Call<TestUtils.HeaderTestResponse> testHeader(@Header("st-custom-header") String header);
 }

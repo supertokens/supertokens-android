@@ -93,8 +93,12 @@ public class TestUtils {
         return counterResponse.counter;
     }
 
-    private class GetRefreshCounterResponse {
+    public static class GetRefreshCounterResponse {
         int counter;
+    }
+
+    public static class HeaderTestResponse {
+        boolean success;
     }
 
 }
