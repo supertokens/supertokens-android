@@ -67,6 +67,8 @@ git checkout $pluginTag
 cd ../
 echo $SUPERTOKENS_API_KEY > apiPassword
 update-alternatives --set java /usr/java/jdk-12.0.2/bin/java
+java -version
+echo $JAVA_HOME
 ./utils/setupTestEnvLocal
 cd ../project/testHelpers/server/
 npm i -d
