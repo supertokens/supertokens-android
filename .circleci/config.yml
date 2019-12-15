@@ -14,6 +14,7 @@ jobs:
     steps:
       - run: update-alternatives --set java /usr/java/jdk-12.0.2/bin/java
       - run: export JAVA_HOME=/usr/java/jdk-12.0.2/
+      - run: export PATH=$PATH:$JAVA_HOME
       - checkout
       - run: (cd / && ./runMySQL.sh)
       - run: mysql -u root --password=root -e "CREATE DATABASE auth_session;"
