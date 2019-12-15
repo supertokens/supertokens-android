@@ -2,17 +2,10 @@ version: 2
 jobs:
   publish:
     docker:
-      - image: rishabhpoddar/android-node-mysql-git
+      - image: rishabhpoddar/supertokens_android_sdk_testing
     steps:
-      - run: (cd / && ./runMySQL.sh)
-      - run: mysql -u root --password=root -e "CREATE DATABASE auth_session;"
-      - run: mysql -u root --password=root -e "set global max_connections = 10000;"
       - checkout
-      - run: cd backend/ && npm i -d && ./node_modules/.bin/tsc -p tsconfig.json
-      - run: 
-          command: cd backend/ && TEST_MODE=testing node build/index.js
-          background: true
-      - run: ./gradlew clean build bintrayUpload -PbintrayUser=supertokens -PbintrayKey=$BINTRAY_KEY -PdryRun=false
+      - run: ./gradlew clean build -x test bintrayUpload -PbintrayUser=supertokens -PbintrayKey=$BINTRAY_KEY -PdryRun=false
   test:
     docker: 
       - image: rishabhpoddar/supertokens_android_sdk_testing
@@ -37,6 +30,7 @@ workflows:
               ignore: /.*/
       - test:
           filters:
+            tags:
+              only: /dev-v[0-9]+(\.[0-9]+)*/
             branches:
-              only:
-                - "0.2"
+              ignore: /.*/
