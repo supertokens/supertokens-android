@@ -8,14 +8,14 @@ jobs:
       - run: ./gradlew clean build -x test bintrayUpload -PbintrayUser=supertokens -PbintrayKey=$BINTRAY_KEY -PdryRun=false
   test:
     docker: 
-      - image: rishabhpoddar/supertokens_android_sdk_testing
+      - image: rishabhpoddar/supertokens_node_driver_testing
     environment:
       JVM_OPTS: -Xmx3200m
     steps:
-      - run: update-alternatives --install "/usr/bin/java" "java" "/usr/java/jdk-12.0.2/bin/java" 1
-      - run: update-alternatives --install "/usr/bin/javac" "javac" "/usr/java/jdk-12.0.2/bin/javac" 1
-      - run: export JAVA_HOME=/usr/java/jdk-12.0.2/
-      - run: export JRE_HOME=/usr/java/jdk-12.0.2/
+#      - run: update-alternatives --install "/usr/bin/java" "java" "/usr/java/jdk-12.0.2/bin/java" 1
+#      - run: update-alternatives --install "/usr/bin/javac" "javac" "/usr/java/jdk-12.0.2/bin/javac" 1
+#      - run: echo $JAVA_HOME
+#      - run: java -version
       - checkout
       - run: (cd / && ./runMySQL.sh)
       - run: mysql -u root --password=root -e "CREATE DATABASE auth_session;"
