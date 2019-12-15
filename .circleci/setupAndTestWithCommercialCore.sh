@@ -66,10 +66,12 @@ cd ../com-mysql-plugin
 git checkout $pluginTag
 cd ../
 echo $SUPERTOKENS_API_KEY > apiPassword
+update-alternatives --set java /usr/java/jdk-12.0.2/bin/java
 ./utils/setupTestEnvLocal
 cd ../project/testHelpers/server/
 npm i -d
 npm i git+https://github.com:supertokens/supertokens-node.git#$2
 cd ../../
+update-alternatives --set java /usr/lib/jvm/java-8-openjdk-amd64/jre/bin/java
 ./gradlew test
 cd .circleci
