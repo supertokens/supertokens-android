@@ -1,5 +1,5 @@
-update-alternatives --install "/usr/bin/java" "java" "/usr/java/jdk-12.0.2/bin/java" 1
-update-alternatives --install "/usr/bin/javac" "javac" "/usr/java/jdk-12.0.2/bin/javac" 1
+update-alternatives --set java /usr/java/jdk-12.0.2/bin/java
+update-alternatives --set javac /usr/java/jdk-12.0.2/bin/javac
 export JAVA_HOME=/usr/java/jdk-12.0.2/
 export JRE_HOME=/usr/java/jdk-12.0.2/
 export PATH=$PATH:$JAVA_HOME
