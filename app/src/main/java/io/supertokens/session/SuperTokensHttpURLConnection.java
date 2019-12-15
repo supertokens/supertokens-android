@@ -7,7 +7,6 @@ import java.net.CookieManager;
 import java.net.HttpURLConnection;
 import java.net.URISyntaxException;
 import java.net.URL;
-import java.util.List;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 @SuppressWarnings("unused")
@@ -31,6 +30,7 @@ public class SuperTokensHttpURLConnection {
                     String preRequestIdRefreshToken;
                     T output;
                     int responseCode;
+                    // TODO: write comment as to why we have this lock here. Do we also have this lock for iOS and website package?
                     refreshAPILock.readLock().lock();
                     try {
                         connection = (HttpURLConnection) url.openConnection();
@@ -44,7 +44,7 @@ public class SuperTokensHttpURLConnection {
                         }
 
                         // Add package information to headers
-                        connection.setRequestProperty(applicationContext.getString(R.string.supertokensNameHeaderKey), SuperTokensUtils.PACKAGE_PLATFORM);
+                        connection.setRequestProperty(applicationContext.getString(R.string.supertokensNameHeaderKey), Utils.PACKAGE_PLATFORM);
                         connection.setRequestProperty(applicationContext.getString(R.string.supertokensVersionHeaderKey), BuildConfig.VERSION_NAME);
 
                         // Get the default cookie manager that is used, if null set a new one
@@ -59,8 +59,10 @@ public class SuperTokensHttpURLConnection {
                         // This will execute all the steps the user wants to do with the connection and returns the output that the user has configured
                         output = callback.runOnConnection(connection);
                         // Get the cookies from the response and store the idRefreshToken to storage
-                        List<String> cookies = connection.getHeaderFields().get(applicationContext.getString(R.string.supertokensSetCookieHeaderKey));
-                        SuperTokensResponseCookieHandler.saveIdRefreshFromSetCookieHttpUrlConnection(applicationContext, cookies, connection, cookieManager);
+                        String idRefreshToken = connection.getHeaderField(applicationContext.getString(R.string.supertokensIdRefreshHeaderKey));
+                        if (idRefreshToken != null) {
+                            IdRefreshToken.setToken(applicationContext, idRefreshToken);
+                        }
 
                         responseCode = connection.getResponseCode();
                     } finally {
@@ -103,29 +105,29 @@ public class SuperTokensHttpURLConnection {
             return idRefreshToken != null;
         }
 
-        SuperTokensUtils.Unauthorised unauthorisedResponse = onUnauthorisedResponse(SuperTokens.refreshTokenEndpoint,preRequestIdRefreshToken, applicationContext);
+        Utils.Unauthorised unauthorisedResponse = onUnauthorisedResponse(SuperTokens.refreshTokenEndpoint,preRequestIdRefreshToken, applicationContext);
 
-        if ( unauthorisedResponse.status == SuperTokensUtils.Unauthorised.UnauthorisedStatus.SESSION_EXPIRED ) {
+        if ( unauthorisedResponse.status == Utils.Unauthorised.UnauthorisedStatus.SESSION_EXPIRED ) {
             return false;
-        } else if (unauthorisedResponse.status == SuperTokensUtils.Unauthorised.UnauthorisedStatus.API_ERROR) {
+        } else if (unauthorisedResponse.status == Utils.Unauthorised.UnauthorisedStatus.API_ERROR) {
             throw unauthorisedResponse.error;
         }
 
         return true;
     }
 
-    private static SuperTokensUtils.Unauthorised onUnauthorisedResponse(String refreshTokenEndpoint, String preRequestIdRefreshToken, Application applicationContext) {
+    private static Utils.Unauthorised onUnauthorisedResponse(String refreshTokenEndpoint, String preRequestIdRefreshToken, Application applicationContext) {
         // this is intentionally not put in a loop because the loop in other projects is because locking has a timeout
         HttpURLConnection refreshTokenConnection = null;
         try {
             refreshAPILock.writeLock().lock();
             String postLockIdRefreshToken = IdRefreshToken.getToken(applicationContext);
             if ( postLockIdRefreshToken == null ) {
-                return new SuperTokensUtils.Unauthorised(SuperTokensUtils.Unauthorised.UnauthorisedStatus.SESSION_EXPIRED);
+                return new Utils.Unauthorised(Utils.Unauthorised.UnauthorisedStatus.SESSION_EXPIRED);
             }
 
             if ( !postLockIdRefreshToken.equals(preRequestIdRefreshToken) ) {
-                return new SuperTokensUtils.Unauthorised(SuperTokensUtils.Unauthorised.UnauthorisedStatus.RETRY);
+                return new Utils.Unauthorised(Utils.Unauthorised.UnauthorisedStatus.RETRY);
             }
 
             URL refreshTokenUrl = new URL(refreshTokenEndpoint);
@@ -133,7 +135,7 @@ public class SuperTokensHttpURLConnection {
             refreshTokenConnection.setRequestMethod("POST");
 
             // Add package information to headers
-            refreshTokenConnection.setRequestProperty(applicationContext.getString(R.string.supertokensNameHeaderKey), SuperTokensUtils.PACKAGE_PLATFORM);
+            refreshTokenConnection.setRequestProperty(applicationContext.getString(R.string.supertokensNameHeaderKey), Utils.PACKAGE_PLATFORM);
             refreshTokenConnection.setRequestProperty(applicationContext.getString(R.string.supertokensVersionHeaderKey), BuildConfig.VERSION_NAME);
 
             CookieManager cookieManager = (CookieManager) CookieManager.getDefault();
@@ -145,8 +147,10 @@ public class SuperTokensHttpURLConnection {
             }
             refreshTokenConnection.connect();
 
-            List<String> cookies = refreshTokenConnection.getHeaderFields().get(applicationContext.getString(R.string.supertokensSetCookieHeaderKey));
-            SuperTokensResponseCookieHandler.saveIdRefreshFromSetCookieHttpUrlConnection(applicationContext, cookies, refreshTokenConnection, cookieManager);
+            String idRefreshToken = refreshTokenConnection.getHeaderField(applicationContext.getString(R.string.supertokensIdRefreshHeaderKey));
+            if (idRefreshToken != null) {
+                IdRefreshToken.setToken(applicationContext, idRefreshToken);
+            }
 
             if (refreshTokenConnection.getResponseCode() != 200) {
                 throw new IOException(refreshTokenConnection.getResponseMessage());
@@ -155,7 +159,7 @@ public class SuperTokensHttpURLConnection {
             String idRefreshAfterResponse = IdRefreshToken.getToken(applicationContext);
             if (idRefreshAfterResponse == null) {
                 // removed by server
-                return new SuperTokensUtils.Unauthorised(SuperTokensUtils.Unauthorised.UnauthorisedStatus.SESSION_EXPIRED);
+                return new Utils.Unauthorised(Utils.Unauthorised.UnauthorisedStatus.SESSION_EXPIRED);
             }
 
             String responseAntiCSRFToken = refreshTokenConnection.getHeaderField(applicationContext.getString(R.string.supertokensAntiCSRFHeaderKey));
@@ -163,7 +167,7 @@ public class SuperTokensHttpURLConnection {
                 AntiCSRF.setToken(applicationContext, IdRefreshToken.getToken(applicationContext), responseAntiCSRFToken);
             }
 
-            return new SuperTokensUtils.Unauthorised(SuperTokensUtils.Unauthorised.UnauthorisedStatus.RETRY);
+            return new Utils.Unauthorised(Utils.Unauthorised.UnauthorisedStatus.RETRY);
         } catch (Exception e) {
             IOException ioe = new IOException(e);
             if (e instanceof IOException) {
@@ -171,10 +175,10 @@ public class SuperTokensHttpURLConnection {
             }
             String idRefreshToken = IdRefreshToken.getToken(applicationContext);
             if ( idRefreshToken == null ) {
-                return new SuperTokensUtils.Unauthorised(SuperTokensUtils.Unauthorised.UnauthorisedStatus.SESSION_EXPIRED);
+                return new Utils.Unauthorised(Utils.Unauthorised.UnauthorisedStatus.SESSION_EXPIRED);
             }
 
-            return new SuperTokensUtils.Unauthorised(SuperTokensUtils.Unauthorised.UnauthorisedStatus.API_ERROR, ioe);
+            return new Utils.Unauthorised(Utils.Unauthorised.UnauthorisedStatus.API_ERROR, ioe);
 
         } finally {
             refreshAPILock.writeLock().unlock();

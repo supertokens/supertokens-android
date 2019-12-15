@@ -2,7 +2,7 @@ package io.supertokens.session;
 
 import java.io.IOException;
 
-class SuperTokensUtils {
+class Utils {
     static final String PACKAGE_PLATFORM = "android";
     static class Unauthorised {
         UnauthorisedStatus status;

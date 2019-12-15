@@ -3,19 +3,14 @@ package io.supertokens.session;
 import android.app.Application;
 import android.content.Context;
 import android.content.SharedPreferences;
-import android.util.Log;
 
 import java.net.CookieStore;
 import java.net.HttpCookie;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
+
+// TODO: Nemi, what is the need for this file?
 
 @SuppressWarnings({"Convert2Diamond", "RegExpEmptyAlternationBranch"})
 public class SuperTokensPersistentCookieStore implements CookieStore {

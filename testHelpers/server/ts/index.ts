@@ -97,6 +97,10 @@ app.get("/header", function (req, res) {
     })
 });
 
+app.get("/stop", async (req, res) => {
+    process.exit();
+});
+
 app.use("*", function (req, res, next) {
     res.status(404).send("Not found");
 });

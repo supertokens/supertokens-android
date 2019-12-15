@@ -4,6 +4,8 @@ import java.io.*;
 import java.lang.reflect.Field;
 import java.net.HttpCookie;
 
+// TODO: Nemi, what is the need for this file?
+
 @SuppressWarnings("CatchMayIgnoreException")
 class SuperTokensSerializableHttpCookie implements Serializable {
     private static final String TAG = SuperTokensSerializableHttpCookie.class

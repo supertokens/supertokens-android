@@ -4,6 +4,7 @@ import io.supertokens.session.SuperTokensRetrofitTest;
 import retrofit2.Call;
 import retrofit2.http.*;
 
+// TODO: Nemi, what is this for?
 public interface RetrofitTestAPIService {
     @POST("login")
     Call<Void> login();

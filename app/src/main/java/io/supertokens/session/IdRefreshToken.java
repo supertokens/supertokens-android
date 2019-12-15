@@ -10,32 +10,45 @@ class IdRefreshToken {
 
     static String getToken(Context context) {
         if ( idRefreshTokenInMemory == null ) {
-            idRefreshTokenInMemory = getSharedPreferences(context).getString(context.getString(R.string.supertokensIdRefreshKey), null);
+            idRefreshTokenInMemory = getSharedPreferences(context).getString(context.getString(R.string.supertokensIdRefreshSharedPrefsKey), null);
+        }
+        if (idRefreshTokenInMemory != null) {
+            String[] splitted = idRefreshTokenInMemory.split(";");
+            long expiry = Long.parseLong(splitted[1]);
+            if (expiry < System.currentTimeMillis()) {
+                removeToken(context);
+            }
         }
         return idRefreshTokenInMemory;
     }
 
     @SuppressLint("ApplySharedPref")
     static void setToken(Context context, String idRefreshToken) {
-        idRefreshTokenInMemory = idRefreshToken;
-        SharedPreferences.Editor editor = getSharedPreferences(context).edit();
-        editor.putString(getSharedPrefsIdRefreshKey(context), idRefreshToken);
-        editor.apply();
+        if (idRefreshToken.equals("remove")) {
+            removeToken(context);
+            return;
+        }
+        String[] splitted = idRefreshToken.split(";");
+        long expiry = Long.parseLong(splitted[1]);
+        if (expiry < System.currentTimeMillis()) {
+            removeToken(context);
+        } else {
+            SharedPreferences.Editor editor = getSharedPreferences(context).edit();
+            editor.putString(context.getString(R.string.supertokensIdRefreshSharedPrefsKey), idRefreshToken);
+            editor.apply();
+            idRefreshTokenInMemory = idRefreshToken;
+        }
     }
 
     @SuppressLint("ApplySharedPref")
     static void removeToken(Context context) {
         SharedPreferences.Editor editor = getSharedPreferences(context).edit();
-        editor.remove(getSharedPrefsIdRefreshKey(context));
+        editor.remove(context.getString(R.string.supertokensIdRefreshSharedPrefsKey));
         editor.apply();
         idRefreshTokenInMemory = null;
     }
 
     private static SharedPreferences getSharedPreferences(Context context) {
         return context.getSharedPreferences(context.getString(R.string.supertokensSharedPrefsKey), Context.MODE_PRIVATE);
-    }
-
-    private static String getSharedPrefsIdRefreshKey(Context context) {
-        return context.getString(R.string.supertokensIdRefreshKey);
     }
 }
