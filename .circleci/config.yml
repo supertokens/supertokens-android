@@ -23,6 +23,7 @@ jobs:
       - run: (cd / && ./runMySQL.sh)
       - run: mysql -u root --password=root -e "CREATE DATABASE auth_session;"
       - run: mysql -u root --password=root -e "set global max_connections = 10000;"
+      - run: app-get install -y jq
       - run: (cd .circleci/ && ./doTests.sh)
 
 workflows:
