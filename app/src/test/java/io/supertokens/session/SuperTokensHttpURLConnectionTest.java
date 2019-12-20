@@ -39,6 +39,7 @@ import java.util.logging.Handler;
  - Calling SuperTokens.init more than once works!
  - Proper change in anti-csrf token once access token resets
  - User passed config should be sent as well
+ - Custom refresh API headers are sent
  */
 
 @SuppressWarnings({"CatchMayIgnoreException", "FieldCanBeLocal", "SingleStatementInBlock"})
