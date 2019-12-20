@@ -112,7 +112,7 @@ public class SuperTokensOkHttpTest {
     @Test
     public void okHttp_testApiWithoutParams() throws Exception {
         TestUtils.startST();
-        SuperTokens.init(application, refreshTokenEndpoint, sessionExpiryCode);
+        SuperTokens.init(application, refreshTokenEndpoint, sessionExpiryCode, null);
         RequestBody body = RequestBody.create(MediaType.parse("application/json; charset=utf-8"), "{}");
         Request request = new Request.Builder()
                 .url(loginAPIURL)
@@ -128,7 +128,7 @@ public class SuperTokensOkHttpTest {
     @Test
     public void okHttp_testApiWithParams() throws Exception {
         TestUtils.startST();
-        SuperTokens.init(application, refreshTokenEndpoint, sessionExpiryCode);
+        SuperTokens.init(application, refreshTokenEndpoint, sessionExpiryCode, null);
         RequestBody body = RequestBody.create(MediaType.parse("application/json; charset=utf-8"), "{}");
         Request request = new Request.Builder()
                 .url(loginAPIURL)
@@ -145,7 +145,7 @@ public class SuperTokensOkHttpTest {
     @Test
     public void okHttp_refreshIsCalledAfterAccessTokenExpiry() throws Exception {
         TestUtils.startST(3);
-        SuperTokens.init(application, refreshTokenEndpoint, sessionExpiryCode);
+        SuperTokens.init(application, refreshTokenEndpoint, sessionExpiryCode, null);
         RequestBody loginReqBody = RequestBody.create(MediaType.parse("application/json; charset=utf-8"), "{}");
         Request request = new Request.Builder()
                 .url(loginAPIURL)

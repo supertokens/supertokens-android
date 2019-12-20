@@ -3,13 +3,14 @@ package io.supertokens.session;
 import android.app.Application;
 import android.content.Context;
 import android.text.TextUtils;
-
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
 import java.lang.ref.WeakReference;
 import java.net.MalformedURLException;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Map;
 
 @SuppressWarnings({"Convert2Diamond"})
 public class SuperTokens {
@@ -21,15 +22,18 @@ public class SuperTokens {
     static final String TAG = "io.supertokens.session";
     static String refreshTokenEndpoint;
     static WeakReference<Application> contextWeakReference;
+    static Map<String, String> refreshAPICustomHeaders = new HashMap<>();
 
 
     @SuppressWarnings("unused")
-    public static void init(Application applicationContext, @NonNull String refreshTokenEndpoint, @Nullable Integer sessionExpiryStatusCode) throws MalformedURLException {
+    public static void init(Application applicationContext, @NonNull String refreshTokenEndpoint, @Nullable Integer sessionExpiryStatusCode,
+                            @Nullable Map<String, String> refreshAPICustomHeaders) throws MalformedURLException {
         if ( SuperTokens.isInitCalled ) {
             return;
         }
         contextWeakReference = new WeakReference<Application>(applicationContext);
         SuperTokens.refreshTokenEndpoint = refreshTokenEndpoint;
+        SuperTokens.refreshAPICustomHeaders = refreshAPICustomHeaders;
         if ( sessionExpiryStatusCode != null ) {
             SuperTokens.sessionExpiryStatusCode = sessionExpiryStatusCode;
         }

@@ -7,6 +7,7 @@ import java.net.CookieManager;
 import java.net.HttpURLConnection;
 import java.net.URISyntaxException;
 import java.net.URL;
+import java.util.Map;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 @SuppressWarnings("unused")
@@ -137,6 +138,9 @@ public class SuperTokensHttpURLConnection {
             // Add package information to headers
             refreshTokenConnection.setRequestProperty(applicationContext.getString(R.string.supertokensNameHeaderKey), Utils.PACKAGE_PLATFORM);
             refreshTokenConnection.setRequestProperty(applicationContext.getString(R.string.supertokensVersionHeaderKey), BuildConfig.VERSION_NAME);
+            for (Map.Entry<String,String> entry: SuperTokens.refreshAPICustomHeaders.entrySet()) {
+                refreshTokenConnection.setRequestProperty(entry.getKey(), entry.getValue());
+            }
 
             CookieManager cookieManager = (CookieManager) CookieManager.getDefault();
             if (cookieManager == null) {

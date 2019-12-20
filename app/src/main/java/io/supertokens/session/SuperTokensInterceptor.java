@@ -1,12 +1,12 @@
 package io.supertokens.session;
 
 import android.app.Application;
-
 import okhttp3.*;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 @SuppressWarnings("unused")
@@ -152,6 +152,9 @@ public class SuperTokensInterceptor implements Interceptor {
             // Add package information to headers
             refreshRequestBuilder.header(applicationContext.getString(R.string.supertokensNameHeaderKey), Utils.PACKAGE_PLATFORM);
             refreshRequestBuilder.header(applicationContext.getString(R.string.supertokensVersionHeaderKey), BuildConfig.VERSION_NAME);
+            for (Map.Entry<String,String> entry: SuperTokens.refreshAPICustomHeaders.entrySet()) {
+                refreshRequestBuilder.header(entry.getKey(), entry.getValue());
+            }
 
             Request refreshRequest = refreshRequestBuilder.build();
             if ( client != null ) {
