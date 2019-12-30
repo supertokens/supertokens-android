@@ -40,6 +40,7 @@ import java.util.logging.Handler;
  - Proper change in anti-csrf token once access token resets
  - User passed config should be sent as well
  - Custom refresh API headers are sent
+ - Things should work if anti-csrf is disabled.
  */
 
 @SuppressWarnings({"CatchMayIgnoreException", "FieldCanBeLocal", "SingleStatementInBlock"})
