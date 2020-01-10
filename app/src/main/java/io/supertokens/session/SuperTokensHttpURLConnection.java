@@ -1,6 +1,6 @@
 package io.supertokens.session;
 
-import android.app.Application;
+import android.content.Context;
 
 import java.io.IOException;
 import java.net.CookieManager;
@@ -20,9 +20,9 @@ public class SuperTokensHttpURLConnection {
             throw new IllegalAccessException("SuperTokens.init function needs to be called before using newRequest");
         }
 
-        Application applicationContext = SuperTokens.contextWeakReference.get();
+        Context applicationContext = SuperTokens.contextWeakReference.get();
         if ( applicationContext == null ) {
-            throw new IllegalAccessException("Application context is null");
+            throw new IllegalAccessException("Context is null");
         }
         try {
             while (true) {
@@ -100,7 +100,7 @@ public class SuperTokensHttpURLConnection {
         }
     }
 
-    private static boolean handleUnauthorised(Application applicationContext, String preRequestIdRefreshToken) throws IOException {
+    private static boolean handleUnauthorised(Context applicationContext, String preRequestIdRefreshToken) throws IOException {
         if ( preRequestIdRefreshToken == null ) {
             String idRefreshToken = IdRefreshToken.getToken(applicationContext);
             return idRefreshToken != null;
@@ -117,7 +117,7 @@ public class SuperTokensHttpURLConnection {
         return true;
     }
 
-    private static Utils.Unauthorised onUnauthorisedResponse(String refreshTokenEndpoint, String preRequestIdRefreshToken, Application applicationContext) {
+    private static Utils.Unauthorised onUnauthorisedResponse(String refreshTokenEndpoint, String preRequestIdRefreshToken, Context applicationContext) {
         // this is intentionally not put in a loop because the loop in other projects is because locking has a timeout
         HttpURLConnection refreshTokenConnection = null;
         try {
@@ -192,32 +192,32 @@ public class SuperTokensHttpURLConnection {
         }
     }
 
-    /**
-     *
-     * @return
-     * @throws {@link IllegalAccessException} if SuperTokens.init is not called or application context is null
-     * @throws {@link IOException} if request fails
-     */
-    public static boolean attemptRefreshingSession() throws IllegalAccessException, IOException {
-        if ( !SuperTokens.isInitCalled ) {
-            throw new IllegalAccessException("SuperTokens.init function needs to be called before using attemptRefreshingSession");
-        }
-
-        Application applicationContext = SuperTokens.contextWeakReference.get();
-        if ( applicationContext == null ) {
-            throw new IllegalAccessException("Application context is null");
-        }
-
-        try {
-            String preRequestIdRefreshToken = IdRefreshToken.getToken(applicationContext);
-            return handleUnauthorised(applicationContext, preRequestIdRefreshToken);
-        } finally {
-            String idRefreshToken = IdRefreshToken.getToken(applicationContext);
-            if ( idRefreshToken == null ) {
-                AntiCSRF.removeToken(applicationContext);
-            }
-        }
-    }
+//    /**
+//     *
+//     * @return
+//     * @throws {@link IllegalAccessException} if SuperTokens.init is not called or application context is null
+//     * @throws {@link IOException} if request fails
+//     */
+//    public static boolean attemptRefreshingSession() throws IllegalAccessException, IOException {
+//        if ( !SuperTokens.isInitCalled ) {
+//            throw new IllegalAccessException("SuperTokens.init function needs to be called before using attemptRefreshingSession");
+//        }
+//
+//        Context applicationContext = SuperTokens.contextWeakReference.get();
+//        if ( applicationContext == null ) {
+//            throw new IllegalAccessException("Context is null");
+//        }
+//
+//        try {
+//            String preRequestIdRefreshToken = IdRefreshToken.getToken(applicationContext);
+//            return handleUnauthorised(applicationContext, preRequestIdRefreshToken);
+//        } finally {
+//            String idRefreshToken = IdRefreshToken.getToken(applicationContext);
+//            if ( idRefreshToken == null ) {
+//                AntiCSRF.removeToken(applicationContext);
+//            }
+//        }
+//    }
 
     public interface SuperTokensHttpURLConnectionCallback<T> {
         T runOnConnection(HttpURLConnection con) throws IOException;

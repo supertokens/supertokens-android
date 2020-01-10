@@ -1,6 +1,5 @@
 package io.supertokens.session;
 
-import android.app.Application;
 import android.content.Context;
 import android.text.TextUtils;
 import androidx.annotation.NonNull;
@@ -21,19 +20,21 @@ public class SuperTokens {
     @SuppressWarnings("unused")
     static final String TAG = "io.supertokens.session";
     static String refreshTokenEndpoint;
-    static WeakReference<Application> contextWeakReference;
+    static WeakReference<Context> contextWeakReference;
     static Map<String, String> refreshAPICustomHeaders = new HashMap<>();
 
 
     @SuppressWarnings("unused")
-    public static void init(Application applicationContext, @NonNull String refreshTokenEndpoint, @Nullable Integer sessionExpiryStatusCode,
+    public static void init(Context applicationContext, @NonNull String refreshTokenEndpoint, @Nullable Integer sessionExpiryStatusCode,
                             @Nullable Map<String, String> refreshAPICustomHeaders) throws MalformedURLException {
         if ( SuperTokens.isInitCalled ) {
             return;
         }
-        contextWeakReference = new WeakReference<Application>(applicationContext);
+        contextWeakReference = new WeakReference<Context>(applicationContext);
         SuperTokens.refreshTokenEndpoint = refreshTokenEndpoint;
-        SuperTokens.refreshAPICustomHeaders = refreshAPICustomHeaders;
+        if (refreshAPICustomHeaders != null) {
+            SuperTokens.refreshAPICustomHeaders = refreshAPICustomHeaders;
+        }
         if ( sessionExpiryStatusCode != null ) {
             SuperTokens.sessionExpiryStatusCode = sessionExpiryStatusCode;
         }
@@ -60,7 +61,7 @@ public class SuperTokens {
     }
 
     @SuppressWarnings("unused")
-    public static boolean sessionPossiblyExists(Context context) {
+    public static boolean doesSessionExist(Context context) {
         String idRefreshToken = IdRefreshToken.getToken(context);
         return idRefreshToken != null;
     }

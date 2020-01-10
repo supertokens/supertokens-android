@@ -1,6 +1,5 @@
 package io.supertokens.session;
 
-import android.app.Application;
 import android.content.Context;
 import android.os.Looper;
 import android.text.TextUtils;
@@ -36,8 +35,6 @@ public class SuperTokensRetrofitTest {
     private static OkHttpClient okHttpClient;
 
     @Mock
-    Application application;
-    @Mock
     Context context;
 
     @BeforeClass
@@ -55,14 +52,14 @@ public class SuperTokensRetrofitTest {
         Mockito.mock(Looper.class);
         Mockito.mock(Handler.class);
         mockSharedPrefs = new MockSharedPrefs();
-        Mockito.when(application.getSharedPreferences(Mockito.anyString(), Mockito.anyInt())).thenReturn(mockSharedPrefs);
         Mockito.when(context.getSharedPreferences(Mockito.anyString(), Mockito.anyInt())).thenReturn(mockSharedPrefs);
-        Mockito.when(application.getString(R.string.supertokensIdRefreshSharedPrefsKey)).thenReturn("supertokens-android-idrefreshtoken-key");
-        Mockito.when(application.getString(R.string.supertokensAntiCSRFTokenKey)).thenReturn("supertokens-android-anticsrf-key");
-        Mockito.when(application.getString(R.string.supertokensAntiCSRFHeaderKey)).thenReturn("anti-csrf");
-        Mockito.when(application.getString(R.string.supertokensIdRefreshHeaderKey)).thenReturn("id-refresh-token");
-        Mockito.when(application.getString(R.string.supertokensNameHeaderKey)).thenReturn("supertokens-sdk-name");
-        Mockito.when(application.getString(R.string.supertokensVersionHeaderKey)).thenReturn("supertokens-sdk-version");
+        Mockito.when(context.getSharedPreferences(Mockito.anyString(), Mockito.anyInt())).thenReturn(mockSharedPrefs);
+        Mockito.when(context.getString(R.string.supertokensIdRefreshSharedPrefsKey)).thenReturn("supertokens-android-idrefreshtoken-key");
+        Mockito.when(context.getString(R.string.supertokensAntiCSRFTokenKey)).thenReturn("supertokens-android-anticsrf-key");
+        Mockito.when(context.getString(R.string.supertokensAntiCSRFHeaderKey)).thenReturn("anti-csrf");
+        Mockito.when(context.getString(R.string.supertokensIdRefreshHeaderKey)).thenReturn("id-refresh-token");
+        Mockito.when(context.getString(R.string.supertokensNameHeaderKey)).thenReturn("supertokens-sdk-name");
+        Mockito.when(context.getString(R.string.supertokensVersionHeaderKey)).thenReturn("supertokens-sdk-version");
         OkHttpClient.Builder clientBuilder = new OkHttpClient.Builder();
         clientBuilder.interceptors().add(new SuperTokensInterceptor());
         clientBuilder.cookieJar(new PersistentCookieJar(new SetCookieCache(), new SharedPrefsCookiePersistor(context)));
@@ -341,7 +338,7 @@ public class SuperTokensRetrofitTest {
 //                throw new Exception("Error making logout request");
 //            }
 //
-//            if ( SuperTokens.sessionPossiblyExists(application) ) {
+//            if ( SuperTokens.doesSessionExist(application) ) {
 //                throw new Exception("Session active even after logout");
 //            }
 //        } catch(Exception e) {

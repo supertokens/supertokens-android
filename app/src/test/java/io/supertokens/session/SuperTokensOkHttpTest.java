@@ -1,6 +1,5 @@
 package io.supertokens.session;
 
-import android.app.Application;
 import android.content.Context;
 import android.os.Looper;
 import android.text.TextUtils;
@@ -37,8 +36,6 @@ public class SuperTokensOkHttpTest {
     private static OkHttpClient okHttpClient;
 
     @Mock
-    Application application;
-    @Mock
     Context context;
 
     @BeforeClass
@@ -56,14 +53,14 @@ public class SuperTokensOkHttpTest {
         Mockito.mock(Looper.class);
         Mockito.mock(Handler.class);
         mockSharedPrefs = new MockSharedPrefs();
-        Mockito.when(application.getSharedPreferences(Mockito.anyString(), Mockito.anyInt())).thenReturn(mockSharedPrefs);
         Mockito.when(context.getSharedPreferences(Mockito.anyString(), Mockito.anyInt())).thenReturn(mockSharedPrefs);
-        Mockito.when(application.getString(R.string.supertokensIdRefreshSharedPrefsKey)).thenReturn("supertokens-android-idrefreshtoken-key");
-        Mockito.when(application.getString(R.string.supertokensAntiCSRFTokenKey)).thenReturn("supertokens-android-anticsrf-key");
-        Mockito.when(application.getString(R.string.supertokensAntiCSRFHeaderKey)).thenReturn("anti-csrf");
-        Mockito.when(application.getString(R.string.supertokensIdRefreshHeaderKey)).thenReturn("id-refresh-token");
-        Mockito.when(application.getString(R.string.supertokensNameHeaderKey)).thenReturn("supertokens-sdk-name");
-        Mockito.when(application.getString(R.string.supertokensVersionHeaderKey)).thenReturn("supertokens-sdk-version");
+        Mockito.when(context.getSharedPreferences(Mockito.anyString(), Mockito.anyInt())).thenReturn(mockSharedPrefs);
+        Mockito.when(context.getString(R.string.supertokensIdRefreshSharedPrefsKey)).thenReturn("supertokens-android-idrefreshtoken-key");
+        Mockito.when(context.getString(R.string.supertokensAntiCSRFTokenKey)).thenReturn("supertokens-android-anticsrf-key");
+        Mockito.when(context.getString(R.string.supertokensAntiCSRFHeaderKey)).thenReturn("anti-csrf");
+        Mockito.when(context.getString(R.string.supertokensIdRefreshHeaderKey)).thenReturn("id-refresh-token");
+        Mockito.when(context.getString(R.string.supertokensNameHeaderKey)).thenReturn("supertokens-sdk-name");
+        Mockito.when(context.getString(R.string.supertokensVersionHeaderKey)).thenReturn("supertokens-sdk-version");
         OkHttpClient.Builder clientBuilder = new OkHttpClient.Builder();
         clientBuilder.interceptors().add(new SuperTokensInterceptor());
         clientBuilder.cookieJar(new PersistentCookieJar(new SetCookieCache(), new SharedPrefsCookiePersistor(context)));
@@ -96,23 +93,23 @@ public class SuperTokensOkHttpTest {
         throw new Exception ("test failed");
     }
 
-    @Test
-    public void okHttp_refreshFailsIfInitNotCalled() throws Exception {
-        try {
-            SuperTokensInterceptor.attemptRefreshingSession(okHttpClient);
-            throw new Exception ("test failed");
-        } catch (IllegalAccessException e) {
-            if ( e.getMessage().equals("SuperTokens.init function needs to be called before using attemptRefreshingSession") ) {
-                return;
-            }
-        }
-        throw new Exception ("test failed");
-    }
+//    @Test
+//    public void okHttp_refreshFailsIfInitNotCalled() throws Exception {
+//        try {
+//            SuperTokensInterceptor.attemptRefreshingSession(okHttpClient);
+//            throw new Exception ("test failed");
+//        } catch (IllegalAccessException e) {
+//            if ( e.getMessage().equals("SuperTokens.init function needs to be called before using attemptRefreshingSession") ) {
+//                return;
+//            }
+//        }
+//        throw new Exception ("test failed");
+//    }
 
     @Test
     public void okHttp_testApiWithoutParams() throws Exception {
         TestUtils.startST();
-        SuperTokens.init(application, refreshTokenEndpoint, sessionExpiryCode, null);
+        SuperTokens.init(context, refreshTokenEndpoint, sessionExpiryCode, null);
         RequestBody body = RequestBody.create(MediaType.parse("application/json; charset=utf-8"), "{}");
         Request request = new Request.Builder()
                 .url(loginAPIURL)
@@ -128,7 +125,7 @@ public class SuperTokensOkHttpTest {
     @Test
     public void okHttp_testApiWithParams() throws Exception {
         TestUtils.startST();
-        SuperTokens.init(application, refreshTokenEndpoint, sessionExpiryCode, null);
+        SuperTokens.init(context, refreshTokenEndpoint, sessionExpiryCode, null);
         RequestBody body = RequestBody.create(MediaType.parse("application/json; charset=utf-8"), "{}");
         Request request = new Request.Builder()
                 .url(loginAPIURL)
@@ -145,7 +142,7 @@ public class SuperTokensOkHttpTest {
     @Test
     public void okHttp_refreshIsCalledAfterAccessTokenExpiry() throws Exception {
         TestUtils.startST(3);
-        SuperTokens.init(application, refreshTokenEndpoint, sessionExpiryCode, null);
+        SuperTokens.init(context, refreshTokenEndpoint, sessionExpiryCode, null);
         RequestBody loginReqBody = RequestBody.create(MediaType.parse("application/json; charset=utf-8"), "{}");
         Request request = new Request.Builder()
                 .url(loginAPIURL)
@@ -357,7 +354,7 @@ public class SuperTokensOkHttpTest {
 //            }
 //            logoutResponse.close();
 //
-//            if (SuperTokens.sessionPossiblyExists(application)) {
+//            if (SuperTokens.doesSessionExist(application)) {
 //                throw new Exception("Session active even after logout");
 //            }
 //        } catch (Exception e) {

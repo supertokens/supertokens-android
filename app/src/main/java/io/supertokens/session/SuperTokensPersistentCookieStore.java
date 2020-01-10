@@ -1,6 +1,5 @@
 package io.supertokens.session;
 
-import android.app.Application;
 import android.content.Context;
 import android.content.SharedPreferences;
 
@@ -26,7 +25,7 @@ public class SuperTokensPersistentCookieStore implements CookieStore {
     // In memory
     private Map<URI, Set<HttpCookie>> allCookies;
 
-    public SuperTokensPersistentCookieStore(Application context) {
+    public SuperTokensPersistentCookieStore(Context context) {
         sharedPreferences = context.getSharedPreferences(context.getString(R.string.superTokensCookieSharedPrefsKey),
                 Context.MODE_PRIVATE);
         loadAllFromPersistence();

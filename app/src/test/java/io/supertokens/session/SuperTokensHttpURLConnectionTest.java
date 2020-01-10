@@ -1,6 +1,5 @@
 package io.supertokens.session;
 
-import android.app.Application;
 import android.content.Context;
 import android.os.Looper;
 import android.text.TextUtils;
@@ -24,8 +23,8 @@ import java.util.logging.Handler;
 /* TODO:
  - device info tests
  - multiple API calls in parallel when access token is expired (100 of them) and only 1 refresh should be called
- - session should not exist when user calls log out - use sessionPossiblyExists & check storage is empty
- - session should not exist when user's session fully expires - use sessionPossiblyExists & check storage is empty
+ - session should not exist when user calls log out - use doesSessionExist & check storage is empty
+ - session should not exist when user's session fully expires - use doesSessionExist & check storage is empty
  - while logged in, test that APIs that there is proper change in id refresh stored in storage
  - tests APIs that don't require authentication work after logout.
  - test custom headers are being sent when logged in and when not.
@@ -33,7 +32,7 @@ import java.util.logging.Handler;
  - if any API throws error, it gets propogated to the user properly (with and without interception)
  - if multiple interceptors are there, they should all work
  - testing attemptRefreshingSession works fine
- - testing sessionPossiblyExists works fine when user is logged in
+ - testing doesSessionExist works fine when user is logged in
  - Test everything without and without interception
  - Interception should not happen when domain is not the one that they gave
  - Calling SuperTokens.init more than once works!
@@ -58,8 +57,6 @@ public class SuperTokensHttpURLConnectionTest {
     private static OkHttpClient okHttpClient;
 
     @Mock
-    Application application;
-    @Mock
     Context context;
 
     @BeforeClass
@@ -77,14 +74,14 @@ public class SuperTokensHttpURLConnectionTest {
         Mockito.mock(Looper.class);
         Mockito.mock(Handler.class);
         mockSharedPrefs = new MockSharedPrefs();
-        Mockito.when(application.getSharedPreferences(Mockito.anyString(), Mockito.anyInt())).thenReturn(mockSharedPrefs);
         Mockito.when(context.getSharedPreferences(Mockito.anyString(), Mockito.anyInt())).thenReturn(mockSharedPrefs);
-        Mockito.when(application.getString(R.string.supertokensIdRefreshSharedPrefsKey)).thenReturn("supertokens-android-idrefreshtoken-key");
-        Mockito.when(application.getString(R.string.supertokensAntiCSRFTokenKey)).thenReturn("supertokens-android-anticsrf-key");
-        Mockito.when(application.getString(R.string.supertokensAntiCSRFHeaderKey)).thenReturn("anti-csrf");
-        Mockito.when(application.getString(R.string.supertokensIdRefreshHeaderKey)).thenReturn("id-refresh-token");
-        Mockito.when(application.getString(R.string.supertokensNameHeaderKey)).thenReturn("supertokens-sdk-name");
-        Mockito.when(application.getString(R.string.supertokensVersionHeaderKey)).thenReturn("supertokens-sdk-version");
+        Mockito.when(context.getSharedPreferences(Mockito.anyString(), Mockito.anyInt())).thenReturn(mockSharedPrefs);
+        Mockito.when(context.getString(R.string.supertokensIdRefreshSharedPrefsKey)).thenReturn("supertokens-android-idrefreshtoken-key");
+        Mockito.when(context.getString(R.string.supertokensAntiCSRFTokenKey)).thenReturn("supertokens-android-anticsrf-key");
+        Mockito.when(context.getString(R.string.supertokensAntiCSRFHeaderKey)).thenReturn("anti-csrf");
+        Mockito.when(context.getString(R.string.supertokensIdRefreshHeaderKey)).thenReturn("id-refresh-token");
+        Mockito.when(context.getString(R.string.supertokensNameHeaderKey)).thenReturn("supertokens-sdk-name");
+        Mockito.when(context.getString(R.string.supertokensVersionHeaderKey)).thenReturn("supertokens-sdk-version");
         OkHttpClient.Builder clientBuilder = new OkHttpClient.Builder();
         clientBuilder.interceptors().add(new SuperTokensInterceptor());
         clientBuilder.cookieJar(new PersistentCookieJar(new SetCookieCache(), new SharedPrefsCookiePersistor(context)));
@@ -540,7 +537,7 @@ public class SuperTokensHttpURLConnectionTest {
 //                throw new Exception("Error making logout request");
 //            }
 //
-//            if ( SuperTokens.sessionPossiblyExists(application) ) {
+//            if ( SuperTokens.doesSessionExist(application) ) {
 //                throw new Exception("Session active even after logout");
 //            }
 //        } catch(Exception e) {
