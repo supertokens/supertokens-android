@@ -23,7 +23,6 @@ import retrofit2.http.Header;
 import retrofit2.http.Headers;
 import retrofit2.http.POST;
 
-// TODO: Nemi, what is this for?
 public interface RetrofitTestAPIService {
     @POST("login")
     Call<Void> login();

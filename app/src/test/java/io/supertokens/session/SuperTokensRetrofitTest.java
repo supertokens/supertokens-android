@@ -23,6 +23,7 @@ import com.franmontiel.persistentcookiejar.PersistentCookieJar;
 import com.franmontiel.persistentcookiejar.cache.SetCookieCache;
 import com.franmontiel.persistentcookiejar.persistence.SharedPrefsCookiePersistor;
 import io.supertokens.session.android.MockSharedPrefs;
+import io.supertokens.session.android.RetrofitTestAPIService;
 import okhttp3.OkHttpClient;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -32,6 +33,8 @@ import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.runners.MockitoJUnitRunner;
+import retrofit2.Retrofit;
+import retrofit2.converter.gson.GsonConverterFactory;
 
 import java.io.File;
 import java.util.logging.Handler;
@@ -49,6 +52,8 @@ public class SuperTokensRetrofitTest {
     private final int sessionExpiryCode = 440;
     private static MockSharedPrefs mockSharedPrefs;
     private static OkHttpClient okHttpClient;
+    private static Retrofit retrofitInstance;
+    private static RetrofitTestAPIService retrofitTestAPIService;
 
     @Mock
     Context context;
@@ -80,6 +85,12 @@ public class SuperTokensRetrofitTest {
         clientBuilder.interceptors().add(new SuperTokensInterceptor());
         clientBuilder.cookieJar(new PersistentCookieJar(new SetCookieCache(), new SharedPrefsCookiePersistor(context)));
         okHttpClient = clientBuilder.build();
+        retrofitInstance = new Retrofit.Builder()
+                .baseUrl(testBaseURL)
+                .addConverterFactory(GsonConverterFactory.create())
+                .client(okHttpClient)
+                .build();
+        retrofitTestAPIService = retrofitInstance.create(RetrofitTestAPIService.class);
 
         TestUtils.callBeforeEachAPI();
     }

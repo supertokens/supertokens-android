@@ -19,7 +19,6 @@ package io.supertokens.session;
 import android.content.Context;
 import okhttp3.*;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
 import java.util.Map;
@@ -32,10 +31,6 @@ public class SuperTokensInterceptor implements Interceptor {
 
     private static Response makeRequest(Chain chain, Request request) throws IOException {
         return chain.proceed(request);
-    }
-
-    private static Response makeRequest(OkHttpClient client, Request request) throws IOException {
-        return client.newCall(request).execute();
     }
 
     @NotNull
@@ -106,7 +101,7 @@ public class SuperTokensInterceptor implements Interceptor {
                             .sentRequestAtMillis(response.sentRequestAtMillis())
                             .build();
                     response.close();
-                    Boolean retry = handleUnauthorised(applicationContext, preRequestIdRefreshToken, chain, null);
+                    Boolean retry = handleUnauthorised(applicationContext, preRequestIdRefreshToken, chain);
                     if (!retry) {
                         return clonedResponse;
                     }
@@ -125,18 +120,13 @@ public class SuperTokensInterceptor implements Interceptor {
         }
     }
 
-    private static Boolean handleUnauthorised(Context applicationContext, String preRequestIdRefreshToken, Chain chain, @Nullable OkHttpClient client) throws IOException {
+    private static Boolean handleUnauthorised(Context applicationContext, String preRequestIdRefreshToken, Chain chain) throws IOException {
         if (preRequestIdRefreshToken == null) {
             String idRefresh = IdRefreshToken.getToken(applicationContext);
             return idRefresh != null;
         }
 
-        Utils.Unauthorised unauthorisedResponse;
-        if (client != null) {
-            unauthorisedResponse = onUnauthorisedResponse(SuperTokens.refreshTokenEndpoint, preRequestIdRefreshToken, applicationContext, chain, client);
-        } else {
-            unauthorisedResponse = onUnauthorisedResponse(SuperTokens.refreshTokenEndpoint, preRequestIdRefreshToken, applicationContext, chain, null);
-        }
+        Utils.Unauthorised unauthorisedResponse = onUnauthorisedResponse(SuperTokens.refreshTokenEndpoint, preRequestIdRefreshToken, applicationContext, chain);
 
         if (unauthorisedResponse.status == Utils.Unauthorised.UnauthorisedStatus.SESSION_EXPIRED) {
             return false;
@@ -147,7 +137,7 @@ public class SuperTokensInterceptor implements Interceptor {
         return true;
     }
 
-    private static Utils.Unauthorised onUnauthorisedResponse(String refreshTokenUrl, String preRequestIdRefreshToken, Context applicationContext, Chain chain, @Nullable OkHttpClient client) {
+    private static Utils.Unauthorised onUnauthorisedResponse(String refreshTokenUrl, String preRequestIdRefreshToken, Context applicationContext, Chain chain) {
         // this is intentionally not put in a loop because the loop in other projects is because locking has a timeout
         Response refreshResponse = null;
         try {
@@ -173,11 +163,7 @@ public class SuperTokensInterceptor implements Interceptor {
             }
 
             Request refreshRequest = refreshRequestBuilder.build();
-            if (client != null) {
-                refreshResponse = makeRequest(client, refreshRequest);
-            } else {
-                refreshResponse = makeRequest(chain, refreshRequest);
-            }
+            refreshResponse = makeRequest(chain, refreshRequest);
             String idRefreshToken = refreshResponse.header(applicationContext.getString(R.string.supertokensIdRefreshHeaderKey));
             if (idRefreshToken != null) {
                 IdRefreshToken.setToken(applicationContext, idRefreshToken);

@@ -21,7 +21,6 @@ import android.content.Context;
 import java.io.IOException;
 import java.net.CookieManager;
 import java.net.HttpURLConnection;
-import java.net.URISyntaxException;
 import java.net.URL;
 import java.util.Map;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -31,7 +30,7 @@ public class SuperTokensHttpURLConnection {
     private static final Object refreshTokenLock = new Object();
     private static final ReentrantReadWriteLock refreshAPILock = new ReentrantReadWriteLock();
 
-    public static <T> T newRequest(URL url, SuperTokensHttpURLConnectionCallback<T> callback) throws IllegalAccessException, IOException, URISyntaxException {
+    public static HttpURLConnection newRequest(URL url, SuperTokensHttpURLConnectionCallback preConnectCallback) throws IllegalAccessException, IOException {
         if ( !SuperTokens.isInitCalled ) {
             throw new IllegalAccessException("SuperTokens.init function needs to be called before using newRequest");
         }
@@ -42,71 +41,68 @@ public class SuperTokensHttpURLConnection {
         }
         try {
             while (true) {
-                HttpURLConnection connection = null;
+                HttpURLConnection connection;
+                String preRequestIdRefreshToken;
+                int responseCode;
+                // TODO: write comment as to why we have this lock here. Do we also have this lock for iOS and website package?
+                refreshAPILock.readLock().lock();
                 try {
-                    String preRequestIdRefreshToken;
-                    T output;
-                    int responseCode;
-                    // TODO: write comment as to why we have this lock here. Do we also have this lock for iOS and website package?
-                    refreshAPILock.readLock().lock();
-                    try {
-                        connection = (HttpURLConnection) url.openConnection();
+                    connection = (HttpURLConnection) url.openConnection();
 
-                        // Add antiCSRF token, if present in storage, to the request headers
-                        preRequestIdRefreshToken = IdRefreshToken.getToken(applicationContext);
-                        String antiCSRFToken = AntiCSRF.getToken(applicationContext, preRequestIdRefreshToken);
+                    // Add antiCSRF token, if present in storage, to the request headers
+                    preRequestIdRefreshToken = IdRefreshToken.getToken(applicationContext);
+                    String antiCSRFToken = AntiCSRF.getToken(applicationContext, preRequestIdRefreshToken);
 
-                        if (antiCSRFToken != null) {
-                            connection.setRequestProperty(applicationContext.getString(R.string.supertokensAntiCSRFHeaderKey), antiCSRFToken);
-                        }
-
-                        // Add package information to headers
-                        connection.setRequestProperty(applicationContext.getString(R.string.supertokensNameHeaderKey), Utils.PACKAGE_PLATFORM);
-                        connection.setRequestProperty(applicationContext.getString(R.string.supertokensVersionHeaderKey), BuildConfig.VERSION_NAME);
-
-                        // Get the default cookie manager that is used, if null set a new one
-                        CookieManager cookieManager = (CookieManager) CookieManager.getDefault();
-                        if (cookieManager == null) {
-                            // Passing null for cookie policy to use default
-                            throw new IllegalAccessException("Please initialise a CookieManager.\n" +
-                                    "For example: new CookieManager(new SuperTokensPersistentCookieStore(context), null).\n" +
-                                    "SuperTokens provides a persistent cookie store called SuperTokensPersistentCookieStore.\n" +
-                                    "For more information visit our documentation.");
-                        }
-                        // This will execute all the steps the user wants to do with the connection and returns the output that the user has configured
-                        output = callback.runOnConnection(connection);
-                        // Get the cookies from the response and store the idRefreshToken to storage
-                        String idRefreshToken = connection.getHeaderField(applicationContext.getString(R.string.supertokensIdRefreshHeaderKey));
-                        if (idRefreshToken != null) {
-                            IdRefreshToken.setToken(applicationContext, idRefreshToken);
-                        }
-
-                        responseCode = connection.getResponseCode();
-                    } finally {
-                        refreshAPILock.readLock().unlock();
+                    if (antiCSRFToken != null) {
+                        connection.setRequestProperty(applicationContext.getString(R.string.supertokensAntiCSRFHeaderKey), antiCSRFToken);
                     }
 
-                    if (responseCode == SuperTokens.sessionExpiryStatusCode) {
-                        // Network call threw UnauthorisedAccess, try to call the refresh token endpoint and retry original call
-                        boolean retry = SuperTokensHttpURLConnection.handleUnauthorised(applicationContext, preRequestIdRefreshToken);
-                        if (!retry) {
-                            return output;
-                        }
-                    } else if (responseCode == -1) {
-                        // If the response code is -1 then the response was not a valid HTTP response, return the output of the users execution
-                        return output;
-                    } else {
-                        // Store the anti-CSRF token from the response headers
-                        String responseAntiCSRFToken = connection.getHeaderField(applicationContext.getString(R.string.supertokensAntiCSRFHeaderKey));
-                        if ( responseAntiCSRFToken != null ) {
-                            AntiCSRF.setToken(applicationContext, IdRefreshToken.getToken(applicationContext), responseAntiCSRFToken);
-                        }
-                        return output;
+                    // Add package information to headers
+                    connection.setRequestProperty(applicationContext.getString(R.string.supertokensNameHeaderKey), Utils.PACKAGE_PLATFORM);
+                    connection.setRequestProperty(applicationContext.getString(R.string.supertokensVersionHeaderKey), BuildConfig.VERSION_NAME);
+
+                    // Get the default cookie manager that is used, if null set a new one
+                    if (CookieManager.getDefault() == null) {
+                        // Passing null for cookie policy to use default
+                        throw new IllegalAccessException("Please initialise a CookieManager.\n" +
+                                "For example: new CookieManager(new SuperTokensPersistentCookieStore(context), null).\n" +
+                                "SuperTokens provides a persistent cookie store called SuperTokensPersistentCookieStore.\n" +
+                                "For more information visit our documentation.");
                     }
+                    // This will allow the user to set headers or modify request in anyway they want
+                    if (preConnectCallback != null) {
+                        preConnectCallback.doAction(connection);
+                    }
+
+                    connection.connect();
+
+                    // Get the cookies from the response and store the idRefreshToken to storage
+                    String idRefreshToken = connection.getHeaderField(applicationContext.getString(R.string.supertokensIdRefreshHeaderKey));
+                    if (idRefreshToken != null) {
+                        IdRefreshToken.setToken(applicationContext, idRefreshToken);
+                    }
+
+                    responseCode = connection.getResponseCode();
                 } finally {
-                    if (connection != null) {
-                        connection.disconnect();
+                    refreshAPILock.readLock().unlock();
+                }
+
+                if (responseCode == SuperTokens.sessionExpiryStatusCode) {
+                    // Network call threw UnauthorisedAccess, try to call the refresh token endpoint and retry original call
+                    boolean retry = SuperTokensHttpURLConnection.handleUnauthorised(applicationContext, preRequestIdRefreshToken);
+                    if (!retry) {
+                        return connection;
                     }
+                } else if (responseCode == -1) {
+                    // If the response code is -1 then the response was not a valid HTTP response, return the output of the users execution
+                    return connection;
+                } else {
+                    // Store the anti-CSRF token from the response headers
+                    String responseAntiCSRFToken = connection.getHeaderField(applicationContext.getString(R.string.supertokensAntiCSRFHeaderKey));
+                    if ( responseAntiCSRFToken != null ) {
+                        AntiCSRF.setToken(applicationContext, IdRefreshToken.getToken(applicationContext), responseAntiCSRFToken);
+                    }
+                    return connection;
                 }
             }
         } finally {
@@ -158,8 +154,7 @@ public class SuperTokensHttpURLConnection {
                 refreshTokenConnection.setRequestProperty(entry.getKey(), entry.getValue());
             }
 
-            CookieManager cookieManager = (CookieManager) CookieManager.getDefault();
-            if (cookieManager == null) {
+            if (CookieManager.getDefault() == null) {
                 throw new IllegalAccessException("Please initialise a CookieManager.\n" +
                         "For example: new CookieManager(new SuperTokensPersistentCookieStore(context), null).\n" +
                         "SuperTokens provides a persistent cookie store called SuperTokensPersistentCookieStore.\n" +
@@ -235,8 +230,8 @@ public class SuperTokensHttpURLConnection {
 //        }
 //    }
 
-    public interface SuperTokensHttpURLConnectionCallback<T> {
-        T runOnConnection(HttpURLConnection con) throws IOException;
+    public interface SuperTokensHttpURLConnectionCallback {
+        void doAction(HttpURLConnection con) throws IOException;
     }
 
 }
