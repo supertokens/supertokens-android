@@ -164,9 +164,16 @@ public class SuperTokensInterceptor implements Interceptor {
 
             Request refreshRequest = refreshRequestBuilder.build();
             refreshResponse = makeRequest(chain, refreshRequest);
+
+            boolean removeIdRefreshToken = true;
             String idRefreshToken = refreshResponse.header(applicationContext.getString(R.string.supertokensIdRefreshHeaderKey));
             if (idRefreshToken != null) {
                 IdRefreshToken.setToken(applicationContext, idRefreshToken);
+                removeIdRefreshToken = false;
+            }
+
+            if (refreshResponse.code() == SuperTokens.sessionExpiryStatusCode && removeIdRefreshToken) {
+                IdRefreshToken.setToken(applicationContext, "remove");
             }
 
             if (refreshResponse.code() != 200) {

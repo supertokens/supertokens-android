@@ -162,9 +162,15 @@ public class SuperTokensHttpURLConnection {
             }
             refreshTokenConnection.connect();
 
+            boolean removeIdRefreshToken = true;
             String idRefreshToken = refreshTokenConnection.getHeaderField(applicationContext.getString(R.string.supertokensIdRefreshHeaderKey));
             if (idRefreshToken != null) {
                 IdRefreshToken.setToken(applicationContext, idRefreshToken);
+                removeIdRefreshToken = false;
+            }
+
+            if (refreshTokenConnection.getResponseCode() == SuperTokens.sessionExpiryStatusCode && removeIdRefreshToken) {
+                IdRefreshToken.setToken(applicationContext, "remove");
             }
 
             if (refreshTokenConnection.getResponseCode() != 200) {
