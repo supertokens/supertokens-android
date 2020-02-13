@@ -26,6 +26,9 @@ import { testHeaders } from './testHeaders';
 import testUserInfo from './userInfo';
 import { cleanST, killAllST, setKeyValueInConfig, setupST, startST } from './utils';
 
+import CustomRefreshAPIHeaders from './customRefreshAPIHeaders';
+import { testGetCustomRefreshAPIHeaders } from './getCustomRefreshAPIHeaders';
+
 let bodyParser = require("body-parser");
 
 let urlencodedParser = bodyParser.urlencoded({ limit: "20mb", extended: true, parameterLimit: 20000 });
@@ -45,8 +48,12 @@ SuperTokens.init([
 
 app.post("/startst", async (req, res) => {
     try {
-        let accessTokenValidity = req.body.accessTokenValidity === undefined ? 1 : req.body.accessTokenValidity;
+        let accessTokenValidity = req.body.accessTokenValidity === undefined ? 10 : req.body.accessTokenValidity;
+        let setAntiCsrf = req.body.setAntiCsrf === undefined ? true : req.body.setAntiCsrf;
+        let refreshTokenValidity = req.body.refreshTokenValidity === undefined ? 144000 : req.body.refreshTokenValidity;
+        await setKeyValueInConfig("refresh_token_validity", refreshTokenValidity);
         await setKeyValueInConfig("access_token_validity", accessTokenValidity);
+        await setKeyValueInConfig("enable_anti_csrf", setAntiCsrf);
         let pid = await startST();
         res.send(pid + "");
     } catch (err) {
@@ -56,6 +63,7 @@ app.post("/startst", async (req, res) => {
 
 app.post("/beforeeach", async (req, res) => {
     RefreshTokenCounter.resetRefreshTokenCount();
+    CustomRefreshAPIHeaders.resetCustomRefreshAPIHeaders();
     await killAllST();
     await setupST();
     await setKeyValueInConfig("cookie_domain", '"127.0.0.1"');
@@ -75,6 +83,30 @@ app.post("/login", function (req, res) {
         res.status(500).send("");
     });
 });
+
+app.get("/multipleInterceptors", function (req, res) {
+    res.status(200).send(req.headers["interceptorheader"]);
+});
+
+app.get("/checkDeviceInfo", function (req, res){
+    res.status(200).send(req.headers)
+});
+
+app.get("/testError", function (req, res) {
+    res.status(500).send("custom message");
+});
+
+app.get("/checkCustomHeader", function (req, res) {
+    testGetCustomRefreshAPIHeaders(req,res).catch(err => {
+        console.log(err);
+        res.status(500).send("");
+    });
+});
+
+app.get("/testPing", function (req, res) {
+    res.status(200).send("success");
+});
+
 
 app.get("/userInfo", function (req, res) {
     testUserInfo(req, res).catch(err => {

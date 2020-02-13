@@ -34,6 +34,8 @@ const refreshTokenCounter_1 = require("./refreshTokenCounter");
 const testHeaders_1 = require("./testHeaders");
 const userInfo_1 = require("./userInfo");
 const utils_1 = require("./utils");
+const customRefreshAPIHeaders_1 = require("./customRefreshAPIHeaders");
+const getCustomRefreshAPIHeaders_1 = require("./getCustomRefreshAPIHeaders");
 let bodyParser = require("body-parser");
 let urlencodedParser = bodyParser.urlencoded({ limit: "20mb", extended: true, parameterLimit: 20000 });
 let jsonParser = bodyParser.json({ limit: "20mb" });
@@ -49,8 +51,12 @@ SuperTokens.init([
 ]);
 app.post("/startst", (req, res) => __awaiter(this, void 0, void 0, function* () {
     try {
-        let accessTokenValidity = req.body.accessTokenValidity === undefined ? 1 : req.body.accessTokenValidity;
+        let accessTokenValidity = req.body.accessTokenValidity === undefined ? 10 : req.body.accessTokenValidity;
+        let setAntiCsrf = req.body.setAntiCsrf === undefined ? true : req.body.setAntiCsrf;
+        let refreshTokenValidity = req.body.refreshTokenValidity === undefined ? 144000 : req.body.refreshTokenValidity;
+        yield utils_1.setKeyValueInConfig("refresh_token_validity", refreshTokenValidity);
         yield utils_1.setKeyValueInConfig("access_token_validity", accessTokenValidity);
+        yield utils_1.setKeyValueInConfig("enable_anti_csrf", setAntiCsrf);
         let pid = yield utils_1.startST();
         res.send(pid + "");
     }
@@ -60,6 +66,7 @@ app.post("/startst", (req, res) => __awaiter(this, void 0, void 0, function* () 
 }));
 app.post("/beforeeach", (req, res) => __awaiter(this, void 0, void 0, function* () {
     refreshTokenCounter_1.default.resetRefreshTokenCount();
+    customRefreshAPIHeaders_1.default.resetCustomRefreshAPIHeaders();
     yield utils_1.killAllST();
     yield utils_1.setupST();
     yield utils_1.setKeyValueInConfig("cookie_domain", '"127.0.0.1"');
@@ -76,6 +83,24 @@ app.post("/login", function (req, res) {
         console.log(err);
         res.status(500).send("");
     });
+});
+app.get("/multipleInterceptors", function (req, res) {
+    res.status(200).send(req.headers["interceptorheader"]);
+});
+app.get("/checkDeviceInfo", function (req, res) {
+    res.status(200).send(req.headers);
+});
+app.get("/testError", function (req, res) {
+    res.status(500).send("custom message");
+});
+app.get("/checkCustomHeader", function (req, res) {
+    getCustomRefreshAPIHeaders_1.testGetCustomRefreshAPIHeaders(req, res).catch(err => {
+        console.log(err);
+        res.status(500).send("");
+    });
+});
+app.get("/testPing", function (req, res) {
+    res.status(200).send("success");
 });
 app.get("/userInfo", function (req, res) {
     userInfo_1.default(req, res).catch(err => {

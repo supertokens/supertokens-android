@@ -71,14 +71,14 @@ public class TestUtils {
     }
 
     public static void startST() {
-        startST(10);
+        startST(10, true,144000);
     }
 
-    public static void startST(long validity) {
+    public static void startST(long validity, boolean AntiCsrf, double idRefreshTokenValidity) {
         try {
             final MediaType JSON
                     = MediaType.parse("application/json; charset=utf-8");
-            RequestBody body = RequestBody.create(JSON, "{\"accessTokenValidity\": " + validity + "}");
+            RequestBody body = RequestBody.create(JSON, "{\"accessTokenValidity\": " + validity + ",\"setAntiCsrf\": " + AntiCsrf +",\"refreshTokenValidity\": "+idRefreshTokenValidity+"}");
             OkHttpClient client = new OkHttpClient.Builder().build();
             Request request = new Request.Builder()
                     .url(new URL(startSTAPIURL))

@@ -10,11 +10,13 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 Object.defineProperty(exports, "__esModule", { value: true });
 const SuperTokens = require("supertokens-node");
 const refreshTokenCounter_1 = require("./refreshTokenCounter");
+const customRefreshAPIHeaders_1 = require("./customRefreshAPIHeaders");
 function refreshtoken(req, res) {
     return __awaiter(this, void 0, void 0, function* () {
         try {
             yield SuperTokens.refreshSession(req, res);
             refreshTokenCounter_1.default.incrementRefreshTokenCount();
+            customRefreshAPIHeaders_1.default.setCustomRefreshAPIHeaders(req.headers["testkey"] !== undefined);
             res.send("");
         }
         catch (err) {

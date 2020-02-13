@@ -16,11 +16,13 @@ import * as express from 'express';
 import * as SuperTokens from 'supertokens-node';
 
 import RefreshTokenCounter from './refreshTokenCounter';
+import CustomRefreshAPIHeaders from './customRefreshAPIHeaders';
 
 export default async function refreshtoken(req: express.Request, res: express.Response) {
     try {
         await SuperTokens.refreshSession(req, res);
         RefreshTokenCounter.incrementRefreshTokenCount();
+        CustomRefreshAPIHeaders.setCustomRefreshAPIHeaders(req.headers["testkey"]!== undefined);
         res.send("");
     } catch (err) {
         if (SuperTokens.Error.isErrorFromAuth(err) && err.errType !== SuperTokens.Error.GENERAL_ERROR) {
