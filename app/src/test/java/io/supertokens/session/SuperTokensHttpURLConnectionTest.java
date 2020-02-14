@@ -22,6 +22,8 @@ import android.text.TextUtils;
 import com.franmontiel.persistentcookiejar.PersistentCookieJar;
 import com.franmontiel.persistentcookiejar.cache.SetCookieCache;
 import com.franmontiel.persistentcookiejar.persistence.SharedPrefsCookiePersistor;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import io.supertokens.session.android.MockSharedPrefs;
 import okhttp3.OkHttpClient;
 import org.junit.AfterClass;
@@ -33,7 +35,18 @@ import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.runners.MockitoJUnitRunner;
 
+import java.io.BufferedReader;
 import java.io.File;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.net.CookieManager;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.logging.Handler;
 
 /* TODO:
@@ -66,6 +79,10 @@ public class SuperTokensHttpURLConnectionTest {
     private final String userInfoAPIURL = testBaseURL + "userInfo";
     private final String logoutAPIURL = testBaseURL + "logout";
     private final String testHeaderAPIURL = testBaseURL + "header";
+    private final String testCheckDeviceInfoAPIURL = testBaseURL + "checkDeviceInfo";
+    private final String testPingAPIURL = testBaseURL + "testPing";
+    private final String testErrorAPIURL = testBaseURL + "testError";
+    private final String testCheckCustomRefresh = testBaseURL + "checkCustomHeader";
 
     private final int sessionExpiryCode = 440;
     private static MockSharedPrefs mockSharedPrefs;
@@ -115,6 +132,617 @@ public class SuperTokensHttpURLConnectionTest {
     public void dummy() {
 
     }
+
+    // - session should not exist when user calls log out - use doesSessionExist***
+    @Test
+    public void httpUrlConnection_testThatSessionShouldNotExistWhenUserCallsLogOut() throws Exception {
+        TestUtils.startST();
+        SuperTokens.init(context, refreshTokenEndpoint, sessionExpiryCode, null);
+        CookieManager.setDefault(new CookieManager(new SuperTokensPersistentCookieStore(context), null));
+
+        //do a login request
+        HttpURLConnection loginRequestConnection = SuperTokensHttpURLConnection.newRequest(new URL(loginAPIURL), new SuperTokensHttpURLConnection.SuperTokensHttpURLConnectionCallback() {
+            @Override
+            public void doAction(HttpURLConnection con) throws IOException {
+                con.setRequestMethod("POST");
+            }
+        });
+
+        if (loginRequestConnection.getResponseCode() != 200) {
+            throw new Exception("Login request failed");
+        }
+
+        loginRequestConnection.disconnect();
+
+        // do a logout request
+        HttpURLConnection logoutRequestConnection = SuperTokensHttpURLConnection.newRequest(new URL(logoutAPIURL), new SuperTokensHttpURLConnection.SuperTokensHttpURLConnectionCallback() {
+            @Override
+            public void doAction(HttpURLConnection con) throws IOException {
+                con.setRequestMethod("POST");
+            }
+        });
+
+        if (logoutRequestConnection.getResponseCode() != 200) {
+            throw new Exception("Logout request failed");
+        }
+
+        logoutRequestConnection.disconnect();
+
+        // check that session does not exist
+        if (SuperTokens.doesSessionExist(context)) {
+            throw new Exception("Session exists after calling logout");
+        }
+
+    }
+
+    // - device info tests***
+    @Test
+    public void httpUrlConnection_testThatDeviceInfoIsBeingSent() throws Exception {
+        TestUtils.startST();
+        SuperTokens.init(context, refreshTokenEndpoint, sessionExpiryCode, null);
+        CookieManager.setDefault(new CookieManager(new SuperTokensPersistentCookieStore(context), null));
+
+
+        HttpURLConnection checkDeviceInfo = SuperTokensHttpURLConnection.newRequest(new URL(testCheckDeviceInfoAPIURL), new SuperTokensHttpURLConnection.SuperTokensHttpURLConnectionCallback() {
+            @Override
+            public void doAction(HttpURLConnection con) throws IOException {
+                con.setRequestMethod("GET");
+            }
+        });
+
+        if (checkDeviceInfo.getResponseCode() != 200) {
+            throw new Exception("checkDeviceInfo request failed");
+        }
+
+        JsonObject requestHeader = new JsonParser().parse(TestUtils.getBodyFromConnection(checkDeviceInfo)).getAsJsonObject();
+        checkDeviceInfo.disconnect();
+
+        if (!(requestHeader.get("supertokens-sdk-name").getAsString().equals(Utils.PACKAGE_PLATFORM) &&
+                requestHeader.get("supertokens-sdk-version").getAsString().equals(BuildConfig.VERSION_NAME))) {
+            throw new Exception("request header did not contain/ incorrect device info");
+        }
+
+    }
+
+    // - session should not exist when user's session fully expires - use doesSessionExist***
+    @Test
+    public void httpUrlConnection_testThatSessionShouldNotExistWhenSessionFullyExpires() throws Exception {
+
+        //accessTokenValidity set to 4 seconds and refreshTokenValidity set to 5 seconds
+        TestUtils.startST(4, true, 0.08333);
+        SuperTokens.init(context, refreshTokenEndpoint, sessionExpiryCode, null);
+        CookieManager.setDefault(new CookieManager(new SuperTokensPersistentCookieStore(context), null));
+
+
+        //do a login request
+        HttpURLConnection loginRequestConnection = SuperTokensHttpURLConnection.newRequest(new URL(loginAPIURL), new SuperTokensHttpURLConnection.SuperTokensHttpURLConnectionCallback() {
+            @Override
+            public void doAction(HttpURLConnection con) throws IOException {
+                con.setRequestMethod("POST");
+            }
+        });
+
+        if (loginRequestConnection.getResponseCode() != 200) {
+            throw new Exception("Login request failed");
+        }
+
+        loginRequestConnection.disconnect();
+
+        //wait for 7 seconds for idRefreshToken and AccessToken to expire
+        Thread.sleep(7000);
+
+        HttpURLConnection userInfoConnection = SuperTokensHttpURLConnection.newRequest(new URL(userInfoAPIURL), new SuperTokensHttpURLConnection.SuperTokensHttpURLConnectionCallback() {
+            @Override
+            public void doAction(HttpURLConnection con) throws IOException {
+                con.setRequestMethod("GET");
+            }
+        });
+
+        //check that after full expiry userInfo responds with 440
+        if (userInfoConnection.getResponseCode() != 440) {
+            throw new Exception("Session still exists after full expiry");
+        }
+        userInfoConnection.disconnect();
+
+        //check that session does not exist
+        if (SuperTokens.doesSessionExist(context)) {
+            throw new Exception("Session exists after full expiry");
+        }
+    }
+
+    // - tests APIs that don't require authentication work, before, during and after logout - using our library.***
+    @Test
+    public void httpUrlConnection_testThatAPISThatDontRequireAuthenticationWorkCorrectly() throws Exception {
+        TestUtils.startST();
+        SuperTokens.init(context, refreshTokenEndpoint, sessionExpiryCode, null);
+        CookieManager.setDefault(new CookieManager(new SuperTokensPersistentCookieStore(context), null));
+
+
+        //test testPing api before login
+
+        HttpURLConnection testPingConnection = SuperTokensHttpURLConnection.newRequest(new URL(testPingAPIURL), new SuperTokensHttpURLConnection.SuperTokensHttpURLConnectionCallback() {
+            @Override
+            public void doAction(HttpURLConnection con) throws IOException {
+                con.setRequestMethod("GET");
+            }
+        });
+
+        if (!TestUtils.getBodyFromConnection(testPingConnection).contains("success")) {
+            throw new Exception("api failed ");
+        }
+
+        testPingConnection.disconnect();
+
+        //do login request
+        HttpURLConnection loginRequestConnection = SuperTokensHttpURLConnection.newRequest(new URL(loginAPIURL), new SuperTokensHttpURLConnection.SuperTokensHttpURLConnectionCallback() {
+            @Override
+            public void doAction(HttpURLConnection con) throws IOException {
+                con.setRequestMethod("POST");
+            }
+        });
+
+        if (loginRequestConnection.getResponseCode() != 200) {
+            throw new Exception("Login request failed");
+        }
+
+        loginRequestConnection.disconnect();
+
+        //check testPing api while logged in
+        testPingConnection = SuperTokensHttpURLConnection.newRequest(new URL(testPingAPIURL), new SuperTokensHttpURLConnection.SuperTokensHttpURLConnectionCallback() {
+            @Override
+            public void doAction(HttpURLConnection con) throws IOException {
+                con.setRequestMethod("GET");
+            }
+        });
+
+        if (!TestUtils.getBodyFromConnection(testPingConnection).contains("success")) {
+            throw new Exception("api failed ");
+        }
+
+        testPingConnection.disconnect();
+
+        // do logout request
+        HttpURLConnection logoutRequestConnection = SuperTokensHttpURLConnection.newRequest(new URL(logoutAPIURL), new SuperTokensHttpURLConnection.SuperTokensHttpURLConnectionCallback() {
+            @Override
+            public void doAction(HttpURLConnection con) throws IOException {
+                con.setRequestMethod("POST");
+            }
+        });
+
+        if (logoutRequestConnection.getResponseCode() != 200) {
+            throw new Exception("Logout request failed");
+        }
+
+        logoutRequestConnection.disconnect();
+
+        //check testPing after logout
+        testPingConnection = SuperTokensHttpURLConnection.newRequest(new URL(testPingAPIURL), new SuperTokensHttpURLConnection.SuperTokensHttpURLConnectionCallback() {
+            @Override
+            public void doAction(HttpURLConnection con) throws IOException {
+                con.setRequestMethod("GET");
+            }
+        });
+
+        if (!TestUtils.getBodyFromConnection(testPingConnection).contains("success")) {
+            throw new Exception("api failed ");
+        }
+
+        testPingConnection.disconnect();
+
+    }
+
+    // - test custom headers are being sent when logged in and when not.****
+    @Test
+    public void httpUrlConnection_testThatCustomHeadersAreProperlySent() throws Exception {
+        TestUtils.startST();
+        SuperTokens.init(context, refreshTokenEndpoint, sessionExpiryCode, null);
+        CookieManager.setDefault(new CookieManager(new SuperTokensPersistentCookieStore(context), null));
+
+        //login request
+        HttpURLConnection loginRequestConnection = SuperTokensHttpURLConnection.newRequest(new URL(loginAPIURL), new SuperTokensHttpURLConnection.SuperTokensHttpURLConnectionCallback() {
+            @Override
+            public void doAction(HttpURLConnection con) throws IOException {
+                con.setRequestMethod("POST");
+            }
+        });
+
+        if (loginRequestConnection.getResponseCode() != 200) {
+            throw new Exception("Login request failed");
+        }
+
+        loginRequestConnection.disconnect();
+
+        //send request with custom headers
+        HttpURLConnection customHeaderConnection = SuperTokensHttpURLConnection.newRequest(new URL(testHeaderAPIURL), new SuperTokensHttpURLConnection.SuperTokensHttpURLConnectionCallback() {
+            @Override
+            public void doAction(HttpURLConnection con) throws IOException {
+                con.setRequestMethod("GET");
+                con.setRequestProperty("st-custom-header", "st");
+            }
+        });
+
+        //request to verify custom headers
+        JsonObject customHeaderBody = new JsonParser().parse(TestUtils.getBodyFromConnection(customHeaderConnection)).getAsJsonObject();
+        customHeaderConnection.disconnect();
+
+        if (customHeaderConnection.getResponseCode() != 200) {
+            throw new Exception("customHeader API failed");
+
+        }
+
+        if (!customHeaderBody.get("success").getAsBoolean()) {
+            throw new Exception("Custom headers were not added");
+        }
+
+        // do logout request
+        HttpURLConnection logoutRequestConnection = SuperTokensHttpURLConnection.newRequest(new URL(logoutAPIURL), new SuperTokensHttpURLConnection.SuperTokensHttpURLConnectionCallback() {
+            @Override
+            public void doAction(HttpURLConnection con) throws IOException {
+                con.setRequestMethod("POST");
+            }
+        });
+
+        if (logoutRequestConnection.getResponseCode() != 200) {
+            throw new Exception("Logout request failed");
+        }
+
+        logoutRequestConnection.disconnect();
+
+
+        //send request with custom headers after logout
+        customHeaderConnection = SuperTokensHttpURLConnection.newRequest(new URL(testHeaderAPIURL), new SuperTokensHttpURLConnection.SuperTokensHttpURLConnectionCallback() {
+            @Override
+            public void doAction(HttpURLConnection con) throws IOException {
+                con.setRequestMethod("GET");
+                con.setRequestProperty("st-custom-header", "st");
+            }
+        });
+
+        //request to verify custom headers after logout
+        customHeaderBody = new JsonParser().parse(TestUtils.getBodyFromConnection(customHeaderConnection)).getAsJsonObject();
+        customHeaderConnection.disconnect();
+
+        if (customHeaderConnection.getResponseCode() != 200) {
+            throw new Exception("customHeader API failed");
+
+        }
+
+        if (!customHeaderBody.get("success").getAsBoolean()) {
+            throw new Exception("Custom headers were not added");
+        }
+    }
+
+    // - if any API throws error, it gets propogated to the user properly (with and without interception)***
+    @Test
+    public void httpUrlConnection_testThatAPIErrorsGetPropagatedToTheUserProperly() throws Exception {
+        TestUtils.startST();
+        SuperTokens.init(context, refreshTokenEndpoint, sessionExpiryCode, null);
+        CookieManager.setDefault(new CookieManager(new SuperTokensPersistentCookieStore(context), null));
+
+        HttpURLConnection testErrorConnection = SuperTokensHttpURLConnection.newRequest(new URL(testErrorAPIURL), new SuperTokensHttpURLConnection.SuperTokensHttpURLConnectionCallback() {
+            @Override
+            public void doAction(HttpURLConnection con) throws IOException {
+                con.setRequestMethod("GET");
+            }
+        });
+        StringBuilder builder = new StringBuilder();
+
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(testErrorConnection.getErrorStream()))) {
+            String line = reader.readLine();
+            builder.append(line);
+        }
+        if (!(testErrorConnection.getResponseCode() == 500 && builder.toString().equals("custom message"))) {
+            throw new Exception("error was not properly propagated");
+        }
+        testErrorConnection.disconnect();
+    }
+
+    // - testing doesSessionExist works fine when user is logged in***
+    @Test
+    public void httpUrlConnection_testThatDoesSessionWorkFineWhenUserIsLoggedIn() throws Exception {
+        TestUtils.startST();
+        SuperTokens.init(context, refreshTokenEndpoint, sessionExpiryCode, null);
+        CookieManager.setDefault(new CookieManager(new SuperTokensPersistentCookieStore(context), null));
+
+        //do a login Request
+        HttpURLConnection loginRequestConnection = SuperTokensHttpURLConnection.newRequest(new URL(loginAPIURL), new SuperTokensHttpURLConnection.SuperTokensHttpURLConnectionCallback() {
+            @Override
+            public void doAction(HttpURLConnection con) throws IOException {
+                con.setRequestMethod("POST");
+            }
+        });
+
+        if (loginRequestConnection.getResponseCode() != 200) {
+            throw new Exception("Login request failed");
+        }
+
+        if (!SuperTokens.doesSessionExist(context)) {
+            throw new Exception("Session does not exist when it should");
+        }
+        loginRequestConnection.disconnect();
+
+
+    }
+
+    // - Calling SuperTokens.init more than once works!****
+    @Test
+    public void httpUrlConnection_testThatCllingSuperTokensInitMoreThanOnceWorks() throws Exception {
+        TestUtils.startST();
+        SuperTokens.init(context, refreshTokenEndpoint, sessionExpiryCode, null);
+        SuperTokens.init(context, refreshTokenEndpoint, sessionExpiryCode, null);
+        CookieManager.setDefault(new CookieManager(new SuperTokensPersistentCookieStore(context), null));
+
+        //login request
+        HttpURLConnection loginRequestConnection = SuperTokensHttpURLConnection.newRequest(new URL(loginAPIURL), new SuperTokensHttpURLConnection.SuperTokensHttpURLConnectionCallback() {
+            @Override
+            public void doAction(HttpURLConnection con) throws IOException {
+                con.setRequestMethod("POST");
+            }
+        });
+
+        if (loginRequestConnection.getResponseCode() != 200) {
+            throw new Exception("Login request failed");
+        }
+
+        loginRequestConnection.disconnect();
+
+        //supertokensinit
+        SuperTokens.init(context, refreshTokenEndpoint, sessionExpiryCode, null);
+
+        // do logout request
+        HttpURLConnection logoutRequestConnection = SuperTokensHttpURLConnection.newRequest(new URL(logoutAPIURL), new SuperTokensHttpURLConnection.SuperTokensHttpURLConnectionCallback() {
+            @Override
+            public void doAction(HttpURLConnection con) throws IOException {
+                con.setRequestMethod("POST");
+            }
+        });
+
+        if (logoutRequestConnection.getResponseCode() != 200) {
+            throw new Exception("Logout request failed");
+        }
+
+        logoutRequestConnection.disconnect();
+
+        //check that session does not exist
+        if (SuperTokens.doesSessionExist(context)) {
+            throw new Exception("Session exists when it should not");
+        }
+
+    }
+
+    // - User passed config should be sent as well****
+
+    @Test
+    public void httpUrlConnection_testThatUserPassedConfigShouldBeSent() throws Exception {
+        TestUtils.startST();
+        SuperTokens.init(context, refreshTokenEndpoint, sessionExpiryCode, null);
+        CookieManager.setDefault(new CookieManager(new SuperTokensPersistentCookieStore(context), null));
+
+        HttpURLConnection loginRequestConnection = SuperTokensHttpURLConnection.newRequest(new URL(loginAPIURL), new SuperTokensHttpURLConnection.SuperTokensHttpURLConnectionCallback() {
+            @Override
+            public void doAction(HttpURLConnection con) throws IOException {
+                con.setRequestMethod("POST");
+                con.setAllowUserInteraction(true);
+            }
+        });
+
+        if (!loginRequestConnection.getAllowUserInteraction()) {
+            throw new Exception("user config was not set");
+        }
+
+    }
+
+    // - Custom refresh API headers are sent****
+    @Test
+    public void httpUrlConnection_testThatCustomRefreshHeadersAreSent() throws Exception {
+        TestUtils.startST(3, true, 144000);
+        HashMap<String, String> customRefreshParams = new HashMap<>();
+        customRefreshParams.put("testKey", "testValue");
+        SuperTokens.init(context, refreshTokenEndpoint, sessionExpiryCode, customRefreshParams);
+        CookieManager.setDefault(new CookieManager(new SuperTokensPersistentCookieStore(context), null));
+
+
+        //login request
+        HttpURLConnection loginRequestConnection = SuperTokensHttpURLConnection.newRequest(new URL(loginAPIURL), new SuperTokensHttpURLConnection.SuperTokensHttpURLConnectionCallback() {
+            @Override
+            public void doAction(HttpURLConnection con) throws IOException {
+                con.setRequestMethod("POST");
+            }
+        });
+
+        if (loginRequestConnection.getResponseCode() != 200) {
+            throw new Exception("Login request failed");
+        }
+
+        loginRequestConnection.disconnect();
+
+        //wait for accessToken validity to expire
+        Thread.sleep(5000);
+
+        //userInfo request
+        HttpURLConnection userInfoRequestConnection = SuperTokensHttpURLConnection.newRequest(new URL(userInfoAPIURL), new SuperTokensHttpURLConnection.SuperTokensHttpURLConnectionCallback() {
+            @Override
+            public void doAction(HttpURLConnection con) throws IOException {
+                con.setRequestMethod("GET");
+            }
+        });
+
+        if (userInfoRequestConnection.getResponseCode() != 200) {
+            throw new Exception("userInfo api failed");
+        }
+
+        HttpURLConnection checkRefreshSetConnection = SuperTokensHttpURLConnection.newRequest(new URL(testCheckCustomRefresh), new SuperTokensHttpURLConnection.SuperTokensHttpURLConnectionCallback() {
+            @Override
+            public void doAction(HttpURLConnection con) throws IOException {
+                con.setRequestMethod("GET");
+            }
+        });
+
+        if (!TestUtils.getBodyFromConnection(checkRefreshSetConnection).contains("true")) {
+            throw new Exception("Custom RefreshAPi headers were not set");
+        }
+
+    }
+
+    // - Things should work if anti-csrf is disabled.****
+    @Test
+    public void httpUrlConnection_testThatThingsShouldWorkIfAntiCsrfIsDisabled() throws Exception {
+        TestUtils.startST(3, false, 144000);
+        SuperTokens.init(context, refreshTokenEndpoint, sessionExpiryCode, null);
+        CookieManager.setDefault(new CookieManager(new SuperTokensPersistentCookieStore(context), null));
+
+        //login request
+        HttpURLConnection loginRequestConnection = SuperTokensHttpURLConnection.newRequest(new URL(loginAPIURL), new SuperTokensHttpURLConnection.SuperTokensHttpURLConnectionCallback() {
+            @Override
+            public void doAction(HttpURLConnection con) throws IOException {
+                con.setRequestMethod("POST");
+            }
+        });
+
+        if (loginRequestConnection.getResponseCode() != 200) {
+            throw new Exception("Login request failed");
+        }
+
+        loginRequestConnection.disconnect();
+
+        //wait for access token expiry
+        Thread.sleep(5000);
+
+        HttpURLConnection userInfoRequestConnection = SuperTokensHttpURLConnection.newRequest(new URL(userInfoAPIURL), new SuperTokensHttpURLConnection.SuperTokensHttpURLConnectionCallback() {
+            @Override
+            public void doAction(HttpURLConnection con) throws IOException {
+                con.setRequestMethod("GET");
+            }
+        });
+
+        if (userInfoRequestConnection.getResponseCode() != 200) {
+            throw new Exception("userInfo api failed");
+        }
+
+        //check refresh was only called once
+
+        if (TestUtils.getRefreshTokenCounter() != 1) {
+            throw new Exception("refreshApi was called more/less than 1 time");
+        }
+
+
+        // do logout request
+        HttpURLConnection logoutRequestConnection = SuperTokensHttpURLConnection.newRequest(new URL(logoutAPIURL), new SuperTokensHttpURLConnection.SuperTokensHttpURLConnectionCallback() {
+            @Override
+            public void doAction(HttpURLConnection con) throws IOException {
+                con.setRequestMethod("POST");
+            }
+        });
+
+        if (logoutRequestConnection.getResponseCode() != 200) {
+            throw new Exception("Logout request failed");
+        }
+
+        logoutRequestConnection.disconnect();
+        // check that session does not exist
+        if (SuperTokens.doesSessionExist(context)) {
+            throw new Exception("Session exists when it  should not");
+        }
+
+    }
+
+    // - Calling connection.connect in preRequestCallback in HttpURLConnection should not be a problem****
+    @Test
+    public void httpUrlConnection_testThatCallingConnectionConnectInPreRequestCallBackIsNotAProblem() throws Exception {
+        TestUtils.startST();
+        SuperTokens.init(context, refreshTokenEndpoint, sessionExpiryCode, null);
+        CookieManager.setDefault(new CookieManager(new SuperTokensPersistentCookieStore(context), null));
+
+        HttpURLConnection loginRequestConnection = SuperTokensHttpURLConnection.newRequest(new URL(loginAPIURL), new SuperTokensHttpURLConnection.SuperTokensHttpURLConnectionCallback() {
+            @Override
+            public void doAction(HttpURLConnection con) throws IOException {
+                con.setRequestMethod("POST");
+                con.connect();
+            }
+        });
+
+        if (loginRequestConnection.getResponseCode() != 200){
+            throw new Exception("login failed when doing con.connect() in preRequestCallBack");
+        }
+    }
+
+    // - multiple API calls in parallel when access token is expired (100 of them) and only 1 refresh should be called***
+    @Test
+    public void httpUrlConnection_testThatMultipleAPICallsInParallelAndOnly1RefreshShouldBeCalled() throws Exception{
+        TestUtils.startST(3, true, 144000);
+        SuperTokens.init(context, refreshTokenEndpoint, sessionExpiryCode, null);
+        CookieManager.setDefault(new CookieManager(new SuperTokensPersistentCookieStore(context), null));
+
+        //login request
+        HttpURLConnection loginRequestConnection = SuperTokensHttpURLConnection.newRequest(new URL(loginAPIURL), new SuperTokensHttpURLConnection.SuperTokensHttpURLConnectionCallback() {
+            @Override
+            public void doAction(HttpURLConnection con) throws IOException {
+                con.setRequestMethod("POST");
+            }
+        });
+
+        if (loginRequestConnection.getResponseCode() != 200) {
+            throw new Exception("Login request failed");
+        }
+
+        loginRequestConnection.disconnect();
+
+        // wait for access token to expire
+        Thread.sleep(5000);
+
+        List<Runnable> runnables = new ArrayList<>();
+        final List<Boolean> runnableSuccess = new ArrayList<>();
+        int runnableCount = 100;
+        final Object lock = new Object();
+
+        for (int i = 0; i < runnableCount; i++) {
+            runnables.add(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        HttpURLConnection userInfoConnection = SuperTokensHttpURLConnection.newRequest(new URL(userInfoAPIURL), new SuperTokensHttpURLConnection.SuperTokensHttpURLConnectionCallback() {
+                            @Override
+                            public void doAction(HttpURLConnection con) throws IOException {
+                                con.setRequestMethod("GET");
+                            }
+                        });
+
+                        if (userInfoConnection.getResponseCode() != 200) {
+                            throw new Exception("User info api failed even after refresh API call");
+                        }
+                        userInfoConnection.disconnect();
+                        synchronized (lock) {
+                            runnableSuccess.add(true);
+                        }
+                    } catch (Exception e) {
+                        synchronized (lock) {
+                            runnableSuccess.add(false);
+                        }
+                    }
+                }
+            });
+        }
+        ExecutorService executorService = Executors.newFixedThreadPool(runnableCount);
+        for (int i = 0; i < runnables.size(); i++) {
+            Runnable currentRunnable = runnables.get(i);
+            executorService.submit(currentRunnable);
+        }
+
+        while (true) {
+            Thread.sleep(1000);
+            if (runnableSuccess.size() == runnableCount) {
+                break;
+            }
+        }
+        if (runnableSuccess.contains(false)) {
+            throw new Exception("one of the userInfoAPIs failed");
+        }
+        if (TestUtils.getRefreshTokenCounter() != 1) {
+            throw new Exception("The number of times the RefreshAPI was called is not the expected value");
+        }
+
+    }
+
 //    private final String testBaseURL = "http://127.0.0.1:8080/api/";
 //    private final String refreshTokenEndpoint = testBaseURL + "refreshtoken";
 //    private final String testAPiURL = testBaseURL + "testing";
