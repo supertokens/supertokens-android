@@ -369,26 +369,21 @@ public class SuperTokensRetrofitTest {
 
     // - User passed config should be sent as well****
 
-//    @Test
-//    public void retrofit_testThatUserPassedConfigShouldBeSent() throws Exception {
-//        TestUtils.startST();
-//        SuperTokens.init(context, refreshTokenEndpoint, sessionExpiryCode, null);
-//        Response<ResponseBody> loginResponse = retrofitTestAPIService.testUserConfig().execute();
-//        loginResponse.raw().
-//
-//        HttpURLConnection loginRequestConnection = SuperTokensHttpURLConnection.newRequest(new URL(loginAPIURL), new SuperTokensHttpURLConnection.SuperTokensHttpURLConnectionCallback() {
-//            @Override
-//            public void doAction(HttpURLConnection con) throws IOException {
-//                con.setRequestMethod("POST");
-//                con.setAllowUserInteraction(true);
-//            }
-//        });
-//
-//        if (!loginRequestConnection.getAllowUserInteraction()) {
-//            throw new Exception("user config was not set");
-//        }
-//
-//    }
+    @Test
+    public void retrofit_testThatUserPassedConfigShouldBeSent() throws Exception {
+        TestUtils.startST();
+        SuperTokens.init(context, refreshTokenEndpoint, sessionExpiryCode, null);
+        Response<ResponseBody> value = retrofitTestAPIService.testConfig("value").execute();
+
+        if (value.code() != 200){
+            throw new Exception("testConfig api failed");
+        }
+        if (!value.body().string().contains("value")){
+            throw new Exception("does not contain user configs");
+        }
+
+
+    }
 
     // - Things should work if anti-csrf is disabled.****
     @Test

@@ -107,6 +107,9 @@ app.get("/testPing", function (req, res) {
     res.status(200).send("success");
 });
 
+app.get("/testConfig", function (req, res) {
+    res.status(200).send(req.query.key);
+});
 
 app.get("/userInfo", function (req, res) {
     testUserInfo(req, res).catch(err => {

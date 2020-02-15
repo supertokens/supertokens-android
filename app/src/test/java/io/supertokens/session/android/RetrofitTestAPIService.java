@@ -63,4 +63,8 @@ public interface RetrofitTestAPIService {
 
     @GET("multipleInterceptors")
     Call<ResponseBody> multipleInterceptors();
+
+    @GET("testConfig")
+    Call<ResponseBody> testConfig(@Query("key") String key);
+
 }

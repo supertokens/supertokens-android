@@ -102,6 +102,9 @@ app.get("/checkCustomHeader", function (req, res) {
 app.get("/testPing", function (req, res) {
     res.status(200).send("success");
 });
+app.get("/testConfig", function (req, res) {
+    res.status(200).send(req.query.key);
+});
 app.get("/userInfo", function (req, res) {
     userInfo_1.default(req, res).catch(err => {
         console.log(err);
