@@ -141,7 +141,7 @@ public class SuperTokensHttpURLConnectionTest {
         CookieManager.setDefault(new CookieManager(new SuperTokensPersistentCookieStore(context), null));
 
         //do a login request
-        HttpURLConnection loginRequestConnection = SuperTokensHttpURLConnection.newRequest(new URL(loginAPIURL), new SuperTokensHttpURLConnection.SuperTokensHttpURLConnectionCallback() {
+        HttpURLConnection loginRequestConnection = SuperTokensHttpURLConnection.newRequest(new URL(loginAPIURL), new SuperTokensHttpURLConnection.PreConnectCallback() {
             @Override
             public void doAction(HttpURLConnection con) throws IOException {
                 con.setRequestMethod("POST");
@@ -155,7 +155,7 @@ public class SuperTokensHttpURLConnectionTest {
         loginRequestConnection.disconnect();
 
         // do a logout request
-        HttpURLConnection logoutRequestConnection = SuperTokensHttpURLConnection.newRequest(new URL(logoutAPIURL), new SuperTokensHttpURLConnection.SuperTokensHttpURLConnectionCallback() {
+        HttpURLConnection logoutRequestConnection = SuperTokensHttpURLConnection.newRequest(new URL(logoutAPIURL), new SuperTokensHttpURLConnection.PreConnectCallback() {
             @Override
             public void doAction(HttpURLConnection con) throws IOException {
                 con.setRequestMethod("POST");
@@ -183,12 +183,7 @@ public class SuperTokensHttpURLConnectionTest {
         CookieManager.setDefault(new CookieManager(new SuperTokensPersistentCookieStore(context), null));
 
 
-        HttpURLConnection checkDeviceInfo = SuperTokensHttpURLConnection.newRequest(new URL(testCheckDeviceInfoAPIURL), new SuperTokensHttpURLConnection.SuperTokensHttpURLConnectionCallback() {
-            @Override
-            public void doAction(HttpURLConnection con) throws IOException {
-                con.setRequestMethod("GET");
-            }
-        });
+        HttpURLConnection checkDeviceInfo = SuperTokensHttpURLConnection.newRequest(new URL(testCheckDeviceInfoAPIURL), null);
 
         if (checkDeviceInfo.getResponseCode() != 200) {
             throw new Exception("checkDeviceInfo request failed");
@@ -215,7 +210,7 @@ public class SuperTokensHttpURLConnectionTest {
 
 
         //do a login request
-        HttpURLConnection loginRequestConnection = SuperTokensHttpURLConnection.newRequest(new URL(loginAPIURL), new SuperTokensHttpURLConnection.SuperTokensHttpURLConnectionCallback() {
+        HttpURLConnection loginRequestConnection = SuperTokensHttpURLConnection.newRequest(new URL(loginAPIURL), new SuperTokensHttpURLConnection.PreConnectCallback() {
             @Override
             public void doAction(HttpURLConnection con) throws IOException {
                 con.setRequestMethod("POST");
@@ -231,7 +226,7 @@ public class SuperTokensHttpURLConnectionTest {
         //wait for 7 seconds for idRefreshToken and AccessToken to expire
         Thread.sleep(7000);
 
-        HttpURLConnection userInfoConnection = SuperTokensHttpURLConnection.newRequest(new URL(userInfoAPIURL), new SuperTokensHttpURLConnection.SuperTokensHttpURLConnectionCallback() {
+        HttpURLConnection userInfoConnection = SuperTokensHttpURLConnection.newRequest(new URL(userInfoAPIURL), new SuperTokensHttpURLConnection.PreConnectCallback() {
             @Override
             public void doAction(HttpURLConnection con) throws IOException {
                 con.setRequestMethod("GET");
@@ -260,12 +255,7 @@ public class SuperTokensHttpURLConnectionTest {
 
         //test testPing api before login
 
-        HttpURLConnection testPingConnection = SuperTokensHttpURLConnection.newRequest(new URL(testPingAPIURL), new SuperTokensHttpURLConnection.SuperTokensHttpURLConnectionCallback() {
-            @Override
-            public void doAction(HttpURLConnection con) throws IOException {
-                con.setRequestMethod("GET");
-            }
-        });
+        HttpURLConnection testPingConnection = SuperTokensHttpURLConnection.newRequest(new URL(testPingAPIURL), null);
 
         if (!TestUtils.getBodyFromConnection(testPingConnection).contains("success")) {
             throw new Exception("api failed ");
@@ -274,7 +264,7 @@ public class SuperTokensHttpURLConnectionTest {
         testPingConnection.disconnect();
 
         //do login request
-        HttpURLConnection loginRequestConnection = SuperTokensHttpURLConnection.newRequest(new URL(loginAPIURL), new SuperTokensHttpURLConnection.SuperTokensHttpURLConnectionCallback() {
+        HttpURLConnection loginRequestConnection = SuperTokensHttpURLConnection.newRequest(new URL(loginAPIURL), new SuperTokensHttpURLConnection.PreConnectCallback() {
             @Override
             public void doAction(HttpURLConnection con) throws IOException {
                 con.setRequestMethod("POST");
@@ -288,12 +278,7 @@ public class SuperTokensHttpURLConnectionTest {
         loginRequestConnection.disconnect();
 
         //check testPing api while logged in
-        testPingConnection = SuperTokensHttpURLConnection.newRequest(new URL(testPingAPIURL), new SuperTokensHttpURLConnection.SuperTokensHttpURLConnectionCallback() {
-            @Override
-            public void doAction(HttpURLConnection con) throws IOException {
-                con.setRequestMethod("GET");
-            }
-        });
+        testPingConnection = SuperTokensHttpURLConnection.newRequest(new URL(testPingAPIURL), null);
 
         if (!TestUtils.getBodyFromConnection(testPingConnection).contains("success")) {
             throw new Exception("api failed ");
@@ -302,7 +287,7 @@ public class SuperTokensHttpURLConnectionTest {
         testPingConnection.disconnect();
 
         // do logout request
-        HttpURLConnection logoutRequestConnection = SuperTokensHttpURLConnection.newRequest(new URL(logoutAPIURL), new SuperTokensHttpURLConnection.SuperTokensHttpURLConnectionCallback() {
+        HttpURLConnection logoutRequestConnection = SuperTokensHttpURLConnection.newRequest(new URL(logoutAPIURL), new SuperTokensHttpURLConnection.PreConnectCallback() {
             @Override
             public void doAction(HttpURLConnection con) throws IOException {
                 con.setRequestMethod("POST");
@@ -316,12 +301,7 @@ public class SuperTokensHttpURLConnectionTest {
         logoutRequestConnection.disconnect();
 
         //check testPing after logout
-        testPingConnection = SuperTokensHttpURLConnection.newRequest(new URL(testPingAPIURL), new SuperTokensHttpURLConnection.SuperTokensHttpURLConnectionCallback() {
-            @Override
-            public void doAction(HttpURLConnection con) throws IOException {
-                con.setRequestMethod("GET");
-            }
-        });
+        testPingConnection = SuperTokensHttpURLConnection.newRequest(new URL(testPingAPIURL), null);
 
         if (!TestUtils.getBodyFromConnection(testPingConnection).contains("success")) {
             throw new Exception("api failed ");
@@ -339,7 +319,7 @@ public class SuperTokensHttpURLConnectionTest {
         CookieManager.setDefault(new CookieManager(new SuperTokensPersistentCookieStore(context), null));
 
         //login request
-        HttpURLConnection loginRequestConnection = SuperTokensHttpURLConnection.newRequest(new URL(loginAPIURL), new SuperTokensHttpURLConnection.SuperTokensHttpURLConnectionCallback() {
+        HttpURLConnection loginRequestConnection = SuperTokensHttpURLConnection.newRequest(new URL(loginAPIURL), new SuperTokensHttpURLConnection.PreConnectCallback() {
             @Override
             public void doAction(HttpURLConnection con) throws IOException {
                 con.setRequestMethod("POST");
@@ -353,7 +333,7 @@ public class SuperTokensHttpURLConnectionTest {
         loginRequestConnection.disconnect();
 
         //send request with custom headers
-        HttpURLConnection customHeaderConnection = SuperTokensHttpURLConnection.newRequest(new URL(testHeaderAPIURL), new SuperTokensHttpURLConnection.SuperTokensHttpURLConnectionCallback() {
+        HttpURLConnection customHeaderConnection = SuperTokensHttpURLConnection.newRequest(new URL(testHeaderAPIURL), new SuperTokensHttpURLConnection.PreConnectCallback() {
             @Override
             public void doAction(HttpURLConnection con) throws IOException {
                 con.setRequestMethod("GET");
@@ -361,7 +341,7 @@ public class SuperTokensHttpURLConnectionTest {
             }
         });
 
-        //request to verify custom headers
+        // verify custom headers response
         JsonObject customHeaderBody = new JsonParser().parse(TestUtils.getBodyFromConnection(customHeaderConnection)).getAsJsonObject();
         customHeaderConnection.disconnect();
 
@@ -375,7 +355,7 @@ public class SuperTokensHttpURLConnectionTest {
         }
 
         // do logout request
-        HttpURLConnection logoutRequestConnection = SuperTokensHttpURLConnection.newRequest(new URL(logoutAPIURL), new SuperTokensHttpURLConnection.SuperTokensHttpURLConnectionCallback() {
+        HttpURLConnection logoutRequestConnection = SuperTokensHttpURLConnection.newRequest(new URL(logoutAPIURL), new SuperTokensHttpURLConnection.PreConnectCallback() {
             @Override
             public void doAction(HttpURLConnection con) throws IOException {
                 con.setRequestMethod("POST");
@@ -390,7 +370,7 @@ public class SuperTokensHttpURLConnectionTest {
 
 
         //send request with custom headers after logout
-        customHeaderConnection = SuperTokensHttpURLConnection.newRequest(new URL(testHeaderAPIURL), new SuperTokensHttpURLConnection.SuperTokensHttpURLConnectionCallback() {
+        customHeaderConnection = SuperTokensHttpURLConnection.newRequest(new URL(testHeaderAPIURL), new SuperTokensHttpURLConnection.PreConnectCallback() {
             @Override
             public void doAction(HttpURLConnection con) throws IOException {
                 con.setRequestMethod("GET");
@@ -419,7 +399,7 @@ public class SuperTokensHttpURLConnectionTest {
         SuperTokens.init(context, refreshTokenEndpoint, sessionExpiryCode, null);
         CookieManager.setDefault(new CookieManager(new SuperTokensPersistentCookieStore(context), null));
 
-        HttpURLConnection testErrorConnection = SuperTokensHttpURLConnection.newRequest(new URL(testErrorAPIURL), new SuperTokensHttpURLConnection.SuperTokensHttpURLConnectionCallback() {
+        HttpURLConnection testErrorConnection = SuperTokensHttpURLConnection.newRequest(new URL(testErrorAPIURL), new SuperTokensHttpURLConnection.PreConnectCallback() {
             @Override
             public void doAction(HttpURLConnection con) throws IOException {
                 con.setRequestMethod("GET");
@@ -445,7 +425,7 @@ public class SuperTokensHttpURLConnectionTest {
         CookieManager.setDefault(new CookieManager(new SuperTokensPersistentCookieStore(context), null));
 
         //do a login Request
-        HttpURLConnection loginRequestConnection = SuperTokensHttpURLConnection.newRequest(new URL(loginAPIURL), new SuperTokensHttpURLConnection.SuperTokensHttpURLConnectionCallback() {
+        HttpURLConnection loginRequestConnection = SuperTokensHttpURLConnection.newRequest(new URL(loginAPIURL), new SuperTokensHttpURLConnection.PreConnectCallback() {
             @Override
             public void doAction(HttpURLConnection con) throws IOException {
                 con.setRequestMethod("POST");
@@ -473,7 +453,7 @@ public class SuperTokensHttpURLConnectionTest {
         CookieManager.setDefault(new CookieManager(new SuperTokensPersistentCookieStore(context), null));
 
         //login request
-        HttpURLConnection loginRequestConnection = SuperTokensHttpURLConnection.newRequest(new URL(loginAPIURL), new SuperTokensHttpURLConnection.SuperTokensHttpURLConnectionCallback() {
+        HttpURLConnection loginRequestConnection = SuperTokensHttpURLConnection.newRequest(new URL(loginAPIURL), new SuperTokensHttpURLConnection.PreConnectCallback() {
             @Override
             public void doAction(HttpURLConnection con) throws IOException {
                 con.setRequestMethod("POST");
@@ -490,7 +470,7 @@ public class SuperTokensHttpURLConnectionTest {
         SuperTokens.init(context, refreshTokenEndpoint, sessionExpiryCode, null);
 
         // do logout request
-        HttpURLConnection logoutRequestConnection = SuperTokensHttpURLConnection.newRequest(new URL(logoutAPIURL), new SuperTokensHttpURLConnection.SuperTokensHttpURLConnectionCallback() {
+        HttpURLConnection logoutRequestConnection = SuperTokensHttpURLConnection.newRequest(new URL(logoutAPIURL), new SuperTokensHttpURLConnection.PreConnectCallback() {
             @Override
             public void doAction(HttpURLConnection con) throws IOException {
                 con.setRequestMethod("POST");
@@ -518,7 +498,7 @@ public class SuperTokensHttpURLConnectionTest {
         SuperTokens.init(context, refreshTokenEndpoint, sessionExpiryCode, null);
         CookieManager.setDefault(new CookieManager(new SuperTokensPersistentCookieStore(context), null));
 
-        HttpURLConnection loginRequestConnection = SuperTokensHttpURLConnection.newRequest(new URL(loginAPIURL), new SuperTokensHttpURLConnection.SuperTokensHttpURLConnectionCallback() {
+        HttpURLConnection loginRequestConnection = SuperTokensHttpURLConnection.newRequest(new URL(loginAPIURL), new SuperTokensHttpURLConnection.PreConnectCallback() {
             @Override
             public void doAction(HttpURLConnection con) throws IOException {
                 con.setRequestMethod("POST");
@@ -529,7 +509,7 @@ public class SuperTokensHttpURLConnectionTest {
         if (!loginRequestConnection.getAllowUserInteraction()) {
             throw new Exception("user config was not set");
         }
-
+        loginRequestConnection.disconnect();
     }
 
     // - Custom refresh API headers are sent****
@@ -543,7 +523,7 @@ public class SuperTokensHttpURLConnectionTest {
 
 
         //login request
-        HttpURLConnection loginRequestConnection = SuperTokensHttpURLConnection.newRequest(new URL(loginAPIURL), new SuperTokensHttpURLConnection.SuperTokensHttpURLConnectionCallback() {
+        HttpURLConnection loginRequestConnection = SuperTokensHttpURLConnection.newRequest(new URL(loginAPIURL), new SuperTokensHttpURLConnection.PreConnectCallback() {
             @Override
             public void doAction(HttpURLConnection con) throws IOException {
                 con.setRequestMethod("POST");
@@ -560,18 +540,15 @@ public class SuperTokensHttpURLConnectionTest {
         Thread.sleep(5000);
 
         //userInfo request
-        HttpURLConnection userInfoRequestConnection = SuperTokensHttpURLConnection.newRequest(new URL(userInfoAPIURL), new SuperTokensHttpURLConnection.SuperTokensHttpURLConnectionCallback() {
-            @Override
-            public void doAction(HttpURLConnection con) throws IOException {
-                con.setRequestMethod("GET");
-            }
-        });
+        HttpURLConnection userInfoRequestConnection = SuperTokensHttpURLConnection.newRequest(new URL(userInfoAPIURL), null);
 
         if (userInfoRequestConnection.getResponseCode() != 200) {
             throw new Exception("userInfo api failed");
         }
 
-        HttpURLConnection checkRefreshSetConnection = SuperTokensHttpURLConnection.newRequest(new URL(testCheckCustomRefresh), new SuperTokensHttpURLConnection.SuperTokensHttpURLConnectionCallback() {
+        userInfoRequestConnection.disconnect();
+
+        HttpURLConnection checkRefreshSetConnection = SuperTokensHttpURLConnection.newRequest(new URL(testCheckCustomRefresh), new SuperTokensHttpURLConnection.PreConnectCallback() {
             @Override
             public void doAction(HttpURLConnection con) throws IOException {
                 con.setRequestMethod("GET");
@@ -581,7 +558,7 @@ public class SuperTokensHttpURLConnectionTest {
         if (!TestUtils.getBodyFromConnection(checkRefreshSetConnection).contains("true")) {
             throw new Exception("Custom RefreshAPi headers were not set");
         }
-
+        checkRefreshSetConnection.disconnect();
     }
 
     // - Things should work if anti-csrf is disabled.****
@@ -592,7 +569,7 @@ public class SuperTokensHttpURLConnectionTest {
         CookieManager.setDefault(new CookieManager(new SuperTokensPersistentCookieStore(context), null));
 
         //login request
-        HttpURLConnection loginRequestConnection = SuperTokensHttpURLConnection.newRequest(new URL(loginAPIURL), new SuperTokensHttpURLConnection.SuperTokensHttpURLConnectionCallback() {
+        HttpURLConnection loginRequestConnection = SuperTokensHttpURLConnection.newRequest(new URL(loginAPIURL), new SuperTokensHttpURLConnection.PreConnectCallback() {
             @Override
             public void doAction(HttpURLConnection con) throws IOException {
                 con.setRequestMethod("POST");
@@ -608,7 +585,7 @@ public class SuperTokensHttpURLConnectionTest {
         //wait for access token expiry
         Thread.sleep(5000);
 
-        HttpURLConnection userInfoRequestConnection = SuperTokensHttpURLConnection.newRequest(new URL(userInfoAPIURL), new SuperTokensHttpURLConnection.SuperTokensHttpURLConnectionCallback() {
+        HttpURLConnection userInfoRequestConnection = SuperTokensHttpURLConnection.newRequest(new URL(userInfoAPIURL), new SuperTokensHttpURLConnection.PreConnectCallback() {
             @Override
             public void doAction(HttpURLConnection con) throws IOException {
                 con.setRequestMethod("GET");
@@ -619,6 +596,7 @@ public class SuperTokensHttpURLConnectionTest {
             throw new Exception("userInfo api failed");
         }
 
+        userInfoRequestConnection.disconnect();
         //check refresh was only called once
 
         if (TestUtils.getRefreshTokenCounter() != 1) {
@@ -627,7 +605,7 @@ public class SuperTokensHttpURLConnectionTest {
 
 
         // do logout request
-        HttpURLConnection logoutRequestConnection = SuperTokensHttpURLConnection.newRequest(new URL(logoutAPIURL), new SuperTokensHttpURLConnection.SuperTokensHttpURLConnectionCallback() {
+        HttpURLConnection logoutRequestConnection = SuperTokensHttpURLConnection.newRequest(new URL(logoutAPIURL), new SuperTokensHttpURLConnection.PreConnectCallback() {
             @Override
             public void doAction(HttpURLConnection con) throws IOException {
                 con.setRequestMethod("POST");
@@ -653,7 +631,7 @@ public class SuperTokensHttpURLConnectionTest {
         SuperTokens.init(context, refreshTokenEndpoint, sessionExpiryCode, null);
         CookieManager.setDefault(new CookieManager(new SuperTokensPersistentCookieStore(context), null));
 
-        HttpURLConnection loginRequestConnection = SuperTokensHttpURLConnection.newRequest(new URL(loginAPIURL), new SuperTokensHttpURLConnection.SuperTokensHttpURLConnectionCallback() {
+        HttpURLConnection loginRequestConnection = SuperTokensHttpURLConnection.newRequest(new URL(loginAPIURL), new SuperTokensHttpURLConnection.PreConnectCallback() {
             @Override
             public void doAction(HttpURLConnection con) throws IOException {
                 con.setRequestMethod("POST");
@@ -664,6 +642,7 @@ public class SuperTokensHttpURLConnectionTest {
         if (loginRequestConnection.getResponseCode() != 200){
             throw new Exception("login failed when doing con.connect() in preRequestCallBack");
         }
+        loginRequestConnection.disconnect();
     }
 
     // - multiple API calls in parallel when access token is expired (100 of them) and only 1 refresh should be called***
@@ -674,7 +653,7 @@ public class SuperTokensHttpURLConnectionTest {
         CookieManager.setDefault(new CookieManager(new SuperTokensPersistentCookieStore(context), null));
 
         //login request
-        HttpURLConnection loginRequestConnection = SuperTokensHttpURLConnection.newRequest(new URL(loginAPIURL), new SuperTokensHttpURLConnection.SuperTokensHttpURLConnectionCallback() {
+        HttpURLConnection loginRequestConnection = SuperTokensHttpURLConnection.newRequest(new URL(loginAPIURL), new SuperTokensHttpURLConnection.PreConnectCallback() {
             @Override
             public void doAction(HttpURLConnection con) throws IOException {
                 con.setRequestMethod("POST");
@@ -700,7 +679,7 @@ public class SuperTokensHttpURLConnectionTest {
                 @Override
                 public void run() {
                     try {
-                        HttpURLConnection userInfoConnection = SuperTokensHttpURLConnection.newRequest(new URL(userInfoAPIURL), new SuperTokensHttpURLConnection.SuperTokensHttpURLConnectionCallback() {
+                        HttpURLConnection userInfoConnection = SuperTokensHttpURLConnection.newRequest(new URL(userInfoAPIURL), new SuperTokensHttpURLConnection.PreConnectCallback() {
                             @Override
                             public void doAction(HttpURLConnection con) throws IOException {
                                 con.setRequestMethod("GET");
@@ -828,7 +807,7 @@ public class SuperTokensHttpURLConnectionTest {
 //        boolean failed = true;
 //        try {
 //            resetAccessTokenValidity(10);
-//            SuperTokensHttpURLConnection.newRequest(new URL(testBaseURL), new SuperTokensHttpURLConnection.SuperTokensHttpURLConnectionCallback<Integer>() {
+//            SuperTokensHttpURLConnection.newRequest(new URL(testBaseURL), new SuperTokensHttpURLConnection.PreConnectCallback<Integer>() {
 //                @SuppressWarnings("RedundantThrows")
 //                @Override
 //                public Integer doAction(HttpURLConnection con) throws IOException {
@@ -866,7 +845,7 @@ public class SuperTokensHttpURLConnectionTest {
 //        try {
 //            resetAccessTokenValidity(10);
 //            SuperTokens.init(application, refreshTokenEndpoint, sessionExpiryCode);
-//            SuperTokensHttpURLConnection.newRequest(new URL(testAPiURL), new SuperTokensHttpURLConnection.SuperTokensHttpURLConnectionCallback<Integer>() {
+//            SuperTokensHttpURLConnection.newRequest(new URL(testAPiURL), new SuperTokensHttpURLConnection.PreConnectCallback<Integer>() {
 //                @Override
 //                public Integer doAction(HttpURLConnection con) throws IOException {
 //                    con.setRequestMethod("GET");
@@ -893,7 +872,7 @@ public class SuperTokensHttpURLConnectionTest {
 //            resetAccessTokenValidity(10);
 //            SuperTokens.init(application, refreshTokenEndpoint, sessionExpiryCode);
 //            CookieManager.setDefault(new CookieManager(new SuperTokensPersistentCookieStore(application), null));
-//            int getRequestCode = SuperTokensHttpURLConnection.newRequest(new URL(loginAPIURL), new SuperTokensHttpURLConnection.SuperTokensHttpURLConnectionCallback<Integer>() {
+//            int getRequestCode = SuperTokensHttpURLConnection.newRequest(new URL(loginAPIURL), new SuperTokensHttpURLConnection.PreConnectCallback<Integer>() {
 //                @Override
 //                public Integer doAction(HttpURLConnection con) throws IOException {
 //                    con.setRequestMethod("POST");
@@ -918,7 +897,7 @@ public class SuperTokensHttpURLConnectionTest {
 //            resetAccessTokenValidity(10);
 //            SuperTokens.init(application, refreshTokenEndpoint, sessionExpiryCode);
 //            CookieManager.setDefault(new CookieManager(new SuperTokensPersistentCookieStore(application), null));
-//            int getRequestCode = SuperTokensHttpURLConnection.newRequest(new URL(loginAPIURL), new SuperTokensHttpURLConnection.SuperTokensHttpURLConnectionCallback<Integer>() {
+//            int getRequestCode = SuperTokensHttpURLConnection.newRequest(new URL(loginAPIURL), new SuperTokensHttpURLConnection.PreConnectCallback<Integer>() {
 //                @Override
 //                public Integer doAction(HttpURLConnection con) throws IOException {
 //                    con.setRequestMethod("POST");
@@ -944,7 +923,7 @@ public class SuperTokensHttpURLConnectionTest {
 //            resetAccessTokenValidity(3);
 //            SuperTokens.init(application, refreshTokenEndpoint, sessionExpiryCode);
 //            CookieManager.setDefault(new CookieManager(new SuperTokensPersistentCookieStore(application), null));
-//            int loginRequestCode = SuperTokensHttpURLConnection.newRequest(new URL(loginAPIURL), new SuperTokensHttpURLConnection.SuperTokensHttpURLConnectionCallback<Integer>() {
+//            int loginRequestCode = SuperTokensHttpURLConnection.newRequest(new URL(loginAPIURL), new SuperTokensHttpURLConnection.PreConnectCallback<Integer>() {
 //                @Override
 //                public Integer doAction(HttpURLConnection con) throws IOException {
 //                    con.setRequestMethod("POST");
@@ -957,7 +936,7 @@ public class SuperTokensHttpURLConnectionTest {
 //            }
 //            Thread.sleep(5000);
 //
-//            int userInfoResponseCode = SuperTokensHttpURLConnection.newRequest(new URL(userInfoAPIURL), new SuperTokensHttpURLConnection.SuperTokensHttpURLConnectionCallback<Integer>() {
+//            int userInfoResponseCode = SuperTokensHttpURLConnection.newRequest(new URL(userInfoAPIURL), new SuperTokensHttpURLConnection.PreConnectCallback<Integer>() {
 //                @Override
 //                public Integer doAction(HttpURLConnection con) throws IOException {
 //                    con.setRequestMethod("GET");
@@ -988,7 +967,7 @@ public class SuperTokensHttpURLConnectionTest {
 //            resetAccessTokenValidity(10);
 //            SuperTokens.init(application, refreshTokenEndpoint, sessionExpiryCode);
 //            CookieManager.setDefault(new CookieManager(new SuperTokensPersistentCookieStore(application), null));
-//            int loginRequestCode = SuperTokensHttpURLConnection.newRequest(new URL(loginAPIURL), new SuperTokensHttpURLConnection.SuperTokensHttpURLConnectionCallback<Integer>() {
+//            int loginRequestCode = SuperTokensHttpURLConnection.newRequest(new URL(loginAPIURL), new SuperTokensHttpURLConnection.PreConnectCallback<Integer>() {
 //                @Override
 //                public Integer doAction(HttpURLConnection con) throws IOException {
 //                    con.setRequestMethod("POST");
@@ -1001,7 +980,7 @@ public class SuperTokensHttpURLConnectionTest {
 //            }
 //            AntiCSRF.removeToken(application);
 //
-//            int userInfoResponseCode = SuperTokensHttpURLConnection.newRequest(new URL(userInfoAPIURL), new SuperTokensHttpURLConnection.SuperTokensHttpURLConnectionCallback<Integer>() {
+//            int userInfoResponseCode = SuperTokensHttpURLConnection.newRequest(new URL(userInfoAPIURL), new SuperTokensHttpURLConnection.PreConnectCallback<Integer>() {
 //                @Override
 //                public Integer doAction(HttpURLConnection con) throws IOException {
 //                    con.setRequestMethod("GET");
@@ -1033,7 +1012,7 @@ public class SuperTokensHttpURLConnectionTest {
 //            resetAccessTokenValidity(10);
 //            SuperTokens.init(application, refreshTokenEndpoint, sessionExpiryCode);
 //            CookieManager.setDefault(new CookieManager(new SuperTokensPersistentCookieStore(application), null));
-//            int loginRequestCode = SuperTokensHttpURLConnection.newRequest(new URL(loginAPIURL), new SuperTokensHttpURLConnection.SuperTokensHttpURLConnectionCallback<Integer>() {
+//            int loginRequestCode = SuperTokensHttpURLConnection.newRequest(new URL(loginAPIURL), new SuperTokensHttpURLConnection.PreConnectCallback<Integer>() {
 //                @Override
 //                public Integer doAction(HttpURLConnection con) throws IOException {
 //                    con.setRequestMethod("POST");
@@ -1055,7 +1034,7 @@ public class SuperTokensHttpURLConnectionTest {
 //                    @Override
 //                    public void run() {
 //                        try {
-//                            int userInfoResponseCode = SuperTokensHttpURLConnection.newRequest(new URL(userInfoAPIURL), new SuperTokensHttpURLConnection.SuperTokensHttpURLConnectionCallback<Integer>() {
+//                            int userInfoResponseCode = SuperTokensHttpURLConnection.newRequest(new URL(userInfoAPIURL), new SuperTokensHttpURLConnection.PreConnectCallback<Integer>() {
 //                                @Override
 //                                public Integer doAction(HttpURLConnection con) throws IOException {
 //                                    con.setRequestMethod("GET");
@@ -1112,7 +1091,7 @@ public class SuperTokensHttpURLConnectionTest {
 //            resetAccessTokenValidity(10);
 //            SuperTokens.init(application, refreshTokenEndpoint, sessionExpiryCode);
 //            CookieManager.setDefault(new CookieManager(new SuperTokensPersistentCookieStore(application), null));
-//            int loginRequestCode = SuperTokensHttpURLConnection.newRequest(new URL(loginAPIURL), new SuperTokensHttpURLConnection.SuperTokensHttpURLConnectionCallback<Integer>() {
+//            int loginRequestCode = SuperTokensHttpURLConnection.newRequest(new URL(loginAPIURL), new SuperTokensHttpURLConnection.PreConnectCallback<Integer>() {
 //                @Override
 //                public Integer doAction(HttpURLConnection con) throws IOException {
 //                    con.setRequestMethod("POST");
@@ -1124,7 +1103,7 @@ public class SuperTokensHttpURLConnectionTest {
 //                throw new Exception("Error making login request");
 //            }
 //
-//            int userInfoResponseCode = SuperTokensHttpURLConnection.newRequest(new URL(userInfoAPIURL), new SuperTokensHttpURLConnection.SuperTokensHttpURLConnectionCallback<Integer>() {
+//            int userInfoResponseCode = SuperTokensHttpURLConnection.newRequest(new URL(userInfoAPIURL), new SuperTokensHttpURLConnection.PreConnectCallback<Integer>() {
 //                @Override
 //                public Integer doAction(HttpURLConnection con) throws IOException {
 //                    con.setRequestMethod("GET");
@@ -1155,7 +1134,7 @@ public class SuperTokensHttpURLConnectionTest {
 //            resetAccessTokenValidity(10);
 //            SuperTokens.init(application, refreshTokenEndpoint, sessionExpiryCode);
 //            CookieManager.setDefault(new CookieManager(new SuperTokensPersistentCookieStore(application), null));
-//            int loginRequestCode = SuperTokensHttpURLConnection.newRequest(new URL(loginAPIURL), new SuperTokensHttpURLConnection.SuperTokensHttpURLConnectionCallback<Integer>() {
+//            int loginRequestCode = SuperTokensHttpURLConnection.newRequest(new URL(loginAPIURL), new SuperTokensHttpURLConnection.PreConnectCallback<Integer>() {
 //                @Override
 //                public Integer doAction(HttpURLConnection con) throws IOException {
 //                    con.setRequestMethod("POST");
@@ -1167,7 +1146,7 @@ public class SuperTokensHttpURLConnectionTest {
 //                throw new Exception("Error making login request");
 //            }
 //
-//            int logoutRequestCode = SuperTokensHttpURLConnection.newRequest(new URL(logoutURL), new SuperTokensHttpURLConnection.SuperTokensHttpURLConnectionCallback<Integer>() {
+//            int logoutRequestCode = SuperTokensHttpURLConnection.newRequest(new URL(logoutURL), new SuperTokensHttpURLConnection.PreConnectCallback<Integer>() {
 //                @Override
 //                public Integer doAction(HttpURLConnection con) throws IOException {
 //                    con.setRequestMethod("POST");
@@ -1197,7 +1176,7 @@ public class SuperTokensHttpURLConnectionTest {
 //            resetAccessTokenValidity(10);
 //            SuperTokens.init(application, refreshTokenEndpoint, sessionExpiryCode);
 //            CookieManager.setDefault(new CookieManager(new SuperTokensPersistentCookieStore(application), null));
-//            int loginRequestCode = SuperTokensHttpURLConnection.newRequest(new URL(loginAPIURL), new SuperTokensHttpURLConnection.SuperTokensHttpURLConnectionCallback<Integer>() {
+//            int loginRequestCode = SuperTokensHttpURLConnection.newRequest(new URL(loginAPIURL), new SuperTokensHttpURLConnection.PreConnectCallback<Integer>() {
 //                @Override
 //                public Integer doAction(HttpURLConnection con) throws IOException {
 //                    con.setRequestMethod("POST");
@@ -1209,7 +1188,7 @@ public class SuperTokensHttpURLConnectionTest {
 //                throw new Exception("Error making login request");
 //            }
 //
-//            int logoutRequestCode = SuperTokensHttpURLConnection.newRequest(new URL(logoutURL), new SuperTokensHttpURLConnection.SuperTokensHttpURLConnectionCallback<Integer>() {
+//            int logoutRequestCode = SuperTokensHttpURLConnection.newRequest(new URL(logoutURL), new SuperTokensHttpURLConnection.PreConnectCallback<Integer>() {
 //                @Override
 //                public Integer doAction(HttpURLConnection con) throws IOException {
 //                    con.setRequestMethod("POST");
@@ -1222,7 +1201,7 @@ public class SuperTokensHttpURLConnectionTest {
 //                throw new Exception("Error making logout request");
 //            }
 //
-//            SuperTokensHttpURLConnection.newRequest(new URL(refreshCounterAPIURL), new SuperTokensHttpURLConnection.SuperTokensHttpURLConnectionCallback<Void>() {
+//            SuperTokensHttpURLConnection.newRequest(new URL(refreshCounterAPIURL), new SuperTokensHttpURLConnection.PreConnectCallback<Void>() {
 //
 //                @Override
 //                public Void doAction(HttpURLConnection con) throws IOException {
@@ -1248,7 +1227,7 @@ public class SuperTokensHttpURLConnectionTest {
 //            resetAccessTokenValidity(10);
 //            SuperTokens.init(application, refreshTokenEndpoint, sessionExpiryCode);
 //            CookieManager.setDefault(new CookieManager(new SuperTokensPersistentCookieStore(application), null));
-//            int loginRequestCode = SuperTokensHttpURLConnection.newRequest(new URL(loginAPIURL), new SuperTokensHttpURLConnection.SuperTokensHttpURLConnectionCallback<Integer>() {
+//            int loginRequestCode = SuperTokensHttpURLConnection.newRequest(new URL(loginAPIURL), new SuperTokensHttpURLConnection.PreConnectCallback<Integer>() {
 //                @Override
 //                public Integer doAction(HttpURLConnection con) throws IOException {
 //                    con.setRequestMethod("POST");
@@ -1260,7 +1239,7 @@ public class SuperTokensHttpURLConnectionTest {
 //                throw new Exception("Error making login request");
 //            }
 //
-//            int logoutRequestCode = SuperTokensHttpURLConnection.newRequest(new URL(logoutURL), new SuperTokensHttpURLConnection.SuperTokensHttpURLConnectionCallback<Integer>() {
+//            int logoutRequestCode = SuperTokensHttpURLConnection.newRequest(new URL(logoutURL), new SuperTokensHttpURLConnection.PreConnectCallback<Integer>() {
 //                @Override
 //                public Integer doAction(HttpURLConnection con) throws IOException {
 //                    con.setRequestMethod("POST");
@@ -1273,7 +1252,7 @@ public class SuperTokensHttpURLConnectionTest {
 //                throw new Exception("Error making logout request");
 //            }
 //
-//            int userInfoRequestCode = SuperTokensHttpURLConnection.newRequest(new URL(userInfoAPIURL), new SuperTokensHttpURLConnection.SuperTokensHttpURLConnectionCallback<Integer>() {
+//            int userInfoRequestCode = SuperTokensHttpURLConnection.newRequest(new URL(userInfoAPIURL), new SuperTokensHttpURLConnection.PreConnectCallback<Integer>() {
 //                @Override
 //                public Integer doAction(HttpURLConnection con) throws IOException {
 //                    return con.getResponseCode();
@@ -1297,7 +1276,7 @@ public class SuperTokensHttpURLConnectionTest {
 //            resetAccessTokenValidity(10);
 //            SuperTokens.init(application, refreshTokenEndpoint, sessionExpiryCode);
 //            CookieManager.setDefault(new CookieManager(new SuperTokensPersistentCookieStore(application), null));
-//            HeaderTestResponse headerTestResponse = SuperTokensHttpURLConnection.newRequest(new URL(testHeaderAPIURL), new SuperTokensHttpURLConnection.SuperTokensHttpURLConnectionCallback<HeaderTestResponse>() {
+//            HeaderTestResponse headerTestResponse = SuperTokensHttpURLConnection.newRequest(new URL(testHeaderAPIURL), new SuperTokensHttpURLConnection.PreConnectCallback<HeaderTestResponse>() {
 //                @Override
 //                public HeaderTestResponse doAction(HttpURLConnection con) throws IOException {
 //                    con.setRequestProperty("st-custom-header", "st");

@@ -18,13 +18,11 @@ package io.supertokens.session;
 
 import android.content.Context;
 import android.os.Looper;
-import android.provider.MediaStore;
 import android.text.TextUtils;
 
 import com.franmontiel.persistentcookiejar.PersistentCookieJar;
 import com.franmontiel.persistentcookiejar.cache.SetCookieCache;
 import com.franmontiel.persistentcookiejar.persistence.SharedPrefsCookiePersistor;
-import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 
@@ -43,14 +41,12 @@ import org.mockito.runners.MockitoJUnitRunner;
 
 import java.io.File;
 import java.io.IOException;
-import java.net.MalformedURLException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
 import java.util.logging.Handler;
 
 @SuppressWarnings({"CatchMayIgnoreException", "FieldCanBeLocal", "deprecation"})
@@ -200,6 +196,8 @@ public class SuperTokensOkHttpTest {
             throw new Exception("User info API failed even after calling refresh");
         }
 
+        userInfoResponse.close();
+
         int refreshTokenCounter = TestUtils.getRefreshTokenCounter();
         if (refreshTokenCounter != 1) {
             throw new Exception("Refresh token counter value is not the same as the expected value");
@@ -211,6 +209,7 @@ public class SuperTokensOkHttpTest {
     public void okHttp_sessionShouldExistWhenUserCallsLogOut() throws Exception {
         TestUtils.startST();
         SuperTokens.init(context, refreshTokenEndpoint, sessionExpiryCode, null);
+
         RequestBody loginReqBody = RequestBody.create(MediaType.parse("application/json; charset=utf-8"), "{}");
         Request request = new Request.Builder()
                 .url(loginAPIURL)
@@ -297,6 +296,8 @@ public class SuperTokensOkHttpTest {
             throw new Exception("Error making logout request");
         }
 
+        logoutResponse.close();
+
         request2 = new Request.Builder()
                 .url(testHeaderAPIURL)
                 .header("st-custom-header", "st")
@@ -310,7 +311,7 @@ public class SuperTokensOkHttpTest {
             throw new Exception("test Header api failed");
         }
 
-        bodyString = testHeaderResponse.body().string();
+        bodyString = Objects.requireNonNull(testHeaderResponse.body()).string();
         bodyObject = new JsonParser().parse(bodyString).getAsJsonObject();
 
         //check the body for {"success": true}
@@ -325,6 +326,7 @@ public class SuperTokensOkHttpTest {
     public void okHttp_testDoesSessionExistWorkFineWhenUserIsLoggedIn() throws Exception {
         TestUtils.startST();
         SuperTokens.init(context, refreshTokenEndpoint, sessionExpiryCode, null);
+
         RequestBody loginReqBody = RequestBody.create(MediaType.parse("application/json; charset=utf-8"), "{}");
         Request request = new Request.Builder()
                 .url(loginAPIURL)
@@ -347,6 +349,7 @@ public class SuperTokensOkHttpTest {
         TestUtils.startST(10, true, 144000);
         SuperTokens.init(context, refreshTokenEndpoint, sessionExpiryCode, null);
         SuperTokens.init(context, refreshTokenEndpoint, sessionExpiryCode, null);
+
         RequestBody loginReqBody = RequestBody.create(MediaType.parse("application/json; charset=utf-8"), "{}");
         Request request = new Request.Builder()
                 .url(loginAPIURL)
@@ -391,14 +394,16 @@ public class SuperTokensOkHttpTest {
                 .url(testMultipleInterceptorsAPIURL)
                 .build();
         Response multipleInterceptorResponse = client.newCall(request).execute();
+
         if (multipleInterceptorResponse.code() != 200) {
             throw new Exception("Error when doing multipleInterceptors ");
         }
-        if (!multipleInterceptorResponse.body().string().equals("value1")) {
+
+        if (!Objects.equals(multipleInterceptorResponse.body().string(), "value1")) {
             throw new Exception("Request Interception did not take place");
         }
 
-        if (!multipleInterceptorResponse.header("interceptorheader2").equals("value2")) {
+        if (!Objects.equals(multipleInterceptorResponse.header("interceptorheader2"), "value2")) {
             throw new Exception("Response Interception did not take place");
         }
         multipleInterceptorResponse.close();
@@ -413,10 +418,11 @@ public class SuperTokensOkHttpTest {
                 .url(testCheckDeviceInfoAPIURL)
                 .build();
         Response response = okHttpClient.newCall(request).execute();
+
         if (response.code() != 200) {
             throw new Exception("device info api failed");
         }
-        JsonObject responseBody = new JsonParser().parse(response.body().string()).getAsJsonObject();
+        JsonObject responseBody = new JsonParser().parse(Objects.requireNonNull(response.body()).string()).getAsJsonObject();
 
         if (!(responseBody.get("supertokens-sdk-name").getAsString().equals(Utils.PACKAGE_PLATFORM) &&
                 responseBody.get("supertokens-sdk-version").getAsString().equals(BuildConfig.VERSION_NAME))) {
@@ -429,6 +435,7 @@ public class SuperTokensOkHttpTest {
     public void okHttp_testThatAPIErrorsGetPropagatedToTheUserInterception() throws Exception {
         TestUtils.startST();
         SuperTokens.init(context, refreshTokenEndpoint, sessionExpiryCode, null);
+
         Request request = new Request.Builder()
                 .url(testErrorAPIURL)
                 .build();
@@ -440,7 +447,7 @@ public class SuperTokensOkHttpTest {
         }
 
         //check that the custom error message is received
-        if (!response.body().string().equals("custom message")) {
+        if (!Objects.requireNonNull(response.body()).string().equals("custom message")) {
             throw new Exception("testError api did not have the custom error message");
         }
         response.close();
@@ -465,7 +472,7 @@ public class SuperTokensOkHttpTest {
             throw new Exception("testError API did not return with proper status code");
         }
 
-        if (!response.body().string().equals("custom message")) {
+        if (!Objects.requireNonNull(response.body()).string().equals("custom message")) {
             throw new Exception("testError API did not return custom message ");
         }
         response.close();
@@ -491,7 +498,7 @@ public class SuperTokensOkHttpTest {
         }
 
         //check that user config tag was set in the request
-        if (!userConfigResponse.request().tag().toString().equals("CustomTag")) {
+        if (!Objects.requireNonNull(userConfigResponse.request().tag()).toString().equals("CustomTag")) {
             throw new Exception("user config tag was not set");
         }
         userConfigResponse.close();
@@ -503,6 +510,7 @@ public class SuperTokensOkHttpTest {
     public void okHttp_testThatThingsShouldWorkIfAntiCsrfIsDisabled() throws Exception {
         TestUtils.startST(3, false, 144000);
         SuperTokens.init(context, refreshTokenEndpoint, sessionExpiryCode, null);
+
         RequestBody loginReqBody = RequestBody.create(MediaType.parse("application/json; charset=utf-8"), "{}");
         Request request = new Request.Builder()
                 .url(loginAPIURL)
@@ -524,6 +532,7 @@ public class SuperTokensOkHttpTest {
         if (userInfoResponse.code() != 200) {
             throw new Exception("User info API failed even after calling refresh");
         }
+        userInfoResponse.close();
 
         //check that the refresh API was only called once
         if (TestUtils.getRefreshTokenCounter() != 1) {
@@ -581,6 +590,7 @@ public class SuperTokensOkHttpTest {
                         if (userInfoResponse.code() != 200) {
                             throw new Exception("User info api failed even after refresh API call");
                         }
+                        userInfoResponse.close();
                         synchronized (lock) {
                             runnableSuccess.add(true);
                         }
@@ -631,6 +641,8 @@ public class SuperTokensOkHttpTest {
             throw new Exception("login api failed");
         }
 
+        userConfigResponse.close();
+
         //wait for 7 seconds for idRefreshToken and AccessToken to expire
         Thread.sleep(7000);
 
@@ -639,7 +651,7 @@ public class SuperTokensOkHttpTest {
                 .build();
 
         Response userInfoResponse = okHttpClient.newCall(userInfoRequest).execute();
-        if (!(userInfoResponse.code() == 440 && userInfoResponse.body().string().equals("Session expired"))) {
+        if (!(userInfoResponse.code() == 440 && Objects.requireNonNull(userInfoResponse.body()).string().equals("Session expired"))) {
             throw new Exception("Session did not expire");
         }
 
@@ -675,7 +687,7 @@ public class SuperTokensOkHttpTest {
                 .url(userInfoAPIURL)
                 .build();
 
-        Response userInfoResponse = okHttpClient.newCall(userInfoRequest).execute();
+        okHttpClient.newCall(userInfoRequest).execute();
         //getCustomRefreshAPIHeaders
 
         request = new Request.Builder()
@@ -683,10 +695,11 @@ public class SuperTokensOkHttpTest {
                 .build();
         Response response = okHttpClient.newCall(request).execute();
 
-        if (!response.body().string().equals("true")){
+        if (!Objects.requireNonNull(response.body()).string().equals("true")){
             throw new Exception("Custom parameters were not set");
         }
     }
+
     // - tests APIs that don't require authentication work, before, during and after logout - using our library.***
     @Test
     public void okHttp_testThatAPIsThatDontNeedAuthenticationWorkProperly() throws Exception{
@@ -700,7 +713,7 @@ public class SuperTokensOkHttpTest {
         Response response = okHttpClient.newCall(request).execute();
 
         //check if api request is a success before login
-        if (!response.body().string().equals("success")){
+        if (!Objects.requireNonNull(response.body()).string().equals("success")){
             throw new Exception("testPingAPI failed");
         }
 
@@ -718,7 +731,7 @@ public class SuperTokensOkHttpTest {
 
         //check if it works correctly while logged in
         response = okHttpClient.newCall(request).execute();
-        if (!response.body().string().equals("success")){
+        if (!Objects.requireNonNull(response.body()).string().equals("success")){
             throw new Exception("testPingAPI failed");
         }
 
@@ -737,7 +750,7 @@ public class SuperTokensOkHttpTest {
 
         //check if it works correctly after log out
         response = okHttpClient.newCall(request).execute();
-        if (!response.body().string().equals("success")){
+        if (!Objects.equals(Objects.requireNonNull(response.body()).string(), "success")){
             throw new Exception("testPingAPI failed");
         }
 

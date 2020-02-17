@@ -51,6 +51,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.logging.Handler;
@@ -170,12 +171,12 @@ public class SuperTokensRetrofitTest {
         SuperTokens.init(context,refreshTokenEndpoint,sessionExpiryCode,null);
 
         Response<Void> login = retrofitTestAPIService.login().execute();
-        Response<ResponseBody> checkDeviceInfoResponse = retrofitTestAPIService.checkDeviceInfo().execute();
 
         if (login.code() != 200){
             throw new Exception("login failed");
         }
 
+        Response<ResponseBody> checkDeviceInfoResponse = retrofitTestAPIService.checkDeviceInfo().execute();
         JsonObject object = new JsonParser().parse(checkDeviceInfoResponse.body().string()).getAsJsonObject();
 
         //check tht device info was properly set in the request header
@@ -312,7 +313,7 @@ public class SuperTokensRetrofitTest {
 
         Response<ResponseBody> testErrorResponse = retrofitTestAPIService.testError().execute();
 
-        if (!(testErrorResponse.code() == 500 && testErrorResponse.errorBody().string().contains("custom message"))) {
+        if (!((testErrorResponse.code() == 500) && testErrorResponse.errorBody().string().contains("custom message"))) {
             throw new Exception("error was not properly propagated");
         }
     }
@@ -481,7 +482,6 @@ public class SuperTokensRetrofitTest {
         HashMap<String, String> customRefreshParams = new HashMap<>();
         customRefreshParams.put("testKey", "testValue");
         SuperTokens.init(context, refreshTokenEndpoint, sessionExpiryCode, customRefreshParams);
-
         Response<Void> loginResponse = retrofitTestAPIService.login().execute();
         if (loginResponse.code() != 200) {
             throw new Exception("Error making login request");
@@ -522,7 +522,7 @@ public class SuperTokensRetrofitTest {
         if (!multipleInterceptorResponse.body().string().equals("value1")) {
             throw new Exception("Request Interception did not take place");
         }
-        if (!multipleInterceptorResponse.headers().get("interceptorheader2").equals("value2")) {
+        if (!Objects.equals(multipleInterceptorResponse.headers().get("interceptorheader2"), "value2")) {
             throw new Exception("Response Interception did not take place");
         }
     }
