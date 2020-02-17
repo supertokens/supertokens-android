@@ -399,7 +399,7 @@ public class SuperTokensOkHttpTest {
             throw new Exception("Error when doing multipleInterceptors ");
         }
 
-        if (!Objects.equals(multipleInterceptorResponse.body().string(), "value1")) {
+        if (!Objects.equals(Objects.requireNonNull(multipleInterceptorResponse.body()).string(), "value1")) {
             throw new Exception("Request Interception did not take place");
         }
 

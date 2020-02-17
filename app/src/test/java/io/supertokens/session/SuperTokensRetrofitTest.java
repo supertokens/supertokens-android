@@ -52,6 +52,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.logging.Handler;
@@ -177,6 +178,10 @@ public class SuperTokensRetrofitTest {
         }
 
         Response<ResponseBody> checkDeviceInfoResponse = retrofitTestAPIService.checkDeviceInfo().execute();
+        if (checkDeviceInfoResponse.body() == null){
+            throw new Exception("checkDeviceInfo body is null");
+        }
+
         JsonObject object = new JsonParser().parse(checkDeviceInfoResponse.body().string()).getAsJsonObject();
 
         //check tht device info was properly set in the request header
@@ -226,6 +231,9 @@ public class SuperTokensRetrofitTest {
 
         //test testPing api before login
         Response<ResponseBody> testPingResponse = retrofitTestAPIService.testPing().execute();
+        if (testPingResponse.body() == null){
+            throw new Exception("testPing body is null");
+        }
 
         if (!testPingResponse.body().string().contains("success")) {
             throw new Exception("api failed ");
@@ -242,6 +250,10 @@ public class SuperTokensRetrofitTest {
         //check testPing api while logged in
         testPingResponse = retrofitTestAPIService.testPing().execute();
 
+        if (testPingResponse.body() == null){
+            throw new Exception("testPing body is null");
+        }
+
         if (!testPingResponse.body().string().contains("success")) {
             throw new Exception("api failed ");
         }
@@ -256,6 +268,10 @@ public class SuperTokensRetrofitTest {
 
         //check testPing after logout
         testPingResponse = retrofitTestAPIService.testPing().execute();
+
+        if (testPingResponse.body() == null){
+            throw new Exception("testPing body is null");
+        }
 
         if (!testPingResponse.body().string().contains("success")) {
             throw new Exception("api failed ");
@@ -282,6 +298,10 @@ public class SuperTokensRetrofitTest {
             throw new Exception("header api failed");
         }
 
+        if (customHeaderResponse.body() == null){
+            throw new Exception("customHeader body is null");
+        }
+
         if (customHeaderResponse.body().string().contains("false")) {
             throw new Exception("header API returned false");
         }
@@ -300,6 +320,10 @@ public class SuperTokensRetrofitTest {
             throw new Exception("header api failed");
         }
 
+        if (customHeaderResponse.body() == null){
+            throw new Exception("customHeader body is null");
+        }
+
         if (customHeaderResponse.body().string().contains("false")) {
             throw new Exception("header API returned false");
         }
@@ -312,8 +336,11 @@ public class SuperTokensRetrofitTest {
         SuperTokens.init(context, refreshTokenEndpoint, sessionExpiryCode, null);
 
         Response<ResponseBody> testErrorResponse = retrofitTestAPIService.testError().execute();
+        if (testErrorResponse.errorBody() == null){
+            throw new Exception("testError body is null");
+        }
 
-        if (!((testErrorResponse.code() == 500) && testErrorResponse.errorBody().string().contains("custom message"))) {
+        if (!(testErrorResponse.code() == 500 && testErrorResponse.errorBody().string().contains("custom message"))) {
             throw new Exception("error was not properly propagated");
         }
     }
@@ -335,6 +362,9 @@ public class SuperTokensRetrofitTest {
 
         Response<ResponseBody> testErrorResponse = retrofitTestAPIService1.testError().execute();
 
+        if (testErrorResponse.errorBody() == null){
+            throw new Exception("testError body is null");
+        }
         if (!(testErrorResponse.code() == 500 && testErrorResponse.errorBody().string().contains("custom message"))) {
             throw new Exception("error was not properly propagated");
         }
@@ -379,6 +409,11 @@ public class SuperTokensRetrofitTest {
         if (value.code() != 200){
             throw new Exception("testConfig api failed");
         }
+
+        if (value.body() == null){
+            throw new Exception("value body is null");
+        }
+
         if (!value.body().string().contains("value")){
             throw new Exception("does not contain user configs");
         }
@@ -497,6 +532,10 @@ public class SuperTokensRetrofitTest {
 
         //getCustomRefreshAPIHeaders
         Response<ResponseBody> response = retrofitTestAPIService.checkCustomHeaders().execute();
+
+        if (response.body() == null){
+            throw new Exception("testError body is null");
+        }
 
         if (!response.body().string().equals("true")){
             throw new Exception("Custom parameters were not set");
