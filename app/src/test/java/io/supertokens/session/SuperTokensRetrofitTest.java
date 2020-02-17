@@ -506,7 +506,7 @@ public class SuperTokensRetrofitTest {
     public void okHttp_testThatMultipleInterceptorsAreThereAndTheyShouldAllWork() throws Exception {
         TestUtils.startST();
         SuperTokens.init(context, refreshTokenEndpoint, sessionExpiryCode, null);
-        OkHttpClient client = okHttpClient.newBuilder().addInterceptor(new customInterceptors()).addInterceptor(new SuperTokensInterceptor()).build();
+        OkHttpClient client = okHttpClient.newBuilder().addInterceptor(new customInterceptors()).build();
 
         Retrofit retrofit = new Retrofit.Builder()
                 .baseUrl(testBaseURL)
