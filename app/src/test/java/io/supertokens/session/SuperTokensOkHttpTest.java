@@ -364,6 +364,18 @@ public class SuperTokensOkHttpTest {
         SuperTokens.init(context, refreshTokenEndpoint, sessionExpiryCode, null);
 
         // TODO: call userInfo and check that refresh token is not called
+        Request userInfoRequest = new Request.Builder()
+                .url(userInfoAPIURL)
+                .build();
+
+        Response userInfoResponse = okHttpClient.newCall(userInfoRequest).execute();
+        if (userInfoResponse.code() != 200) {
+            throw new Exception("User info API failed even after calling refresh");
+        }
+
+        if (TestUtils.getRefreshTokenCounter() != 0){
+            throw new Exception("Refresh API was called");
+        }
 
         // do a request for logout
         RequestBody logoutReqBody = RequestBody.create(MediaType.parse("application/json; charset=utf-8"), "{}");
@@ -555,7 +567,9 @@ public class SuperTokensOkHttpTest {
         logoutResponse.close();
 
         // TODO: check that session deos not exist
-
+        if (SuperTokens.doesSessionExist(context)){
+            throw new Exception("Session exists when it should not");
+        }
     }
 
     // - multiple API calls in parallel when access token is expired (100 of them) and only 1 refresh should be called***
@@ -709,6 +723,9 @@ public class SuperTokensOkHttpTest {
         }
 
         // TODO: check the number of times refresh is called is just one
+        if (TestUtils.getRefreshTokenCounter() != 1){
+            throw new Exception("Refresh API was called more/less than 1 time");
+        }
     }
 
     // - tests APIs that don't require authentication work, before, during and after logout - using our library.***
@@ -766,6 +783,58 @@ public class SuperTokensOkHttpTest {
         }
 
     }
+    // - Check that eveyrthing works properly - login, access token expiry, refresh called once, userInfo result is proper, logout, check session does not exist.*****
+    @Test
+    public void okHttp_testThatEverythingWorksProperly() throws Exception {
+        TestUtils.startST(3, true, 144000);
+        SuperTokens.init(context, refreshTokenEndpoint, sessionExpiryCode, null);
+
+        RequestBody loginReqBody = RequestBody.create(MediaType.parse("application/json; charset=utf-8"), "{}");
+        Request request = new Request.Builder()
+                .url(loginAPIURL)
+                .method("POST", loginReqBody)
+                .build();
+        Response loginResponse = okHttpClient.newCall(request).execute();
+        if (loginResponse.code() != 200) {
+            throw new Exception("Error making login request");
+        }
+        loginResponse.close();
+
+        Thread.sleep(5000);
+
+        Request userInfoRequest = new Request.Builder()
+                .url(userInfoAPIURL)
+                .build();
+
+        Response userInfoResponse = okHttpClient.newCall(userInfoRequest).execute();
+        if (userInfoResponse.code() != 200) {
+            throw new Exception("User info API failed even after calling refresh");
+        }
+        userInfoResponse.close();
+
+        //check that the refresh API was only called once
+        if (TestUtils.getRefreshTokenCounter() != 1) {
+            throw new Exception("refresh API was called more/less than 1 time");
+        }
+
+        //check that logout is working correctly
+        RequestBody logoutReqBody = RequestBody.create(MediaType.parse("application/json; charset=utf-8"), "{}");
+        request = new Request.Builder()
+                .url(logoutAPIURL)
+                .method("POST", logoutReqBody)
+                .build();
+        Response logoutResponse = okHttpClient.newCall(request).execute();
+
+        if (logoutResponse.code() != 200) {
+            throw new Exception("Error making logout request");
+        }
+        logoutResponse.close();
+
+        if (SuperTokens.doesSessionExist(context)){
+            throw new Exception("Session exists when it should not");
+        }
+    }
+
     //custom interceptors
     class customInterceptors implements Interceptor {
         @NotNull

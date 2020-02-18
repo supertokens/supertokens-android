@@ -457,6 +457,16 @@ public class SuperTokensHttpURLConnectionTest {
         SuperTokens.init(context, refreshTokenEndpoint, sessionExpiryCode, null);
 
         // TODO: call userInfo and check that refresh token is not called
+        //userInfo request
+        HttpURLConnection userInfoRequestConnection = SuperTokensHttpURLConnection.newRequest(new URL(userInfoAPIURL), null);
+
+        if (userInfoRequestConnection.getResponseCode() != 200) {
+            throw new Exception("userInfo api failed");
+        }
+
+        if (TestUtils.getRefreshTokenCounter() != 0){
+            throw new Exception("Refresh API was called");
+        }
 
         // do logout request
         HttpURLConnection logoutRequestConnection = SuperTokensHttpURLConnection.newRequest(new URL(logoutAPIURL), new SuperTokensHttpURLConnection.PreConnectCallback() {
@@ -550,6 +560,9 @@ public class SuperTokensHttpURLConnectionTest {
         checkRefreshSetConnection.disconnect();
 
         // TODO: check the number of times refresh is called is just one
+        if (TestUtils.getRefreshTokenCounter() != 1){
+            throw new Exception("Refresh API was called more/less than 1 time");
+        }
     }
 
     // - Things should work if anti-csrf is disabled.****
@@ -636,6 +649,24 @@ public class SuperTokensHttpURLConnectionTest {
         loginRequestConnection.disconnect();
 
         // TODO: also do this for userInfo and check that you are getting user info properly.
+
+        //userInfo request
+        HttpURLConnection userInfoRequestConnection = SuperTokensHttpURLConnection.newRequest(new URL(userInfoAPIURL), new SuperTokensHttpURLConnection.PreConnectCallback() {
+            @Override
+            public void doAction(HttpURLConnection con) throws IOException {
+                con.setRequestMethod("GET");
+                con.connect();
+            }
+        });
+
+        if (userInfoRequestConnection.getResponseCode() != 200) {
+            throw new Exception("userInfo api failed");
+        }
+        JsonObject userInfo = new JsonParser().parse(TestUtils.getBodyFromConnection(userInfoRequestConnection)).getAsJsonObject();
+
+        if (userInfo.get("name") == null && userInfo.get("userId") == null){
+            throw new Exception("user Info was not properly sent ");
+        }
     }
 
     // - multiple API calls in parallel when access token is expired (100 of them) and only 1 refresh should be called***
@@ -715,4 +746,66 @@ public class SuperTokensHttpURLConnectionTest {
 
     }
 
+    // - Check that eveyrthing works properly - login, access token expiry, refresh called once, userInfo result is proper, logout, check session does not exist.*****
+    @Test
+    public void  httpUrlConnection_testThatEverythingWorksProperly() throws Exception{
+        TestUtils.startST(3, true, 144000);
+        SuperTokens.init(context, refreshTokenEndpoint, sessionExpiryCode, null);
+        CookieManager.setDefault(new CookieManager(new SuperTokensPersistentCookieStore(context), null));
+
+        //login request
+        HttpURLConnection loginRequestConnection = SuperTokensHttpURLConnection.newRequest(new URL(loginAPIURL), new SuperTokensHttpURLConnection.PreConnectCallback() {
+            @Override
+            public void doAction(HttpURLConnection con) throws IOException {
+                con.setRequestMethod("POST");
+            }
+        });
+
+        if (loginRequestConnection.getResponseCode() != 200) {
+            throw new Exception("Login request failed");
+        }
+
+        loginRequestConnection.disconnect();
+
+        //wait for access token expiry
+        Thread.sleep(5000);
+
+        HttpURLConnection userInfoRequestConnection = SuperTokensHttpURLConnection.newRequest(new URL(userInfoAPIURL), new SuperTokensHttpURLConnection.PreConnectCallback() {
+            @Override
+            public void doAction(HttpURLConnection con) throws IOException {
+                con.setRequestMethod("GET");
+            }
+        });
+
+        if (userInfoRequestConnection.getResponseCode() != 200) {
+            throw new Exception("userInfo api failed");
+        }
+
+        userInfoRequestConnection.disconnect();
+        //check refresh was only called once
+
+        if (TestUtils.getRefreshTokenCounter() != 1) {
+            throw new Exception("refreshApi was called more/less than 1 time");
+        }
+
+
+        // do logout request
+        HttpURLConnection logoutRequestConnection = SuperTokensHttpURLConnection.newRequest(new URL(logoutAPIURL), new SuperTokensHttpURLConnection.PreConnectCallback() {
+            @Override
+            public void doAction(HttpURLConnection con) throws IOException {
+                con.setRequestMethod("POST");
+            }
+        });
+
+        if (logoutRequestConnection.getResponseCode() != 200) {
+            throw new Exception("Logout request failed");
+        }
+
+        logoutRequestConnection.disconnect();
+
+        // check that session does not exist
+        if (SuperTokens.doesSessionExist(context)) {
+            throw new Exception("Session exists when it  should not");
+        }
+    }
 }

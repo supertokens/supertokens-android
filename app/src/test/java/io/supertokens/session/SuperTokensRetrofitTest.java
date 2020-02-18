@@ -377,6 +377,14 @@ public class SuperTokensRetrofitTest {
         SuperTokens.init(context, refreshTokenEndpoint, sessionExpiryCode, null);
 
         // TODO: call userInfo and check that refresh token is not called
+        Response<Void> userInfoResponse = retrofitTestAPIService.userInfo().execute();
+        if (userInfoResponse.code() != 200) {
+            throw new Exception("User info API failed even after calling refresh");
+        }
+
+        if (TestUtils.getRefreshTokenCounter() != 0 ){
+            throw new Exception("Refresh API was called ");
+        }
 
         // do logout request
         Response<Void> logoutResponse = retrofitTestAPIService.logout().execute();
@@ -443,6 +451,10 @@ public class SuperTokensRetrofitTest {
         }
 
         // TODO: check that session does not exist
+
+        if (SuperTokens.doesSessionExist(context)){
+            throw new Exception("Session exists when it should not");
+        }
 
     }
 
@@ -536,6 +548,9 @@ public class SuperTokensRetrofitTest {
         }
 
         // TODO: check the number of times refresh is called is just one
+        if (TestUtils.getRefreshTokenCounter() != 1){
+            throw new Exception("Refresh API was called more/less than 1 time");
+        }
     }
     @Test
     public void okHttp_testThatMultipleInterceptorsAreThereAndTheyShouldAllWork() throws Exception {
@@ -560,6 +575,40 @@ public class SuperTokensRetrofitTest {
         if (!Objects.equals(multipleInterceptorResponse.headers().get("interceptorheader2"), "value2")) {
             throw new Exception("Response Interception did not take place");
         }
+    }
+    //- Check that eveyrthing works properly - login, access token expiry, refresh called once, userInfo result is proper, logout, check session does not exist.*****
+    @Test
+    public void retrofit_testThatEverythingShouldWork() throws Exception {
+        TestUtils.startST(3, true, 144000);
+        SuperTokens.init(context, refreshTokenEndpoint, sessionExpiryCode, null);
+
+        Response<Void> loginResponse = retrofitTestAPIService.login().execute();
+        if (loginResponse.code() != 200) {
+            throw new Exception("Error making login request");
+        }
+
+        Thread.sleep(5000);
+
+        Response<Void> userInfoResponse = retrofitTestAPIService.userInfo().execute();
+        if (userInfoResponse.code() != 200) {
+            throw new Exception("User info API failed even after calling refresh");
+        }
+
+        //check that the refresh API was only called once
+        if (TestUtils.getRefreshTokenCounter() != 1) {
+            throw new Exception("refresh API was called more/less than 1 time");
+        }
+
+        //check that logout is working correctly
+        Response<Void> logoutResponse = retrofitTestAPIService.logout().execute();
+        if (logoutResponse.code() != 200){
+            throw new Exception("logout failed");
+        }
+
+        if (SuperTokens.doesSessionExist(context)){
+            throw new Exception("Session exists when it should not");
+        }
+
     }
 
     class customInterceptors implements Interceptor {
