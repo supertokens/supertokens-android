@@ -30,7 +30,7 @@ public class SuperTokensHttpURLConnection {
     private static final Object refreshTokenLock = new Object();
     private static final ReentrantReadWriteLock refreshAPILock = new ReentrantReadWriteLock();
 
-    public static HttpURLConnection newRequest(URL url, SuperTokensHttpURLConnectionCallback preConnectCallback) throws IllegalAccessException, IOException {
+    public static HttpURLConnection newRequest(URL url, PreConnectCallback preConnectCallback) throws IllegalAccessException, IOException {
         if ( !SuperTokens.isInitCalled ) {
             throw new IllegalAccessException("SuperTokens.init function needs to be called before using newRequest");
         }
@@ -104,6 +104,7 @@ public class SuperTokensHttpURLConnection {
                     }
                     return connection;
                 }
+                connection.disconnect();
             }
         } finally {
             if ( IdRefreshToken.getToken(applicationContext) == null ) {
@@ -236,7 +237,7 @@ public class SuperTokensHttpURLConnection {
 //        }
 //    }
 
-    public interface SuperTokensHttpURLConnectionCallback {
+    public interface PreConnectCallback {
         void doAction(HttpURLConnection con) throws IOException;
     }
 

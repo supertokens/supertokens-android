@@ -19,7 +19,10 @@ package io.supertokens.session;
 import com.google.gson.Gson;
 import okhttp3.*;
 
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStreamReader;
+import java.net.HttpURLConnection;
 import java.net.URL;
 
 public class TestUtils {
@@ -71,14 +74,14 @@ public class TestUtils {
     }
 
     public static void startST() {
-        startST(10);
+        startST(10, true,144000);
     }
 
-    public static void startST(long validity) {
+    public static void startST(long validity, boolean AntiCsrf, double refreshTokenValidity) {
         try {
             final MediaType JSON
                     = MediaType.parse("application/json; charset=utf-8");
-            RequestBody body = RequestBody.create(JSON, "{\"accessTokenValidity\": " + validity + "}");
+            RequestBody body = RequestBody.create(JSON, "{\"accessTokenValidity\": " + validity + ",\"setAntiCsrf\": " + AntiCsrf +",\"refreshTokenValidity\": "+refreshTokenValidity+"}");
             OkHttpClient client = new OkHttpClient.Builder().build();
             Request request = new Request.Builder()
                     .url(new URL(startSTAPIURL))
@@ -107,6 +110,19 @@ public class TestUtils {
         GetRefreshCounterResponse counterResponse = new Gson().fromJson(body, GetRefreshCounterResponse.class);
         response.close();
         return counterResponse.counter;
+    }
+
+    public static String getBodyFromConnection(HttpURLConnection connection) throws IOException{
+        StringBuilder builder = new StringBuilder();
+
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(connection.getInputStream()))) {
+            String line = reader.readLine();
+            while (line != null) {
+                builder.append(line).append("\n");
+                line = reader.readLine();
+            }
+        }
+        return builder.toString();
     }
 
     public static class GetRefreshCounterResponse {

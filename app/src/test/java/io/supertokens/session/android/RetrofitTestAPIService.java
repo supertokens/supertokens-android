@@ -17,11 +17,9 @@
 package io.supertokens.session.android;
 
 import io.supertokens.session.TestUtils;
+import okhttp3.ResponseBody;
 import retrofit2.Call;
-import retrofit2.http.GET;
-import retrofit2.http.Header;
-import retrofit2.http.Headers;
-import retrofit2.http.POST;
+import retrofit2.http.*;
 
 public interface RetrofitTestAPIService {
     @POST("login")
@@ -43,6 +41,25 @@ public interface RetrofitTestAPIService {
     @GET("testRefreshCounter")
     Call<TestUtils.GetRefreshCounterResponse> refreshCounter();
 
-    @GET("testHeader")
-    Call<TestUtils.HeaderTestResponse> testHeader(@Header("st-custom-header") String header);
+    @GET("header")
+    Call<ResponseBody> testHeader(@Header("st-custom-header") String header);
+
+    @GET("checkDeviceInfo")
+    Call<ResponseBody> checkDeviceInfo();
+
+    @GET("testPing")
+    Call<ResponseBody> testPing();
+
+    @GET("testError")
+    Call<ResponseBody> testError();
+
+    @GET("checkCustomHeader")
+    Call<ResponseBody> checkCustomHeaders();
+
+    @GET("multipleInterceptors")
+    Call<ResponseBody> multipleInterceptors();
+
+    @GET("testConfig")
+    Call<ResponseBody> testConfig(@Query("key") String key);
+
 }
