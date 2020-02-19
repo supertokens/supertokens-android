@@ -596,7 +596,6 @@ public class SuperTokensRetrofitTest {
             throw new Exception("refresh API was called more/less than 1 time");
         }
 
-        // TODO: check for returned name and userId..
         JsonObject userInfo = new JsonParser().parse(userInfoResponse.body().toString()).getAsJsonObject();
         if (userInfo.get("name") == null || userInfo.get("userId") == null){
             throw new Exception("user Info was not properly sent ");

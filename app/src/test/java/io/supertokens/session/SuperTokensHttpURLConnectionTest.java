@@ -781,8 +781,6 @@ public class SuperTokensHttpURLConnectionTest {
             throw new Exception("refreshApi was called more/less than 1 time");
         }
 
-        // TODO: check that the name and userId is there properly..
-
         JsonObject userInfo = new JsonParser().parse(TestUtils.getBodyFromConnection(userInfoRequestConnection)).getAsJsonObject();
 
         if (userInfo.get("name") == null || userInfo.get("userId") == null){
