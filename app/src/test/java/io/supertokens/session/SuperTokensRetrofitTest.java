@@ -597,6 +597,11 @@ public class SuperTokensRetrofitTest {
         }
 
         // TODO: check for returned name and userId..
+        JsonObject userInfo = new JsonParser().parse(userInfoResponse.body().toString()).getAsJsonObject();
+        if (userInfo.get("name") == null || userInfo.get("userId") == null){
+            throw new Exception("user Info was not properly sent ");
+        }
+
 
         //check that logout is working correctly
         Response<Void> logoutResponse = retrofitTestAPIService.logout().execute();

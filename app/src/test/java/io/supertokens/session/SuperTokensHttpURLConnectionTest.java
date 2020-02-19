@@ -775,8 +775,6 @@ public class SuperTokensHttpURLConnectionTest {
         if (userInfoRequestConnection.getResponseCode() != 200) {
             throw new Exception("userInfo api failed");
         }
-
-        userInfoRequestConnection.disconnect();
         //check refresh was only called once
 
         if (TestUtils.getRefreshTokenCounter() != 1) {
@@ -784,6 +782,14 @@ public class SuperTokensHttpURLConnectionTest {
         }
 
         // TODO: check that the name and userId is there properly..
+
+        JsonObject userInfo = new JsonParser().parse(TestUtils.getBodyFromConnection(userInfoRequestConnection)).getAsJsonObject();
+
+        if (userInfo.get("name") == null || userInfo.get("userId") == null){
+            throw new Exception("user Info was not properly sent ");
+        }
+
+        userInfoRequestConnection.disconnect();
 
         // do logout request
         HttpURLConnection logoutRequestConnection = SuperTokensHttpURLConnection.newRequest(new URL(logoutAPIURL), new SuperTokensHttpURLConnection.PreConnectCallback() {

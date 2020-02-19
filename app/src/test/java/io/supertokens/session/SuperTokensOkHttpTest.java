@@ -807,7 +807,6 @@ public class SuperTokensOkHttpTest {
         if (userInfoResponse.code() != 200) {
             throw new Exception("User info API failed even after calling refresh");
         }
-        userInfoResponse.close();
 
         //check that the refresh API was only called once
         if (TestUtils.getRefreshTokenCounter() != 1) {
@@ -815,6 +814,13 @@ public class SuperTokensOkHttpTest {
         }
 
         // TODO: check for returned name and userId
+        JsonObject userInfo = new JsonParser().parse(userInfoResponse.body().string()).getAsJsonObject();
+
+        if (userInfo.get("name") == null || userInfo.get("userId") == null){
+            throw new Exception("user Info was not properly sent ");
+        }
+
+        userInfoResponse.close();
 
         //check that logout is working correctly
         RequestBody logoutReqBody = RequestBody.create(MediaType.parse("application/json; charset=utf-8"), "{}");
