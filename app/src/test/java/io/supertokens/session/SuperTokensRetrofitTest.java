@@ -376,7 +376,6 @@ public class SuperTokensRetrofitTest {
         //supertokensinit
         SuperTokens.init(context, refreshTokenEndpoint, sessionExpiryCode, null);
 
-        // TODO: call userInfo and check that refresh token is not called
         Response<Void> userInfoResponse = retrofitTestAPIService.userInfo().execute();
         if (userInfoResponse.code() != 200) {
             throw new Exception("User info API failed even after calling refresh");
@@ -450,7 +449,6 @@ public class SuperTokensRetrofitTest {
             throw new Exception("logout failed");
         }
 
-        // TODO: check that session does not exist
 
         if (SuperTokens.doesSessionExist(context)){
             throw new Exception("Session exists when it should not");
@@ -547,7 +545,6 @@ public class SuperTokensRetrofitTest {
             throw new Exception("Custom parameters were not set");
         }
 
-        // TODO: check the number of times refresh is called is just one
         if (TestUtils.getRefreshTokenCounter() != 1){
             throw new Exception("Refresh API was called more/less than 1 time");
         }
@@ -598,6 +595,8 @@ public class SuperTokensRetrofitTest {
         if (TestUtils.getRefreshTokenCounter() != 1) {
             throw new Exception("refresh API was called more/less than 1 time");
         }
+
+        // TODO: check for returned name and userId..
 
         //check that logout is working correctly
         Response<Void> logoutResponse = retrofitTestAPIService.logout().execute();

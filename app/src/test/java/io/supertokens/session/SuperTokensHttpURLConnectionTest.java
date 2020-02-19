@@ -54,7 +54,6 @@ import java.util.logging.Handler;
  - if not logged in, test that API that requires auth throws session expired.
  - Interception should not happen when domain is not the one that they gave
  - Proper change in anti-csrf token once access token resets
- - Check that eveyrthing works properly - login, access token expiry, refresh called once, userInfo result is proper, logout, check session does not exist.*****
  */
 
 @SuppressWarnings({"CatchMayIgnoreException", "FieldCanBeLocal", "SingleStatementInBlock"})
@@ -456,7 +455,6 @@ public class SuperTokensHttpURLConnectionTest {
         //supertokensinit
         SuperTokens.init(context, refreshTokenEndpoint, sessionExpiryCode, null);
 
-        // TODO: call userInfo and check that refresh token is not called
         //userInfo request
         HttpURLConnection userInfoRequestConnection = SuperTokensHttpURLConnection.newRequest(new URL(userInfoAPIURL), null);
 
@@ -559,7 +557,6 @@ public class SuperTokensHttpURLConnectionTest {
         }
         checkRefreshSetConnection.disconnect();
 
-        // TODO: check the number of times refresh is called is just one
         if (TestUtils.getRefreshTokenCounter() != 1){
             throw new Exception("Refresh API was called more/less than 1 time");
         }
@@ -648,8 +645,6 @@ public class SuperTokensHttpURLConnectionTest {
         }
         loginRequestConnection.disconnect();
 
-        // TODO: also do this for userInfo and check that you are getting user info properly.
-
         //userInfo request
         HttpURLConnection userInfoRequestConnection = SuperTokensHttpURLConnection.newRequest(new URL(userInfoAPIURL), new SuperTokensHttpURLConnection.PreConnectCallback() {
             @Override
@@ -664,7 +659,7 @@ public class SuperTokensHttpURLConnectionTest {
         }
         JsonObject userInfo = new JsonParser().parse(TestUtils.getBodyFromConnection(userInfoRequestConnection)).getAsJsonObject();
 
-        if (userInfo.get("name") == null && userInfo.get("userId") == null){
+        if (userInfo.get("name") == null || userInfo.get("userId") == null){
             throw new Exception("user Info was not properly sent ");
         }
     }
@@ -788,6 +783,7 @@ public class SuperTokensHttpURLConnectionTest {
             throw new Exception("refreshApi was called more/less than 1 time");
         }
 
+        // TODO: check that the name and userId is there properly..
 
         // do logout request
         HttpURLConnection logoutRequestConnection = SuperTokensHttpURLConnection.newRequest(new URL(logoutAPIURL), new SuperTokensHttpURLConnection.PreConnectCallback() {

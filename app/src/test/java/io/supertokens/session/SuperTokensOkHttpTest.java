@@ -363,7 +363,6 @@ public class SuperTokensOkHttpTest {
         loginResponse.close();
         SuperTokens.init(context, refreshTokenEndpoint, sessionExpiryCode, null);
 
-        // TODO: call userInfo and check that refresh token is not called
         Request userInfoRequest = new Request.Builder()
                 .url(userInfoAPIURL)
                 .build();
@@ -566,7 +565,6 @@ public class SuperTokensOkHttpTest {
         }
         logoutResponse.close();
 
-        // TODO: check that session deos not exist
         if (SuperTokens.doesSessionExist(context)){
             throw new Exception("Session exists when it should not");
         }
@@ -722,7 +720,6 @@ public class SuperTokensOkHttpTest {
             throw new Exception("Custom parameters were not set");
         }
 
-        // TODO: check the number of times refresh is called is just one
         if (TestUtils.getRefreshTokenCounter() != 1){
             throw new Exception("Refresh API was called more/less than 1 time");
         }
@@ -816,6 +813,8 @@ public class SuperTokensOkHttpTest {
         if (TestUtils.getRefreshTokenCounter() != 1) {
             throw new Exception("refresh API was called more/less than 1 time");
         }
+
+        // TODO: check for returned name and userId
 
         //check that logout is working correctly
         RequestBody logoutReqBody = RequestBody.create(MediaType.parse("application/json; charset=utf-8"), "{}");
