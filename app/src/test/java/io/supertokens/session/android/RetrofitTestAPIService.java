@@ -26,7 +26,7 @@ public interface RetrofitTestAPIService {
     Call<Void> login();
 
     @GET("userInfo")
-    Call<Void> userInfo();
+    Call<ResponseBody> userInfo();
 
     @POST("logout")
     Call<Void> logout();

@@ -376,7 +376,7 @@ public class SuperTokensRetrofitTest {
         //supertokensinit
         SuperTokens.init(context, refreshTokenEndpoint, sessionExpiryCode, null);
 
-        Response<Void> userInfoResponse = retrofitTestAPIService.userInfo().execute();
+        Response<ResponseBody> userInfoResponse = retrofitTestAPIService.userInfo().execute();
         if (userInfoResponse.code() != 200) {
             throw new Exception("User info API failed even after calling refresh");
         }
@@ -433,7 +433,7 @@ public class SuperTokensRetrofitTest {
 
         Thread.sleep(5000);
 
-        Response<Void> userInfoResponse = retrofitTestAPIService.userInfo().execute();
+        Response<ResponseBody> userInfoResponse = retrofitTestAPIService.userInfo().execute();
         if (userInfoResponse.code() != 200) {
             throw new Exception("User info API failed even after calling refresh");
         }
@@ -478,7 +478,7 @@ public class SuperTokensRetrofitTest {
                 @Override
                 public void run() {
                     try {
-                        Response<Void> userInfoResponse = retrofitTestAPIService.userInfo().execute();
+                        Response<ResponseBody> userInfoResponse = retrofitTestAPIService.userInfo().execute();
                         if (userInfoResponse.code() != 200) {
                             throw new Exception("User info api failed even after refresh API call");
                         }
@@ -529,7 +529,7 @@ public class SuperTokensRetrofitTest {
 
         Thread.sleep(5000);
 
-        Response<Void> userInfoResponse = retrofitTestAPIService.userInfo().execute();
+        Response<ResponseBody> userInfoResponse = retrofitTestAPIService.userInfo().execute();
         if (userInfoResponse.code() != 200) {
             throw new Exception("User info API failed even after calling refresh");
         }
@@ -586,7 +586,7 @@ public class SuperTokensRetrofitTest {
 
         Thread.sleep(5000);
 
-        Response<Void> userInfoResponse = retrofitTestAPIService.userInfo().execute();
+        Response<ResponseBody> userInfoResponse = retrofitTestAPIService.userInfo().execute();
         if (userInfoResponse.code() != 200) {
             throw new Exception("User info API failed even after calling refresh");
         }
@@ -596,7 +596,7 @@ public class SuperTokensRetrofitTest {
             throw new Exception("refresh API was called more/less than 1 time");
         }
 
-        JsonObject userInfo = new JsonParser().parse(userInfoResponse.body().toString()).getAsJsonObject();
+        JsonObject userInfo = new JsonParser().parse(userInfoResponse.body().string()).getAsJsonObject();
         if (userInfo.get("name") == null || userInfo.get("userId") == null){
             throw new Exception("user Info was not properly sent ");
         }
