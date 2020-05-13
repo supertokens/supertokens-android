@@ -71,4 +71,4 @@ cd ../project/testHelpers/server/
 npm i -d
 npm i git+https://github.com:supertokens/supertokens-node.git#$2
 cd ../../
-./gradlew test
+(cd Example && ./gradlew test)
