@@ -1,21 +1,31 @@
+/*
+ * Copyright (c) 2020, VRAI Labs and/or its affiliates. All rights reserved.
+ *
+ * This software is licensed under the Apache License, Version 2.0 (the
+ * "License") as published by the Apache Software Foundation.
+ *
+ * You may not use this file except in compliance with the License. You may
+ * obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+ * License for the specific language governing permissions and limitations
+ * under the License.
+ */
+
 package io.supertokens.session;
 
-import android.app.Application;
 import android.content.Context;
 import android.content.SharedPreferences;
-import android.util.Log;
 
 import java.net.CookieStore;
 import java.net.HttpCookie;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
+
+// TODO: Nemi, what is the need for this file?
 
 @SuppressWarnings({"Convert2Diamond", "RegExpEmptyAlternationBranch"})
 public class SuperTokensPersistentCookieStore implements CookieStore {
@@ -31,7 +41,7 @@ public class SuperTokensPersistentCookieStore implements CookieStore {
     // In memory
     private Map<URI, Set<HttpCookie>> allCookies;
 
-    public SuperTokensPersistentCookieStore(Application context) {
+    public SuperTokensPersistentCookieStore(Context context) {
         sharedPreferences = context.getSharedPreferences(context.getString(R.string.superTokensCookieSharedPrefsKey),
                 Context.MODE_PRIVATE);
         loadAllFromPersistence();

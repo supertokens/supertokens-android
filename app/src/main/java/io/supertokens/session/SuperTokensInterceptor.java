@@ -1,13 +1,27 @@
+/*
+ * Copyright (c) 2020, VRAI Labs and/or its affiliates. All rights reserved.
+ *
+ * This software is licensed under the Apache License, Version 2.0 (the
+ * "License") as published by the Apache Software Foundation.
+ *
+ * You may not use this file except in compliance with the License. You may
+ * obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+ * License for the specific language governing permissions and limitations
+ * under the License.
+ */
+
 package io.supertokens.session;
 
-import android.app.Application;
-
+import android.content.Context;
 import okhttp3.*;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
-import java.util.List;
+import java.util.Map;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 @SuppressWarnings("unused")
@@ -19,29 +33,25 @@ public class SuperTokensInterceptor implements Interceptor {
         return chain.proceed(request);
     }
 
-    private static Response makeRequest(OkHttpClient client, Request request) throws IOException {
-        return client.newCall(request).execute();
-    }
-
     @NotNull
     @Override
     public Response intercept(@NotNull Chain chain) throws IOException {
-        if ( !SuperTokens.isInitCalled ) {
+        if (!SuperTokens.isInitCalled) {
             throw new IOException("SuperTokens.init function needs to be called before using interceptors");
         }
 
-        Application applicationContext = SuperTokens.contextWeakReference.get();
-        if ( applicationContext == null ) {
-            throw new IOException("Application context is null");
+        Context applicationContext = SuperTokens.contextWeakReference.get();
+        if (applicationContext == null) {
+            throw new IOException("Context is null");
         }
 
         String requestUrl = chain.request().url().url().toString();
-        if ( !SuperTokens.getApiDomain(requestUrl).equals(SuperTokens.apiDomain) ) {
+        if (!SuperTokens.getApiDomain(requestUrl).equals(SuperTokens.apiDomain)) {
             // The the api domain does not match we do not want to intercept. Return the response of the request.
             return chain.proceed(chain.request());
         }
 
-        if ( requestUrl.equals(SuperTokens.refreshTokenEndpoint) ) {
+        if (requestUrl.equals(SuperTokens.refreshTokenEndpoint)) {
             // We don't want to intercept calls to the refresh token endpoint. Return the response of the request.
             return chain.proceed(chain.request());
         }
@@ -56,23 +66,25 @@ public class SuperTokensInterceptor implements Interceptor {
                     preRequestIdRefreshToken = IdRefreshToken.getToken(applicationContext);
                     String antiCSRFToken = AntiCSRF.getToken(applicationContext, preRequestIdRefreshToken);
 
-                    if ( antiCSRFToken != null ) {
+                    if (antiCSRFToken != null) {
                         requestBuilder.header(applicationContext.getString(R.string.supertokensAntiCSRFHeaderKey), antiCSRFToken);
                     }
 
                     // Add package information to headers
-                    requestBuilder.header(applicationContext.getString(R.string.supertokensNameHeaderKey), SuperTokensUtils.PACKAGE_PLATFORM);
+                    requestBuilder.header(applicationContext.getString(R.string.supertokensNameHeaderKey), Utils.PACKAGE_PLATFORM);
                     requestBuilder.header(applicationContext.getString(R.string.supertokensVersionHeaderKey), BuildConfig.VERSION_NAME);
 
                     Request request = requestBuilder.build();
-                    response =  makeRequest(chain, request);
-                    List<String> setCookie = response.headers(applicationContext.getString(R.string.supertokensSetCookieHeaderKey));
-                    SuperTokensResponseCookieHandler.saveIdRefreshFromSetCookieOkhttp(applicationContext, setCookie);
+                    response = makeRequest(chain, request);
+                    String idRefreshToken = response.header(applicationContext.getString(R.string.supertokensIdRefreshHeaderKey));
+                    if (idRefreshToken != null) {
+                        IdRefreshToken.setToken(applicationContext, idRefreshToken);
+                    }
                 } finally {
                     refreshAPILock.readLock().unlock();
                 }
 
-                if ( response.code() == SuperTokens.sessionExpiryStatusCode ) {
+                if (response.code() == SuperTokens.sessionExpiryStatusCode) {
                     // Cloning the response object, if retry is false then we return this
                     Response clonedResponse = new Response.Builder()
                             .body(response.peekBody(Long.MAX_VALUE))
@@ -89,59 +101,54 @@ public class SuperTokensInterceptor implements Interceptor {
                             .sentRequestAtMillis(response.sentRequestAtMillis())
                             .build();
                     response.close();
-                    Boolean retry = handleUnauthorised(applicationContext, preRequestIdRefreshToken, chain, null);
-                    if ( !retry ) {
+                    Boolean retry = handleUnauthorised(applicationContext, preRequestIdRefreshToken, chain);
+                    if (!retry) {
                         return clonedResponse;
                     }
                 } else {
                     String antiCSRF = response.header(applicationContext.getString(R.string.supertokensAntiCSRFHeaderKey));
-                    if ( antiCSRF != null ) {
+                    if (antiCSRF != null) {
                         AntiCSRF.setToken(applicationContext, IdRefreshToken.getToken(applicationContext), antiCSRF);
                     }
                     return response;
                 }
             }
         } finally {
-            if ( IdRefreshToken.getToken(applicationContext) == null ) {
+            if (IdRefreshToken.getToken(applicationContext) == null) {
                 AntiCSRF.removeToken(applicationContext);
             }
         }
     }
 
-    private static Boolean handleUnauthorised(Application applicationContext, String preRequestIdRefreshToken, Chain chain, @Nullable OkHttpClient client) throws IOException {
-        if ( preRequestIdRefreshToken == null ) {
+    private static Boolean handleUnauthorised(Context applicationContext, String preRequestIdRefreshToken, Chain chain) throws IOException {
+        if (preRequestIdRefreshToken == null) {
             String idRefresh = IdRefreshToken.getToken(applicationContext);
             return idRefresh != null;
         }
 
-        SuperTokensUtils.Unauthorised unauthorisedResponse;
-        if ( client != null ) {
-            unauthorisedResponse = onUnauthorisedResponse(SuperTokens.refreshTokenEndpoint, preRequestIdRefreshToken, applicationContext, chain, client);
-        } else {
-            unauthorisedResponse = onUnauthorisedResponse(SuperTokens.refreshTokenEndpoint, preRequestIdRefreshToken, applicationContext, chain, null);
-        }
+        Utils.Unauthorised unauthorisedResponse = onUnauthorisedResponse(SuperTokens.refreshTokenEndpoint, preRequestIdRefreshToken, applicationContext, chain);
 
-        if ( unauthorisedResponse.status == SuperTokensUtils.Unauthorised.UnauthorisedStatus.SESSION_EXPIRED ) {
+        if (unauthorisedResponse.status == Utils.Unauthorised.UnauthorisedStatus.SESSION_EXPIRED) {
             return false;
-        } else if (unauthorisedResponse.status == SuperTokensUtils.Unauthorised.UnauthorisedStatus.API_ERROR) {
+        } else if (unauthorisedResponse.status == Utils.Unauthorised.UnauthorisedStatus.API_ERROR) {
             throw unauthorisedResponse.error;
         }
 
         return true;
     }
 
-    private static SuperTokensUtils.Unauthorised onUnauthorisedResponse(String refreshTokenUrl, String preRequestIdRefreshToken, Application applicationContext, Chain chain, @Nullable OkHttpClient client) {
+    private static Utils.Unauthorised onUnauthorisedResponse(String refreshTokenUrl, String preRequestIdRefreshToken, Context applicationContext, Chain chain) {
         // this is intentionally not put in a loop because the loop in other projects is because locking has a timeout
         Response refreshResponse = null;
         try {
             refreshAPILock.writeLock().lock();
             String postLockIdRefreshToken = IdRefreshToken.getToken(applicationContext);
-            if ( postLockIdRefreshToken == null ) {
-                return new SuperTokensUtils.Unauthorised(SuperTokensUtils.Unauthorised.UnauthorisedStatus.SESSION_EXPIRED);
+            if (postLockIdRefreshToken == null) {
+                return new Utils.Unauthorised(Utils.Unauthorised.UnauthorisedStatus.SESSION_EXPIRED);
             }
 
-            if ( !postLockIdRefreshToken.equals(preRequestIdRefreshToken) ) {
-                return new SuperTokensUtils.Unauthorised(SuperTokensUtils.Unauthorised.UnauthorisedStatus.RETRY);
+            if (!postLockIdRefreshToken.equals(preRequestIdRefreshToken)) {
+                return new Utils.Unauthorised(Utils.Unauthorised.UnauthorisedStatus.RETRY);
             }
 
             Request.Builder refreshRequestBuilder = new Request.Builder();
@@ -149,75 +156,83 @@ public class SuperTokensInterceptor implements Interceptor {
             refreshRequestBuilder.method("POST", new FormBody.Builder().build());
 
             // Add package information to headers
-            refreshRequestBuilder.header(applicationContext.getString(R.string.supertokensNameHeaderKey), SuperTokensUtils.PACKAGE_PLATFORM);
+            refreshRequestBuilder.header(applicationContext.getString(R.string.supertokensNameHeaderKey), Utils.PACKAGE_PLATFORM);
             refreshRequestBuilder.header(applicationContext.getString(R.string.supertokensVersionHeaderKey), BuildConfig.VERSION_NAME);
-
-            Request refreshRequest = refreshRequestBuilder.build();
-            if ( client != null ) {
-                refreshResponse = makeRequest(client, refreshRequest);
-            } else {
-                refreshResponse = makeRequest(chain, refreshRequest);
+            for (Map.Entry<String, String> entry : SuperTokens.refreshAPICustomHeaders.entrySet()) {
+                refreshRequestBuilder.header(entry.getKey(), entry.getValue());
             }
 
-            List<String> setCookie = refreshResponse.headers(applicationContext.getString(R.string.supertokensSetCookieHeaderKey));
-            SuperTokensResponseCookieHandler.saveIdRefreshFromSetCookieOkhttp(applicationContext, setCookie);
+            Request refreshRequest = refreshRequestBuilder.build();
+            refreshResponse = makeRequest(chain, refreshRequest);
 
-            if ( refreshResponse.code() != 200 ) {
+            boolean removeIdRefreshToken = true;
+            String idRefreshToken = refreshResponse.header(applicationContext.getString(R.string.supertokensIdRefreshHeaderKey));
+            if (idRefreshToken != null) {
+                IdRefreshToken.setToken(applicationContext, idRefreshToken);
+                removeIdRefreshToken = false;
+            }
+
+            if (refreshResponse.code() == SuperTokens.sessionExpiryStatusCode && removeIdRefreshToken) {
+                IdRefreshToken.setToken(applicationContext, "remove");
+            }
+
+            if (refreshResponse.code() != 200) {
                 String responseMessage = refreshResponse.message();
                 throw new IOException(responseMessage);
             }
 
             String idRefreshAfterResponse = IdRefreshToken.getToken(applicationContext);
-            if ( idRefreshAfterResponse == null ) {
+            if (idRefreshAfterResponse == null) {
                 // removed by server
-                return new SuperTokensUtils.Unauthorised(SuperTokensUtils.Unauthorised.UnauthorisedStatus.SESSION_EXPIRED);
+                return new Utils.Unauthorised(Utils.Unauthorised.UnauthorisedStatus.SESSION_EXPIRED);
             }
 
             String antiCSRF = refreshResponse.header(applicationContext.getString(R.string.supertokensAntiCSRFHeaderKey));
-            if ( antiCSRF != null ) {
+            if (antiCSRF != null) {
                 AntiCSRF.setToken(applicationContext, IdRefreshToken.getToken(applicationContext), antiCSRF);
             }
 
-            return new SuperTokensUtils.Unauthorised(SuperTokensUtils.Unauthorised.UnauthorisedStatus.RETRY);
+            return new Utils.Unauthorised(Utils.Unauthorised.UnauthorisedStatus.RETRY);
 
         } catch (Exception e) {
+            e.printStackTrace();
             IOException ioe = new IOException(e);
             if (e instanceof IOException) {
                 ioe = (IOException) e;
             }
             String idRefreshToken = IdRefreshToken.getToken(applicationContext);
-            if ( idRefreshToken == null ) {
-                return new SuperTokensUtils.Unauthorised(SuperTokensUtils.Unauthorised.UnauthorisedStatus.SESSION_EXPIRED);
+            if (idRefreshToken == null) {
+                return new Utils.Unauthorised(Utils.Unauthorised.UnauthorisedStatus.SESSION_EXPIRED);
             }
 
-            return new SuperTokensUtils.Unauthorised(SuperTokensUtils.Unauthorised.UnauthorisedStatus.API_ERROR, ioe);
+            return new Utils.Unauthorised(Utils.Unauthorised.UnauthorisedStatus.API_ERROR, ioe);
 
         } finally {
             refreshAPILock.writeLock().unlock();
-            if ( refreshResponse != null ) {
+            if (refreshResponse != null) {
                 refreshResponse.close();
             }
         }
     }
 
-    public static boolean attemptRefreshingSession(OkHttpClient client) throws IOException, IllegalAccessException {
-        if ( !SuperTokens.isInitCalled ) {
-            throw new IllegalAccessException("SuperTokens.init function needs to be called before using attemptRefreshingSession");
-        }
-
-        Application applicationContext = SuperTokens.contextWeakReference.get();
-        if ( applicationContext == null ) {
-            throw new IllegalAccessException("Application context is null");
-        }
-
-        try {
-            String preRequestIdRefreshToken = IdRefreshToken.getToken(applicationContext);
-            return handleUnauthorised(applicationContext, preRequestIdRefreshToken, null , client);
-        } finally {
-            String idRefreshToken = IdRefreshToken.getToken(applicationContext);
-            if ( idRefreshToken == null ) {
-                AntiCSRF.removeToken(applicationContext);
-            }
-        }
-    }
+//    public static boolean attemptRefreshingSession(OkHttpClient client) throws IOException, IllegalAccessException {
+//        if ( !SuperTokens.isInitCalled ) {
+//            throw new IllegalAccessException("SuperTokens.init function needs to be called before using attemptRefreshingSession");
+//        }
+//
+//        Context applicationContext = SuperTokens.contextWeakReference.get();
+//        if ( applicationContext == null ) {
+//            throw new IllegalAccessException("Context is null");
+//        }
+//
+//        try {
+//            String preRequestIdRefreshToken = IdRefreshToken.getToken(applicationContext);
+//            return handleUnauthorised(applicationContext, preRequestIdRefreshToken, null , client);
+//        } finally {
+//            String idRefreshToken = IdRefreshToken.getToken(applicationContext);
+//            if ( idRefreshToken == null ) {
+//                AntiCSRF.removeToken(applicationContext);
+//            }
+//        }
+//    }
 }

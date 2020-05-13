@@ -1,15 +1,33 @@
+/*
+ * Copyright (c) 2020, VRAI Labs and/or its affiliates. All rights reserved.
+ *
+ * This software is licensed under the Apache License, Version 2.0 (the
+ * "License") as published by the Apache Software Foundation.
+ *
+ * You may not use this file except in compliance with the License. You may
+ * obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+ * License for the specific language governing permissions and limitations
+ * under the License.
+ */
+
 package io.supertokens.session;
 
-import android.app.Application;
 import android.content.Context;
-import android.text.TextUtils;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
 import java.lang.ref.WeakReference;
 import java.net.MalformedURLException;
+import java.util.AbstractCollection;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.Map;
 
 @SuppressWarnings({"Convert2Diamond"})
 public class SuperTokens {
@@ -20,16 +38,21 @@ public class SuperTokens {
     @SuppressWarnings("unused")
     static final String TAG = "io.supertokens.session";
     static String refreshTokenEndpoint;
-    static WeakReference<Application> contextWeakReference;
+    static WeakReference<Context> contextWeakReference;
+    static Map<String, String> refreshAPICustomHeaders = new HashMap<>();
 
 
     @SuppressWarnings("unused")
-    public static void init(Application applicationContext, @NonNull String refreshTokenEndpoint, @Nullable Integer sessionExpiryStatusCode) throws MalformedURLException {
+    public static void init(Context applicationContext, @NonNull String refreshTokenEndpoint, @Nullable Integer sessionExpiryStatusCode,
+                            @Nullable Map<String, String> refreshAPICustomHeaders) throws MalformedURLException {
         if ( SuperTokens.isInitCalled ) {
             return;
         }
-        contextWeakReference = new WeakReference<Application>(applicationContext);
+        contextWeakReference = new WeakReference<Context>(applicationContext);
         SuperTokens.refreshTokenEndpoint = refreshTokenEndpoint;
+        if (refreshAPICustomHeaders != null) {
+            SuperTokens.refreshAPICustomHeaders = refreshAPICustomHeaders;
+        }
         if ( sessionExpiryStatusCode != null ) {
             SuperTokens.sessionExpiryStatusCode = sessionExpiryStatusCode;
         }
@@ -49,15 +72,26 @@ public class SuperTokens {
                     throw new MalformedURLException("Invalid URL provided for refresh token endpoint");
                 }
             }
-            return TextUtils.join("/", apiDomainArray);
+            return join(apiDomainArray, "/");
         } else {
             throw new MalformedURLException("Refresh token endpoint must start with http or https");
         }
     }
 
     @SuppressWarnings("unused")
-    public static boolean sessionPossiblyExists(Context context) {
+    public static boolean doesSessionExist(Context context) {
         String idRefreshToken = IdRefreshToken.getToken(context);
         return idRefreshToken != null;
+    }
+
+    private static String join(AbstractCollection<String> s, String delimiter) {
+        if (s == null || s.isEmpty()) return "";
+        Iterator<String> iter = s.iterator();
+        StringBuilder builder = new StringBuilder(iter.next());
+        while( iter.hasNext() )
+        {
+            builder.append(delimiter).append(iter.next());
+        }
+        return builder.toString();
     }
 }
