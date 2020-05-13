@@ -14,13 +14,12 @@
  * under the License.
  */
 
-package com.example.example;
+package com.example;
 
 import android.content.Context;
 import android.os.Looper;
 import android.text.TextUtils;
 
-import com.example.example.BuildConfig;
 import com.example.example.R;
 import com.franmontiel.persistentcookiejar.PersistentCookieJar;
 import com.franmontiel.persistentcookiejar.cache.SetCookieCache;
@@ -41,6 +40,7 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.lang.reflect.Field;
 import java.net.CookieManager;
 import java.net.HttpURLConnection;
 import java.net.URL;
@@ -89,14 +89,14 @@ public class SuperTokensHttpURLConnectionTest {
     @BeforeClass
     public static void beforeAll() throws IOException, InterruptedException {
         ProcessBuilder pb = new ProcessBuilder("./testHelpers/startServer", "../com-root");
-        pb.directory(new File("../"));
+        pb.directory(new File("../../"));
         Process process = pb.start();
         Thread.sleep(1000);
     }
 
     @Before
-    public void beforeEach() {
-        SuperTokens.isInitCalled = false;
+    public void beforeEach() throws NoSuchFieldException, IllegalAccessException, ClassNotFoundException {
+        com.example.TestUtils.setInitToFalse();
         Mockito.mock(TextUtils.class);
         Mockito.mock(Looper.class);
         Mockito.mock(Handler.class);
@@ -114,19 +114,19 @@ public class SuperTokensHttpURLConnectionTest {
         clientBuilder.cookieJar(new PersistentCookieJar(new SetCookieCache(), new SharedPrefsCookiePersistor(context)));
         okHttpClient = clientBuilder.build();
 
-        io.supertokens.session.TestUtils.callBeforeEachAPI();
+        com.example.TestUtils.callBeforeEachAPI();
     }
 
     @AfterClass
     public static void after() {
-        io.supertokens.session.TestUtils.callAfterAPI();
-        io.supertokens.session.TestUtils.stopAPI();
+        com.example.TestUtils.callAfterAPI();
+        com.example.TestUtils.stopAPI();
     }
 
     // - session should not exist when user calls log out - use doesSessionExist***
     @Test
     public void httpUrlConnection_testThatSessionShouldNotExistWhenUserCallsLogOut() throws Exception {
-        io.supertokens.session.TestUtils.startST();
+        com.example.TestUtils.startST();
         SuperTokens.init(context, refreshTokenEndpoint, sessionExpiryCode, null);
         CookieManager.setDefault(new CookieManager(new SuperTokensPersistentCookieStore(context), null));
 
@@ -168,7 +168,7 @@ public class SuperTokensHttpURLConnectionTest {
     // - device info tests***
     @Test
     public void httpUrlConnection_testThatDeviceInfoIsBeingSent() throws Exception {
-        io.supertokens.session.TestUtils.startST();
+        com.example.TestUtils.startST();
         SuperTokens.init(context, refreshTokenEndpoint, sessionExpiryCode, null);
         CookieManager.setDefault(new CookieManager(new SuperTokensPersistentCookieStore(context), null));
 
@@ -179,11 +179,11 @@ public class SuperTokensHttpURLConnectionTest {
             throw new Exception("checkDeviceInfo request failed");
         }
 
-        JsonObject requestHeader = new JsonParser().parse(io.supertokens.session.TestUtils.getBodyFromConnection(checkDeviceInfo)).getAsJsonObject();
+        JsonObject requestHeader = new JsonParser().parse(com.example.TestUtils.getBodyFromConnection(checkDeviceInfo)).getAsJsonObject();
         checkDeviceInfo.disconnect();
 
         if (!(requestHeader.get("supertokens-sdk-name").getAsString().equals("android") &&
-                requestHeader.get("supertokens-sdk-version").getAsString().equals(BuildConfig.VERSION_NAME))) {
+                requestHeader.get("supertokens-sdk-version").getAsString().equals(com.example.TestUtils.VERSION_NAME))) {
             throw new Exception("request header did not contain/ incorrect device info");
         }
 
@@ -194,7 +194,7 @@ public class SuperTokensHttpURLConnectionTest {
     public void httpUrlConnection_testThatSessionShouldNotExistWhenSessionFullyExpires() throws Exception {
 
         //accessTokenValidity set to 4 seconds and refreshTokenValidity set to 5 seconds
-        io.supertokens.session.TestUtils.startST(4, true, 0.08333);
+        com.example.TestUtils.startST(4, true, 0.08333);
         SuperTokens.init(context, refreshTokenEndpoint, sessionExpiryCode, null);
         CookieManager.setDefault(new CookieManager(new SuperTokensPersistentCookieStore(context), null));
 
@@ -243,7 +243,7 @@ public class SuperTokensHttpURLConnectionTest {
     // - tests APIs that don't require authentication work, before, during and after logout - using our library.***
     @Test
     public void httpUrlConnection_testThatAPISThatDontRequireAuthenticationWorkCorrectly() throws Exception {
-        io.supertokens.session.TestUtils.startST();
+        com.example.TestUtils.startST();
         SuperTokens.init(context, refreshTokenEndpoint, sessionExpiryCode, null);
         CookieManager.setDefault(new CookieManager(new SuperTokensPersistentCookieStore(context), null));
 
@@ -252,7 +252,7 @@ public class SuperTokensHttpURLConnectionTest {
 
         HttpURLConnection testPingConnection = SuperTokensHttpURLConnection.newRequest(new URL(testPingAPIURL), null);
 
-        if (!io.supertokens.session.TestUtils.getBodyFromConnection(testPingConnection).contains("success")) {
+        if (!com.example.TestUtils.getBodyFromConnection(testPingConnection).contains("success")) {
             throw new Exception("api failed ");
         }
 
@@ -275,7 +275,7 @@ public class SuperTokensHttpURLConnectionTest {
         //check testPing api while logged in
         testPingConnection = SuperTokensHttpURLConnection.newRequest(new URL(testPingAPIURL), null);
 
-        if (!io.supertokens.session.TestUtils.getBodyFromConnection(testPingConnection).contains("success")) {
+        if (!com.example.TestUtils.getBodyFromConnection(testPingConnection).contains("success")) {
             throw new Exception("api failed ");
         }
 
@@ -298,7 +298,7 @@ public class SuperTokensHttpURLConnectionTest {
         //check testPing after logout
         testPingConnection = SuperTokensHttpURLConnection.newRequest(new URL(testPingAPIURL), null);
 
-        if (!io.supertokens.session.TestUtils.getBodyFromConnection(testPingConnection).contains("success")) {
+        if (!com.example.TestUtils.getBodyFromConnection(testPingConnection).contains("success")) {
             throw new Exception("api failed ");
         }
 
@@ -309,7 +309,7 @@ public class SuperTokensHttpURLConnectionTest {
     // - test custom headers are being sent when logged in and when not.****
     @Test
     public void httpUrlConnection_testThatCustomHeadersAreProperlySent() throws Exception {
-        io.supertokens.session.TestUtils.startST();
+        com.example.TestUtils.startST();
         SuperTokens.init(context, refreshTokenEndpoint, sessionExpiryCode, null);
         CookieManager.setDefault(new CookieManager(new SuperTokensPersistentCookieStore(context), null));
 
@@ -337,7 +337,7 @@ public class SuperTokensHttpURLConnectionTest {
         });
 
         // verify custom headers response
-        JsonObject customHeaderBody = new JsonParser().parse(io.supertokens.session.TestUtils.getBodyFromConnection(customHeaderConnection)).getAsJsonObject();
+        JsonObject customHeaderBody = new JsonParser().parse(com.example.TestUtils.getBodyFromConnection(customHeaderConnection)).getAsJsonObject();
         customHeaderConnection.disconnect();
 
         if (customHeaderConnection.getResponseCode() != 200) {
@@ -374,7 +374,7 @@ public class SuperTokensHttpURLConnectionTest {
         });
 
         //request to verify custom headers after logout
-        customHeaderBody = new JsonParser().parse(io.supertokens.session.TestUtils.getBodyFromConnection(customHeaderConnection)).getAsJsonObject();
+        customHeaderBody = new JsonParser().parse(com.example.TestUtils.getBodyFromConnection(customHeaderConnection)).getAsJsonObject();
         customHeaderConnection.disconnect();
 
         if (customHeaderConnection.getResponseCode() != 200) {
@@ -390,7 +390,7 @@ public class SuperTokensHttpURLConnectionTest {
     // - if any API throws error, it gets propogated to the user properly (with and without interception)***
     @Test
     public void httpUrlConnection_testThatAPIErrorsGetPropagatedToTheUserProperly() throws Exception {
-        io.supertokens.session.TestUtils.startST();
+        com.example.TestUtils.startST();
         SuperTokens.init(context, refreshTokenEndpoint, sessionExpiryCode, null);
         CookieManager.setDefault(new CookieManager(new SuperTokensPersistentCookieStore(context), null));
 
@@ -415,7 +415,7 @@ public class SuperTokensHttpURLConnectionTest {
     // - testing doesSessionExist works fine when user is logged in***
     @Test
     public void httpUrlConnection_testThatDoesSessionWorkFineWhenUserIsLoggedIn() throws Exception {
-        io.supertokens.session.TestUtils.startST();
+        com.example.TestUtils.startST();
         SuperTokens.init(context, refreshTokenEndpoint, sessionExpiryCode, null);
         CookieManager.setDefault(new CookieManager(new SuperTokensPersistentCookieStore(context), null));
 
@@ -442,7 +442,7 @@ public class SuperTokensHttpURLConnectionTest {
     // - Calling SuperTokens.init more than once works!****
     @Test
     public void httpUrlConnection_testThatCllingSuperTokensInitMoreThanOnceWorks() throws Exception {
-        io.supertokens.session.TestUtils.startST();
+        com.example.TestUtils.startST();
         SuperTokens.init(context, refreshTokenEndpoint, sessionExpiryCode, null);
         SuperTokens.init(context, refreshTokenEndpoint, sessionExpiryCode, null);
         CookieManager.setDefault(new CookieManager(new SuperTokensPersistentCookieStore(context), null));
@@ -471,7 +471,7 @@ public class SuperTokensHttpURLConnectionTest {
             throw new Exception("userInfo api failed");
         }
 
-        if (io.supertokens.session.TestUtils.getRefreshTokenCounter() != 0){
+        if (com.example.TestUtils.getRefreshTokenCounter() != 0){
             throw new Exception("Refresh API was called");
         }
 
@@ -500,7 +500,7 @@ public class SuperTokensHttpURLConnectionTest {
 
     @Test
     public void httpUrlConnection_testThatUserPassedConfigShouldBeSent() throws Exception {
-        io.supertokens.session.TestUtils.startST();
+        com.example.TestUtils.startST();
         SuperTokens.init(context, refreshTokenEndpoint, sessionExpiryCode, null);
         CookieManager.setDefault(new CookieManager(new SuperTokensPersistentCookieStore(context), null));
 
@@ -521,7 +521,7 @@ public class SuperTokensHttpURLConnectionTest {
     // - Custom refresh API headers are sent****
     @Test
     public void httpUrlConnection_testThatCustomRefreshHeadersAreSent() throws Exception {
-        io.supertokens.session.TestUtils.startST(3, true, 144000);
+        com.example.TestUtils.startST(3, true, 144000);
         HashMap<String, String> customRefreshParams = new HashMap<>();
         customRefreshParams.put("testKey", "testValue");
         SuperTokens.init(context, refreshTokenEndpoint, sessionExpiryCode, customRefreshParams);
@@ -561,12 +561,12 @@ public class SuperTokensHttpURLConnectionTest {
             }
         });
 
-        if (!io.supertokens.session.TestUtils.getBodyFromConnection(checkRefreshSetConnection).contains("true")) {
+        if (!com.example.TestUtils.getBodyFromConnection(checkRefreshSetConnection).contains("true")) {
             throw new Exception("Custom RefreshAPi headers were not set");
         }
         checkRefreshSetConnection.disconnect();
 
-        if (io.supertokens.session.TestUtils.getRefreshTokenCounter() != 1){
+        if (com.example.TestUtils.getRefreshTokenCounter() != 1){
             throw new Exception("Refresh API was called more/less than 1 time");
         }
     }
@@ -574,7 +574,7 @@ public class SuperTokensHttpURLConnectionTest {
     // - Things should work if anti-csrf is disabled.****
     @Test
     public void httpUrlConnection_testThatThingsShouldWorkIfAntiCsrfIsDisabled() throws Exception {
-        io.supertokens.session.TestUtils.startST(3, false, 144000);
+        com.example.TestUtils.startST(3, false, 144000);
         SuperTokens.init(context, refreshTokenEndpoint, sessionExpiryCode, null);
         CookieManager.setDefault(new CookieManager(new SuperTokensPersistentCookieStore(context), null));
 
@@ -609,7 +609,7 @@ public class SuperTokensHttpURLConnectionTest {
         userInfoRequestConnection.disconnect();
         //check refresh was only called once
 
-        if (io.supertokens.session.TestUtils.getRefreshTokenCounter() != 1) {
+        if (com.example.TestUtils.getRefreshTokenCounter() != 1) {
             throw new Exception("refreshApi was called more/less than 1 time");
         }
 
@@ -637,7 +637,7 @@ public class SuperTokensHttpURLConnectionTest {
     // - Calling connection.connect in preRequestCallback in HttpURLConnection should not be a problem****
     @Test
     public void httpUrlConnection_testThatCallingConnectionConnectInPreRequestCallBackIsNotAProblem() throws Exception {
-        io.supertokens.session.TestUtils.startST();
+        com.example.TestUtils.startST();
         SuperTokens.init(context, refreshTokenEndpoint, sessionExpiryCode, null);
         CookieManager.setDefault(new CookieManager(new SuperTokensPersistentCookieStore(context), null));
 
@@ -666,7 +666,7 @@ public class SuperTokensHttpURLConnectionTest {
         if (userInfoRequestConnection.getResponseCode() != 200) {
             throw new Exception("userInfo api failed");
         }
-        JsonObject userInfo = new JsonParser().parse(io.supertokens.session.TestUtils.getBodyFromConnection(userInfoRequestConnection)).getAsJsonObject();
+        JsonObject userInfo = new JsonParser().parse(com.example.TestUtils.getBodyFromConnection(userInfoRequestConnection)).getAsJsonObject();
 
         if (userInfo.get("name") == null || userInfo.get("userId") == null){
             throw new Exception("user Info was not properly sent ");
@@ -676,7 +676,7 @@ public class SuperTokensHttpURLConnectionTest {
     // - multiple API calls in parallel when access token is expired (100 of them) and only 1 refresh should be called***
     @Test
     public void httpUrlConnection_testThatMultipleAPICallsInParallelAndOnly1RefreshShouldBeCalled() throws Exception{
-        io.supertokens.session.TestUtils.startST(3, true, 144000);
+        com.example.TestUtils.startST(3, true, 144000);
         SuperTokens.init(context, refreshTokenEndpoint, sessionExpiryCode, null);
         CookieManager.setDefault(new CookieManager(new SuperTokensPersistentCookieStore(context), null));
 
@@ -744,7 +744,7 @@ public class SuperTokensHttpURLConnectionTest {
         if (runnableSuccess.contains(false)) {
             throw new Exception("one of the userInfoAPIs failed");
         }
-        if (io.supertokens.session.TestUtils.getRefreshTokenCounter() != 1) {
+        if (com.example.TestUtils.getRefreshTokenCounter() != 1) {
             throw new Exception("The number of times the RefreshAPI was called is not the expected value");
         }
 
@@ -753,7 +753,7 @@ public class SuperTokensHttpURLConnectionTest {
     // - Check that eveyrthing works properly - login, access token expiry, refresh called once, userInfo result is proper, logout, check session does not exist.*****
     @Test
     public void  httpUrlConnection_testThatEverythingWorksProperly() throws Exception{
-        io.supertokens.session.TestUtils.startST(3, true, 144000);
+        com.example.TestUtils.startST(3, true, 144000);
         SuperTokens.init(context, refreshTokenEndpoint, sessionExpiryCode, null);
         CookieManager.setDefault(new CookieManager(new SuperTokensPersistentCookieStore(context), null));
 
@@ -786,11 +786,11 @@ public class SuperTokensHttpURLConnectionTest {
         }
         //check refresh was only called once
 
-        if (io.supertokens.session.TestUtils.getRefreshTokenCounter() != 1) {
+        if (com.example.TestUtils.getRefreshTokenCounter() != 1) {
             throw new Exception("refreshApi was called more/less than 1 time");
         }
 
-        JsonObject userInfo = new JsonParser().parse(io.supertokens.session.TestUtils.getBodyFromConnection(userInfoRequestConnection)).getAsJsonObject();
+        JsonObject userInfo = new JsonParser().parse(com.example.TestUtils.getBodyFromConnection(userInfoRequestConnection)).getAsJsonObject();
 
         if (userInfo.get("name") == null || userInfo.get("userId") == null){
             throw new Exception("user Info was not properly sent ");

@@ -17,14 +17,16 @@
 package io.supertokens.session;
 
 import android.content.Context;
-import android.text.TextUtils;
+
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
 import java.lang.ref.WeakReference;
 import java.net.MalformedURLException;
+import java.util.AbstractCollection;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Map;
 
 @SuppressWarnings({"Convert2Diamond"})
@@ -70,7 +72,7 @@ public class SuperTokens {
                     throw new MalformedURLException("Invalid URL provided for refresh token endpoint");
                 }
             }
-            return TextUtils.join("/", apiDomainArray);
+            return join(apiDomainArray, "/");
         } else {
             throw new MalformedURLException("Refresh token endpoint must start with http or https");
         }
@@ -80,5 +82,16 @@ public class SuperTokens {
     public static boolean doesSessionExist(Context context) {
         String idRefreshToken = IdRefreshToken.getToken(context);
         return idRefreshToken != null;
+    }
+
+    private static String join(AbstractCollection<String> s, String delimiter) {
+        if (s == null || s.isEmpty()) return "";
+        Iterator<String> iter = s.iterator();
+        StringBuilder builder = new StringBuilder(iter.next());
+        while( iter.hasNext() )
+        {
+            builder.append(delimiter).append(iter.next());
+        }
+        return builder.toString();
     }
 }

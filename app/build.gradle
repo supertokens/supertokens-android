@@ -4,7 +4,7 @@ apply plugin: 'com.novoda.bintray-release'
 
 apply plugin: 'com.android.library'
 
-def publishVersionID = '1.0.0'
+def publishVersionID = '1.0.1'
 
 publish {
 
@@ -24,7 +24,7 @@ publish {
 android {
     compileSdkVersion 28
     defaultConfig {
-        minSdkVersion 22
+        minSdkVersion 17
         targetSdkVersion 28
         versionCode 1
         versionName publishVersionID

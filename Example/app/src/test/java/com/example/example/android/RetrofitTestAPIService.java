@@ -16,7 +16,7 @@
 
 package io.supertokens.session.android;
 
-import io.supertokens.session.TestUtils;
+import com.example.TestUtils;
 import okhttp3.ResponseBody;
 import retrofit2.Call;
 import retrofit2.http.*;

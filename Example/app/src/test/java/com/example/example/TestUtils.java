@@ -14,16 +14,23 @@
  * under the License.
  */
 
-package io.supertokens.session;
+package com.example;
 
 import com.google.gson.Gson;
-import okhttp3.*;
 
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.lang.reflect.Field;
 import java.net.HttpURLConnection;
 import java.net.URL;
+
+import io.supertokens.session.SuperTokens;
+import okhttp3.MediaType;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.RequestBody;
+import okhttp3.Response;
 
 public class TestUtils {
 
@@ -33,6 +40,19 @@ public class TestUtils {
     private static final String startSTAPIURL = testBaseURL + "startst";
     private static final String stopAPIURL = testBaseURL + "stop";
     private static final String refreshCounterAPIURL = testBaseURL + "refreshCounter";
+
+    public static final String VERSION_NAME = "1.0.1";
+
+    public static void setInitToFalse() throws NoSuchFieldException, IllegalAccessException, ClassNotFoundException {
+            Class<?> forName = Class.forName("io.supertokens.session.SuperTokens");
+            Field[] declaredFields = forName.getDeclaredFields();
+            for (Field field : declaredFields) {
+                if (field.getName().equals("isInitCalled")) {
+                    field.setAccessible(true);
+                    field.set(null, false);
+                }
+            }
+    }
 
     public static void callBeforeEachAPI() {
         try {
