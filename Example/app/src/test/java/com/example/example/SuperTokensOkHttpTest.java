@@ -74,7 +74,7 @@ public class SuperTokensOkHttpTest {
     private final String testErrorAPIURL = testBaseURL + "testError";
     private final String testPingAPIURL = testBaseURL + "testPing";
 
-    private final int sessionExpiryCode = 440;
+    private final int sessionExpiryCode = 401;
     private static MockSharedPrefs mockSharedPrefs;
     private static OkHttpClient okHttpClient;
 
@@ -671,7 +671,7 @@ public class SuperTokensOkHttpTest {
                 .build();
 
         Response userInfoResponse = okHttpClient.newCall(userInfoRequest).execute();
-        if (!(userInfoResponse.code() == 440 && Objects.requireNonNull(userInfoResponse.body()).string().equals("Session expired"))) {
+        if (!(userInfoResponse.code() == 401 && Objects.requireNonNull(userInfoResponse.body()).string().equals("Session expired"))) {
             throw new Exception("Session did not expire");
         }
 

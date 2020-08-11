@@ -79,7 +79,7 @@ public class SuperTokensHttpURLConnectionTest {
     private final String testErrorAPIURL = testBaseURL + "testError";
     private final String testCheckCustomRefresh = testBaseURL + "checkCustomHeader";
 
-    private final int sessionExpiryCode = 440;
+    private final int sessionExpiryCode = 401;
     private static MockSharedPrefs mockSharedPrefs;
     private static OkHttpClient okHttpClient;
 
@@ -228,8 +228,8 @@ public class SuperTokensHttpURLConnectionTest {
             }
         });
 
-        //check that after full expiry userInfo responds with 440
-        if (userInfoConnection.getResponseCode() != 440) {
+        //check that after full expiry userInfo responds with 401
+        if (userInfoConnection.getResponseCode() != 401) {
             throw new Exception("Session still exists after full expiry");
         }
         userInfoConnection.disconnect();

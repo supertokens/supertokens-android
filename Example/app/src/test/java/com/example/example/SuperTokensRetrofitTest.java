@@ -69,7 +69,7 @@ public class SuperTokensRetrofitTest {
     private final String logoutAPIURL = testBaseURL + "logout";
     private final String testHeaderAPIURL = testBaseURL + "header";
 
-    private final int sessionExpiryCode = 440;
+    private final int sessionExpiryCode = 401;
     private static MockSharedPrefs mockSharedPrefs;
     private static OkHttpClient okHttpClient;
     private static Retrofit retrofitInstance;
@@ -208,8 +208,8 @@ public class SuperTokensRetrofitTest {
 
         Response userInfoResponse = retrofitTestAPIService.userInfo().execute();
 
-        //check that after full expiry userInfo responds with 440
-        if (userInfoResponse.code() != 440) {
+        //check that after full expiry userInfo responds with 401
+        if (userInfoResponse.code() != 401) {
             throw new Exception("Session still exists after full expiry");
         }
 

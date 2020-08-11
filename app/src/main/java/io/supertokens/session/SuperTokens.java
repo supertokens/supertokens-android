@@ -31,7 +31,7 @@ import java.util.Map;
 
 @SuppressWarnings({"Convert2Diamond"})
 public class SuperTokens {
-    static int sessionExpiryStatusCode = 440;
+    static int sessionExpiryStatusCode = 401;
     @SuppressWarnings("unused")
     static String apiDomain;
     static boolean isInitCalled = false;
