@@ -148,6 +148,12 @@ public class SuperTokensHttpURLConnection {
             refreshTokenConnection = (HttpURLConnection) refreshTokenUrl.openConnection();
             refreshTokenConnection.setRequestMethod("POST");
 
+            String antiCSRFToken = AntiCSRF.getToken(applicationContext, preRequestIdRefreshToken);
+
+            if (antiCSRFToken != null) {
+                refreshTokenConnection.setRequestProperty(applicationContext.getString(R.string.supertokensAntiCSRFHeaderKey), antiCSRFToken);
+            }
+
             // Add package information to headers
             refreshTokenConnection.setRequestProperty(applicationContext.getString(R.string.supertokensNameHeaderKey), Utils.PACKAGE_PLATFORM);
             refreshTokenConnection.setRequestProperty(applicationContext.getString(R.string.supertokensVersionHeaderKey), BuildConfig.VERSION_NAME);

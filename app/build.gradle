@@ -4,7 +4,7 @@ apply plugin: 'com.novoda.bintray-release'
 
 apply plugin: 'com.android.library'
 
-def publishVersionID = '1.1.0'
+def publishVersionID = '1.2.0'
 
 publish {
 

@@ -17,12 +17,17 @@
 package io.supertokens.session;
 
 import android.content.Context;
-import okhttp3.*;
+
 import org.jetbrains.annotations.NotNull;
 
 import java.io.IOException;
 import java.util.Map;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+
+import okhttp3.FormBody;
+import okhttp3.Interceptor;
+import okhttp3.Request;
+import okhttp3.Response;
 
 @SuppressWarnings("unused")
 public class SuperTokensInterceptor implements Interceptor {
@@ -154,6 +159,12 @@ public class SuperTokensInterceptor implements Interceptor {
             Request.Builder refreshRequestBuilder = new Request.Builder();
             refreshRequestBuilder.url(refreshTokenUrl);
             refreshRequestBuilder.method("POST", new FormBody.Builder().build());
+
+            String antiCSRFToken = AntiCSRF.getToken(applicationContext, preRequestIdRefreshToken);
+
+            if (antiCSRFToken != null) {
+                refreshRequestBuilder.header(applicationContext.getString(R.string.supertokensAntiCSRFHeaderKey), antiCSRFToken);
+            }
 
             // Add package information to headers
             refreshRequestBuilder.header(applicationContext.getString(R.string.supertokensNameHeaderKey), Utils.PACKAGE_PLATFORM);
