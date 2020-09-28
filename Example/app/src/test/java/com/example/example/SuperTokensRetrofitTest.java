@@ -80,7 +80,13 @@ public class SuperTokensRetrofitTest {
 
     @BeforeClass
     public static void beforeAll() throws Exception {
-        ProcessBuilder pb = new ProcessBuilder("./testHelpers/startServer", "../com-root");
+        String filePath = "../com-root";
+        {
+            if (new File("../../../supertokens-root").exists()) {
+                filePath = "../supertokens-root";
+            }
+        }
+        ProcessBuilder pb = new ProcessBuilder("./testHelpers/startServer", filePath);
         pb.directory(new File("../../"));
         Process process = pb.start();
         Thread.sleep(1000);

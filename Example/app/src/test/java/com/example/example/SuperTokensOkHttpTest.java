@@ -83,7 +83,13 @@ public class SuperTokensOkHttpTest {
 
     @BeforeClass
     public static void beforeAll() throws Exception {
-        ProcessBuilder pb = new ProcessBuilder("./testHelpers/startServer", "../com-root");
+        String filePath = "../com-root";
+        {
+            if (new File("../../../supertokens-root").exists()) {
+                filePath = "../supertokens-root";
+            }
+        }
+        ProcessBuilder pb = new ProcessBuilder("./testHelpers/startServer", filePath);
         pb.directory(new File("../../"));
         pb.inheritIO();
         Process process = pb.start();
