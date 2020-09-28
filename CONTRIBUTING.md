@@ -4,10 +4,10 @@ We're so excited you're interested in helping with SuperTokens! We are happy to 
 
 ## New to Open Source?
 1. Take a look at [How to Contribute to an Open Source Project on GitHub](https://egghead.io/courses/how-to-contribute-to-an-open-source-project-on-github)
-2. Go thorugh the [SuperTokens Code of Conduct](https://github.com/supertokens/supertokens-website/blob/master/CODE_OF_CONDUCT.md)
+2. Go thorugh the [SuperTokens Code of Conduct](https://github.com/supertokens/supertokens-android/blob/master/CODE_OF_CONDUCT.md)
 
 ## Where to ask Questions?
-1. Check our [Github Issues](https://github.com/supertokens/supertokens-website/issues) to see if someone has already answered your question.  
+1. Check our [Github Issues](https://github.com/supertokens/supertokens-android/issues) to see if someone has already answered your question.  
 2. Join our community on [Discord](https://supertokens.io/discord) and feel free to ask us your questions  
 
 
@@ -15,13 +15,12 @@ We're so excited you're interested in helping with SuperTokens! We are happy to 
 
 ### Prerequisites
 - OS: Linux or macOS
-- Nodejs & npm
 - IDE: [VSCode](https://code.visualstudio.com/download)(recommended) or equivalent IDE  
 
 ### Project Setup
 1. Please setup `supertokens-core` by following [this guide](https://github.com/supertokens/supertokens-core/blob/master/CONTRIBUTING.md#development-setup). If you are not contributing to `supertokens-core`, please skip  steps 1 & 4 under "Project Setup" section.
-2. Clone the forked repository in the parent directory of the previously setup `supertokens-root`.  That is, `supertokens-website` and `supertokens-root` should exist side by side within the same parent directory.
-3. `cd supertokens-website`
+2. Clone the forked repository in the parent directory of the previously setup `supertokens-root`.  That is, `supertokens-android` and `supertokens-root` should exist side by side within the same parent directory.
+3. `cd supertokens-android`
 4. Install the project dependencies
    ```
    npm i -d
@@ -32,7 +31,7 @@ We're so excited you're interested in helping with SuperTokens! We are happy to 
    ```
 
 ## Modifying Code  
-1. Open the `supertokens-website` project in your IDE.
+1. Open the `supertokens-android` project in your IDE.
 2. You can start modifying the code.
 3. After modification, you need to build the project:
    ```
@@ -45,7 +44,7 @@ We're so excited you're interested in helping with SuperTokens! We are happy to 
    ```
    ./startTestingEnv --wait
    ```
-3. In a new terminal, navigate to the `supertokens-website` repository.
+3. In a new terminal, navigate to the `supertokens-android` repository.
 4. Start a node server required for testing
    ```
    cd ./test/server/
@@ -53,13 +52,13 @@ We're so excited you're interested in helping with SuperTokens! We are happy to 
    npm i git+https://github.com:supertokens/supertokens-node.git
    TEST_MODE=testing INSTALL_PATH=../../../supertokens-root NODE_PORT=8082 node .
    ```
-5. Open a new terminal in `supertokens-website` and run all tests
+5. Open a new terminal in `supertokens-android` and run all tests
    ```
    INSTALL_PATH=../supertokens-root npm test
    ```
 6. If all tests pass the output should be:
 
-   <img src="https://github.com/supertokens/supertokens-logo/blob/master/images/supertokens-website-tests-passing.png" alt="Website tests passing" width="500px">
+   <img src="https://github.com/supertokens/supertokens-logo/blob/master/images/supertokens-android-tests-passing.png" alt="Android tests passing" width="500px">
 
 
 ## Pull Request
@@ -68,7 +67,7 @@ We're so excited you're interested in helping with SuperTokens! We are happy to 
 
 ## SuperTokens Community
 SuperTokens is made possible by a passionate team and a strong community of developers. If you have any questions or would like to get more involved in the SuperTokens community you can check out:
-  - [Github Issues](https://github.com/supertokens/supertokens-website/issues)
+  - [Github Issues](https://github.com/supertokens/supertokens-android/issues)
   - [Discord](https://supertokens.io/discord)
   - [Twitter](https://twitter.com/supertokensio)
   - or [email us](mailto:team@supertokens.io)
