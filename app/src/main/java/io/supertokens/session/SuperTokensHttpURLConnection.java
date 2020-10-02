@@ -176,11 +176,12 @@ public class SuperTokensHttpURLConnection {
                 removeIdRefreshToken = false;
             }
 
-            if (refreshTokenConnection.getResponseCode() == SuperTokens.sessionExpiryStatusCode && removeIdRefreshToken) {
+            final int responseCode = refreshTokenConnection.getResponseCode();
+            if (responseCode == SuperTokens.sessionExpiryStatusCode && removeIdRefreshToken) {
                 IdRefreshToken.setToken(applicationContext, "remove");
             }
 
-            if (refreshTokenConnection.getResponseCode() != 200) {
+            if (responseCode < 200 || responseCode >= 300) {
                 throw new IOException(refreshTokenConnection.getResponseMessage());
             }
 
