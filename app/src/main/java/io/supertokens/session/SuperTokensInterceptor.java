@@ -183,11 +183,12 @@ public class SuperTokensInterceptor implements Interceptor {
                 removeIdRefreshToken = false;
             }
 
-            if (refreshResponse.code() == SuperTokens.sessionExpiryStatusCode && removeIdRefreshToken) {
+            final int code = refreshResponse.code();
+            if (code == SuperTokens.sessionExpiryStatusCode && removeIdRefreshToken) {
                 IdRefreshToken.setToken(applicationContext, "remove");
             }
 
-            if (refreshResponse.code() != 200) {
+            if (code < 200 || code >= 300) {
                 String responseMessage = refreshResponse.message();
                 throw new IOException(responseMessage);
             }
