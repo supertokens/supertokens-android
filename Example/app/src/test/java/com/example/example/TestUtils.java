@@ -41,7 +41,7 @@ public class TestUtils {
     private static final String stopAPIURL = testBaseURL + "stop";
     private static final String refreshCounterAPIURL = testBaseURL + "refreshCounter";
 
-    public static final String VERSION_NAME = "1.2.0";
+    public static final String VERSION_NAME = "1.2.1";
 
     public static void setInitToFalse() throws NoSuchFieldException, IllegalAccessException, ClassNotFoundException {
             Class<?> forName = Class.forName("io.supertokens.session.SuperTokens");
