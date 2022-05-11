@@ -1,4 +1,5 @@
-/* Copyright (c) 2020, VRAI Labs and/or its affiliates. All rights reserved.
+/*
+ * Copyright (c) 2022, VRAI Labs and/or its affiliates. All rights reserved.
  *
  * This software is licensed under the Apache License, Version 2.0 (the
  * "License") as published by the Apache Software Foundation.
@@ -12,10 +13,10 @@
  * License for the specific language governing permissions and limitations
  * under the License.
  */
-import * as express from 'express';
 
-import CustomRefreshAPIHeaders from './customRefreshAPIHeaders';
+package com.example.example;
 
-export async function testGetCustomRefreshAPIHeaders(req: express.Request, res: express.Response) {
-    res.status(200).send(JSON.stringify(CustomRefreshAPIHeaders.getCustomRefreshAPIHeaders()))
+public class Constants {
+    public static String apiDomain = "http://127.0.0.1:8080/";
+    public static String userId = "testing-supertokens-android";
 }

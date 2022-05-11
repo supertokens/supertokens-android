@@ -16,6 +16,7 @@
 
 package com.example;
 
+import com.example.example.Constants;
 import com.google.gson.Gson;
 
 import java.io.BufferedReader;
@@ -34,12 +35,12 @@ import okhttp3.Response;
 
 public class TestUtils {
 
-    private static final String testBaseURL = "http://127.0.0.1:8080/";
+    private static final String testBaseURL = Constants.apiDomain;
     private static final String beforeEachAPIURL = testBaseURL + "beforeeach";
     private static final String afterAPIURL = testBaseURL + "after";
     private static final String startSTAPIURL = testBaseURL + "startst";
     private static final String stopAPIURL = testBaseURL + "stop";
-    private static final String refreshCounterAPIURL = testBaseURL + "refreshCounter";
+    private static final String refreshCounterAPIURL = testBaseURL + "refreshCalledTime";
 
     public static final String VERSION_NAME = "1.2.1";
 
@@ -127,9 +128,8 @@ public class TestUtils {
         }
 
         String body = response.body().string();
-        GetRefreshCounterResponse counterResponse = new Gson().fromJson(body, GetRefreshCounterResponse.class);
         response.close();
-        return counterResponse.counter;
+        return Integer.parseInt(body);
     }
 
     public static String getBodyFromConnection(HttpURLConnection connection) throws IOException{

@@ -17,7 +17,6 @@
 package io.supertokens.session;
 
 import java.net.MalformedURLException;
-import java.net.URI;
 import java.net.URL;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -50,14 +49,21 @@ public class NormalisedURLDomain {
             }
 
             URL urlObj = new URL(trimmedInput);
+
+            String portSuffix = "";
+
+            if (urlObj.getPort() != -1) {
+                portSuffix = ":" + urlObj.getPort();
+            }
+
             if (ignoreProtocol) {
                 if (urlObj.getHost().startsWith("localhost") || isAnIpAddress(urlObj.getHost())) {
-                    output = "http://" + urlObj.getHost();
+                    output = "http://" + urlObj.getHost() + portSuffix;
                 } else {
-                    output = "https://" + urlObj.getHost();
+                    output = "https://" + urlObj.getHost() + portSuffix;
                 }
             } else {
-                output = urlObj.getProtocol() + "//" + urlObj.getHost() ;
+                output = urlObj.getProtocol() + "://" + urlObj.getHost() + portSuffix;
             }
 
             return output;
@@ -83,7 +89,7 @@ public class NormalisedURLDomain {
 
             try {
                 new URL(trimmedInput);
-                return normaliseURLDomainOrThrowError(trimmedInput);
+                return normaliseURLDomainOrThrowError(trimmedInput, true);
             } catch (Exception ignored) {}
         }
 

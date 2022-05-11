@@ -69,8 +69,12 @@ public class NormalisedURLPath {
             URL urlObj = new URL(trimmedInput);
             output = urlObj.getPath();
 
-            if (output.charAt(trimmedInput.length() - 1) == '/') {
-                return output.substring(0, trimmedInput.length() - 1);
+            if (output.length() == 0) {
+                return output;
+            }
+
+            if (output.charAt(output.length() - 1) == '/') {
+                return output.substring(0, output.length() - 1);
             }
 
             return output;
