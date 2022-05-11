@@ -294,7 +294,6 @@ app.post("/auth/session/refresh", async (req, res, next) => {
         if (err) {
             next(err);
         } else {
-            console.log(req.headers);
             if (req.headers["rid"] === undefined) {
                 res.send("refresh failed");
             } else {
@@ -344,8 +343,13 @@ app.post("/checkAllowCredentials", (req, res) => {
 app.get("/index.html", (req, res) => {
     res.sendFile("index.html", { root: __dirname });
 });
+
 app.get("/testError", (req, res) => {
     res.status(500).send("test error message");
+});
+
+app.get("/multipleInterceptors", function (req, res) {
+    res.status(200).send(req.headers["interceptorheader"]);
 });
 
 app.get("/stop", async (req, res) => {
