@@ -20,9 +20,9 @@ import androidx.annotation.Nullable;
 
 import java.io.IOException;
 import java.net.MalformedURLException;
-import java.net.URL;
+import java.net.URI;
 
-class Utils {
+public class Utils {
     static final String PACKAGE_PLATFORM = "android";
     static class Unauthorised {
         UnauthorisedStatus status;
@@ -44,7 +44,7 @@ class Utils {
         }
     }
 
-    static class NormalisedInputType {
+    public static class NormalisedInputType {
         String apiDomain;
         String apiBasePath;
         int sessionExpiredStatusCode;
@@ -63,11 +63,11 @@ class Utils {
             this.cookieDomain = cookieDomain;
         }
 
-        static String normaliseURLDomainOrThrowError(String input) throws MalformedURLException {
+        public static String normaliseURLDomainOrThrowError(String input) throws MalformedURLException {
             return new NormalisedURLDomain(input).getAsStringDangerous();
         }
 
-        static String normaliseURLPathOrThrowError(String input) throws MalformedURLException {
+        public static String normaliseURLPathOrThrowError(String input) throws MalformedURLException {
             return new NormalisedURLPath(input).getAsStringDangerous();
         }
 
@@ -84,7 +84,7 @@ class Utils {
             }
 
             try {
-                URL urlObj = new URL(trimmedSessionScope);
+                URI urlObj = new URI(trimmedSessionScope);
                 trimmedSessionScope = urlObj.getHost();
 
                 // remove leading dot
@@ -98,7 +98,7 @@ class Utils {
             }
         }
 
-        static String normaliseSessionScopeOrThrowError(String sessionScope) throws MalformedURLException {
+        public static String normaliseSessionScopeOrThrowError(String sessionScope) throws MalformedURLException {
             String noDotNormalised = sessionScopeHelper(sessionScope);
 
             if (noDotNormalised.equals("localhost") || NormalisedURLDomain.isAnIpAddress(noDotNormalised)) {
@@ -112,7 +112,7 @@ class Utils {
             return noDotNormalised;
         }
 
-        static NormalisedInputType normaliseInputOrThrowError(
+        public static NormalisedInputType normaliseInputOrThrowError(
                 String apiDomain,
                 @Nullable  String apiBasePath,
                 @Nullable  Integer sessionExpiredStatusCode,

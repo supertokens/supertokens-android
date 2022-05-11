@@ -69,6 +69,11 @@ public class SuperTokensHttpURLConnection {
                                 "SuperTokens provides a persistent cookie store called SuperTokensPersistentCookieStore.\n" +
                                 "For more information visit our documentation.");
                     }
+
+                    if (connection.getRequestProperty("rid") == null) {
+                        connection.setRequestProperty("rid", "anti-csrf");
+                    }
+
                     // This will allow the user to set headers or modify request in anyway they want
                     // TODO NEMI: Replace this with pre api hook when implemented
                     if (preConnectCallback != null) {
@@ -158,6 +163,7 @@ public class SuperTokensHttpURLConnection {
             // Add package information to headers
             refreshTokenConnection.setRequestProperty(applicationContext.getString(R.string.supertokensNameHeaderKey), Utils.PACKAGE_PLATFORM);
             refreshTokenConnection.setRequestProperty(applicationContext.getString(R.string.supertokensVersionHeaderKey), BuildConfig.VERSION_NAME);
+            refreshTokenConnection.setRequestProperty("rid", SuperTokens.rid);
             // TODO NEMI: Replace this with pre api hooks when implemented
 //            for (Map.Entry<String,String> entry: SuperTokens.refreshAPICustomHeaders.entrySet()) {
 //                refreshTokenConnection.setRequestProperty(entry.getKey(), entry.getValue());
