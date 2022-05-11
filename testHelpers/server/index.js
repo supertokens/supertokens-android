@@ -348,6 +348,10 @@ app.get("/testError", (req, res) => {
     res.status(500).send("test error message");
 });
 
+app.get("/testConfig", function (req, res) {
+    res.status(200).send(req.query.key);
+});
+
 app.get("/multipleInterceptors", function (req, res) {
     res.status(200).send(req.headers["interceptorheader"]);
 });

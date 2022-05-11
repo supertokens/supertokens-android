@@ -133,7 +133,9 @@ public class SuperTokensRetrofitTest {
     public void retrofit_testDoesSessionExistWorksFineWhenUserIsLoggedIn() throws Exception{
         com.example.TestUtils.startST();
         SuperTokens.init(context, Constants.apiDomain, null, null, null);
-        Response <Void> loginResponse = retrofitTestAPIService.login().execute();
+        JsonObject body = new JsonObject();
+        body.addProperty("userId", Constants.userId);
+        Response <Void> loginResponse = retrofitTestAPIService.login(body).execute();
 
         if (loginResponse.code()!= 200){
             throw new Exception("login failed");
@@ -152,7 +154,9 @@ public class SuperTokensRetrofitTest {
         SuperTokens.init(context, Constants.apiDomain, null, null, null);
 
         //do login request
-        Response<Void> loginResponse = retrofitTestAPIService.login().execute();
+        JsonObject body = new JsonObject();
+        body.addProperty("userId", Constants.userId);
+        Response <Void> loginResponse = retrofitTestAPIService.login(body).execute();
 
         if (loginResponse.code() != 200){
             throw new Exception("login failed");
@@ -169,62 +173,42 @@ public class SuperTokensRetrofitTest {
         }
     }
 
-    // - device info tests***
-    @Test
-    public void retrofit_testThatDeviceInfoIsSent() throws Exception{
-        com.example.TestUtils.startST();
-        SuperTokens.init(context, Constants.apiDomain, null, null, null);
-
-        Response<ResponseBody> checkDeviceInfoResponse = retrofitTestAPIService.checkDeviceInfo().execute();
-        if (checkDeviceInfoResponse.body() == null){
-            throw new Exception("checkDeviceInfo body is null");
-        }
-
-        JsonObject object = new JsonParser().parse(checkDeviceInfoResponse.body().string()).getAsJsonObject();
-
-        //check tht device info was properly set in the request header
-        if (!(object.get("supertokens-sdk-name").getAsString().equals("android") &&
-                object.get("supertokens-sdk-version").getAsString().equals(com.example.TestUtils.VERSION_NAME))){
-            throw new Exception("Device info was not properly set in the header");
-        }
-
-    }
-
+    // TODO NEMI: Re add this test when front token is implemented
     // - session should not exist when user's session fully expires - use doesSessionExist***
-    @Test
-    public void retrofit_testThatSessionShouldNotExistWhenSessionFullyExpires() throws Exception {
-
-        //accessTokenValidity set to 4 seconds and refreshTokenValidity set to 5 seconds
-        com.example.TestUtils.startST(4, true, 0.08333);
-        SuperTokens.init(context, Constants.apiDomain, null, null, null);
-
-
-        //do a login request
-        Response<Void> loginResponse = retrofitTestAPIService.login().execute();
-        if (loginResponse.code() != 200){
-            throw new Exception("login failed");
-        }
-
-        //wait for 7 seconds for idRefreshToken and AccessToken to expire
-        Thread.sleep(7000);
-
-        //check that session does not exist
-        if (SuperTokens.doesSessionExist(context)) {
-            throw new Exception("Session exists after full expiry");
-        }
-
-        Response userInfoResponse = retrofitTestAPIService.userInfo().execute();
-
-        //check that after full expiry userInfo responds with 401
-        if (userInfoResponse.code() != 401) {
-            throw new Exception("Session still exists after full expiry");
-        }
-
-        //check that session does not exist
-        if (SuperTokens.doesSessionExist(context)) {
-            throw new Exception("Session exists after full expiry");
-        }
-    }
+//    @Test
+//    public void retrofit_testThatSessionShouldNotExistWhenSessionFullyExpires() throws Exception {
+//
+//        //accessTokenValidity set to 4 seconds and refreshTokenValidity set to 5 seconds
+//        com.example.TestUtils.startST(4, true, 0.08333);
+//        SuperTokens.init(context, Constants.apiDomain, null, null, null);
+//
+//
+//        //do a login request
+//        Response<Void> loginResponse = retrofitTestAPIService.login().execute();
+//        if (loginResponse.code() != 200){
+//            throw new Exception("login failed");
+//        }
+//
+//        //wait for 7 seconds for idRefreshToken and AccessToken to expire
+//        Thread.sleep(7000);
+//
+//        //check that session does not exist
+//        if (SuperTokens.doesSessionExist(context)) {
+//            throw new Exception("Session exists after full expiry");
+//        }
+//
+//        Response userInfoResponse = retrofitTestAPIService.userInfo().execute();
+//
+//        //check that after full expiry userInfo responds with 401
+//        if (userInfoResponse.code() != 401) {
+//            throw new Exception("Session still exists after full expiry");
+//        }
+//
+//        //check that session does not exist
+//        if (SuperTokens.doesSessionExist(context)) {
+//            throw new Exception("Session exists after full expiry");
+//        }
+//    }
     // - tests APIs that don't require authentication work, before, during and after logout - using our library.***
     @Test
     public void retrofit_testThatAPISThatDontRequireAuthenticationWorkCorrectly() throws Exception {
@@ -244,7 +228,9 @@ public class SuperTokensRetrofitTest {
 
 
         //do login request
-        Response<Void> loginResponse = retrofitTestAPIService.login().execute();
+        JsonObject body = new JsonObject();
+        body.addProperty("userId", Constants.userId);
+        Response <Void> loginResponse = retrofitTestAPIService.login(body).execute();
 
         if (loginResponse.code() != 200) {
             throw new Exception("Login request failed");
@@ -288,7 +274,9 @@ public class SuperTokensRetrofitTest {
         SuperTokens.init(context, Constants.apiDomain, null, null, null);
 
         //login request
-        Response<Void> loginResponse = retrofitTestAPIService.login().execute();
+        JsonObject body = new JsonObject();
+        body.addProperty("userId", Constants.userId);
+        Response <Void> loginResponse = retrofitTestAPIService.login(body).execute();
 
         if (loginResponse.code() != 200) {
             throw new Exception("Login request failed");
@@ -343,7 +331,7 @@ public class SuperTokensRetrofitTest {
             throw new Exception("testError body is null");
         }
 
-        if (!(testErrorResponse.code() == 500 && testErrorResponse.errorBody().string().contains("custom message"))) {
+        if (!(testErrorResponse.code() == 500 && testErrorResponse.errorBody().string().contains("test error message"))) {
             throw new Exception("error was not properly propagated");
         }
     }
@@ -368,7 +356,7 @@ public class SuperTokensRetrofitTest {
         if (testErrorResponse.errorBody() == null){
             throw new Exception("testError body is null");
         }
-        if (!(testErrorResponse.code() == 500 && testErrorResponse.errorBody().string().contains("custom message"))) {
+        if (!(testErrorResponse.code() == 500 && testErrorResponse.errorBody().string().contains("test error message"))) {
             throw new Exception("error was not properly propagated");
         }
     }
@@ -380,7 +368,9 @@ public class SuperTokensRetrofitTest {
         SuperTokens.init(context, Constants.apiDomain, null, null, null);
 
         //login request
-        Response<Void> loginResponse = retrofitTestAPIService.login().execute();
+        JsonObject body = new JsonObject();
+        body.addProperty("userId", Constants.userId);
+        Response <Void> loginResponse = retrofitTestAPIService.login(body).execute();
 
         if (loginResponse.code() != 200) {
             throw new Exception("Login request failed");
@@ -439,7 +429,9 @@ public class SuperTokensRetrofitTest {
         com.example.TestUtils.startST(3, false, 144000);
         SuperTokens.init(context, Constants.apiDomain, null, null, null);
 
-        Response<Void> loginResponse = retrofitTestAPIService.login().execute();
+        JsonObject body = new JsonObject();
+        body.addProperty("userId", Constants.userId);
+        Response <Void> loginResponse = retrofitTestAPIService.login(body).execute();
         if (loginResponse.code() != 200) {
             throw new Exception("Error making login request");
         }
@@ -475,7 +467,9 @@ public class SuperTokensRetrofitTest {
         com.example.TestUtils.startST(3, true, 144000);
         SuperTokens.init(context, Constants.apiDomain, null, null, null);
 
-        Response<Void> loginResponse = retrofitTestAPIService.login().execute();
+        JsonObject body = new JsonObject();
+        body.addProperty("userId", Constants.userId);
+        Response <Void> loginResponse = retrofitTestAPIService.login(body).execute();
         if (loginResponse.code() != 200) {
             throw new Exception("Error making login request");
         }
@@ -527,41 +521,42 @@ public class SuperTokensRetrofitTest {
         }
     }
 
+    // TODO NEMI: Re add this test when pre api hooks are added
     // - Custom refresh API headers are sent****
-    @Test
-    public void okHttp_testThatCustomRefreshAPIHeadersAreSent() throws Exception {
-        com.example.TestUtils.startST(3, true, 144000);
-        HashMap<String, String> customRefreshParams = new HashMap<>();
-        customRefreshParams.put("testKey", "testValue");
-        SuperTokens.init(context, Constants.apiDomain, null, null, null);
-        Response<Void> loginResponse = retrofitTestAPIService.login().execute();
-        if (loginResponse.code() != 200) {
-            throw new Exception("Error making login request");
-        }
-
-
-        Thread.sleep(5000);
-
-        Response<ResponseBody> userInfoResponse = retrofitTestAPIService.userInfo().execute();
-        if (userInfoResponse.code() != 200) {
-            throw new Exception("User info API failed even after calling refresh");
-        }
-
-        //getCustomRefreshAPIHeaders
-        Response<ResponseBody> response = retrofitTestAPIService.checkCustomHeaders().execute();
-
-        if (response.body() == null){
-            throw new Exception("testError body is null");
-        }
-
-        if (!response.body().string().equals("true")){
-            throw new Exception("Custom parameters were not set");
-        }
-
-        if (com.example.TestUtils.getRefreshTokenCounter() != 1){
-            throw new Exception("Refresh API was called more/less than 1 time");
-        }
-    }
+//    @Test
+//    public void okHttp_testThatCustomRefreshAPIHeadersAreSent() throws Exception {
+//        com.example.TestUtils.startST(3, true, 144000);
+//        HashMap<String, String> customRefreshParams = new HashMap<>();
+//        customRefreshParams.put("testKey", "testValue");
+//        SuperTokens.init(context, Constants.apiDomain, null, null, null);
+//        Response<Void> loginResponse = retrofitTestAPIService.login().execute();
+//        if (loginResponse.code() != 200) {
+//            throw new Exception("Error making login request");
+//        }
+//
+//
+//        Thread.sleep(5000);
+//
+//        Response<ResponseBody> userInfoResponse = retrofitTestAPIService.userInfo().execute();
+//        if (userInfoResponse.code() != 200) {
+//            throw new Exception("User info API failed even after calling refresh");
+//        }
+//
+//        //getCustomRefreshAPIHeaders
+//        Response<ResponseBody> response = retrofitTestAPIService.checkCustomHeaders().execute();
+//
+//        if (response.body() == null){
+//            throw new Exception("testError body is null");
+//        }
+//
+//        if (!response.body().string().equals("true")){
+//            throw new Exception("Custom parameters were not set");
+//        }
+//
+//        if (com.example.TestUtils.getRefreshTokenCounter() != 1){
+//            throw new Exception("Refresh API was called more/less than 1 time");
+//        }
+//    }
     @Test
     public void okHttp_testThatMultipleInterceptorsAreThereAndTheyShouldAllWork() throws Exception {
         com.example.TestUtils.startST();
@@ -592,7 +587,9 @@ public class SuperTokensRetrofitTest {
         com.example.TestUtils.startST(3, true, 144000);
         SuperTokens.init(context, Constants.apiDomain, null, null, null);
 
-        Response<Void> loginResponse = retrofitTestAPIService.login().execute();
+        JsonObject body = new JsonObject();
+        body.addProperty("userId", Constants.userId);
+        Response <Void> loginResponse = retrofitTestAPIService.login(body).execute();
         if (loginResponse.code() != 200) {
             throw new Exception("Error making login request");
         }
@@ -610,7 +607,7 @@ public class SuperTokensRetrofitTest {
         }
 
         JsonObject userInfo = new JsonParser().parse(userInfoResponse.body().string()).getAsJsonObject();
-        if (userInfo.get("name") == null || userInfo.get("userId") == null){
+        if (userInfo.get("userId") == null){
             throw new Exception("user Info was not properly sent ");
         }
 
