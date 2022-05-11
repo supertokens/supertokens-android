@@ -20,6 +20,7 @@ import android.content.Context;
 import android.os.Looper;
 import android.text.TextUtils;
 
+import com.example.example.Constants;
 import com.example.example.R;
 import com.franmontiel.persistentcookiejar.PersistentCookieJar;
 import com.franmontiel.persistentcookiejar.cache.SetCookieCache;
@@ -146,7 +147,7 @@ public class SuperTokensOkHttpTest {
     @Test
     public void okHttp_testApiWithoutParams() throws Exception {
         com.example.TestUtils.startST();
-        SuperTokens.init(context, refreshTokenEndpoint, sessionExpiryCode, null);
+        SuperTokens.init(context, Constants.apiDomain, null, null, null);
         RequestBody body = RequestBody.create(MediaType.parse("application/json; charset=utf-8"), "{}");
         Request request = new Request.Builder()
                 .url(loginAPIURL)
@@ -162,7 +163,7 @@ public class SuperTokensOkHttpTest {
     @Test
     public void okHttp_testApiWithParams() throws Exception {
         com.example.TestUtils.startST();
-        SuperTokens.init(context, refreshTokenEndpoint, sessionExpiryCode, null);
+        SuperTokens.init(context, Constants.apiDomain, null, null, null);
         RequestBody body = RequestBody.create(MediaType.parse("application/json; charset=utf-8"), "{}");
         Request request = new Request.Builder()
                 .url(loginAPIURL)
@@ -179,7 +180,7 @@ public class SuperTokensOkHttpTest {
     @Test
     public void okHttp_refreshIsCalledAfterAccessTokenExpiry() throws Exception {
         com.example.TestUtils.startST(3, true, 144000);
-        SuperTokens.init(context, refreshTokenEndpoint, sessionExpiryCode, null);
+        SuperTokens.init(context, Constants.apiDomain, null, null, null);
         RequestBody loginReqBody = RequestBody.create(MediaType.parse("application/json; charset=utf-8"), "{}");
         Request request = new Request.Builder()
                 .url(loginAPIURL)
@@ -213,7 +214,7 @@ public class SuperTokensOkHttpTest {
     @Test
     public void okHttp_sessionShouldExistWhenUserCallsLogOut() throws Exception {
         com.example.TestUtils.startST();
-        SuperTokens.init(context, refreshTokenEndpoint, sessionExpiryCode, null);
+        SuperTokens.init(context, Constants.apiDomain, null, null, null);
 
         RequestBody loginReqBody = RequestBody.create(MediaType.parse("application/json; charset=utf-8"), "{}");
         Request request = new Request.Builder()
@@ -249,7 +250,7 @@ public class SuperTokensOkHttpTest {
     @Test
     public void okHttp_customHeadersShouldBeSent() throws Exception {
         com.example.TestUtils.startST();
-        SuperTokens.init(context, refreshTokenEndpoint, sessionExpiryCode, null);
+        SuperTokens.init(context, Constants.apiDomain, null, null, null);
 
         //when logged in
         RequestBody loginReqBody = RequestBody.create(MediaType.parse("application/json; charset=utf-8"), "{}");
@@ -330,7 +331,7 @@ public class SuperTokensOkHttpTest {
     @Test
     public void okHttp_testDoesSessionExistWorkFineWhenUserIsLoggedIn() throws Exception {
         com.example.TestUtils.startST();
-        SuperTokens.init(context, refreshTokenEndpoint, sessionExpiryCode, null);
+        SuperTokens.init(context, Constants.apiDomain, null, null, null);
 
         RequestBody loginReqBody = RequestBody.create(MediaType.parse("application/json; charset=utf-8"), "{}");
         Request request = new Request.Builder()
@@ -352,8 +353,8 @@ public class SuperTokensOkHttpTest {
     @Test
     public void okHttp_testThatCallingSuperTokensInitMoreThanOnceWorks() throws Exception {
         com.example.TestUtils.startST(10, true, 144000);
-        SuperTokens.init(context, refreshTokenEndpoint, sessionExpiryCode, null);
-        SuperTokens.init(context, refreshTokenEndpoint, sessionExpiryCode, null);
+        SuperTokens.init(context, Constants.apiDomain, null, null, null);
+        SuperTokens.init(context, Constants.apiDomain, null, null, null);
 
         RequestBody loginReqBody = RequestBody.create(MediaType.parse("application/json; charset=utf-8"), "{}");
         Request request = new Request.Builder()
@@ -366,7 +367,7 @@ public class SuperTokensOkHttpTest {
         }
 
         loginResponse.close();
-        SuperTokens.init(context, refreshTokenEndpoint, sessionExpiryCode, null);
+        SuperTokens.init(context, Constants.apiDomain, null, null, null);
 
         Request userInfoRequest = new Request.Builder()
                 .url(userInfoAPIURL)
@@ -405,7 +406,7 @@ public class SuperTokensOkHttpTest {
     @Test
     public void okHttp_testThatMultipleInterceptorsAreThereAndTheyShouldAllWork() throws Exception {
         com.example.TestUtils.startST();
-        SuperTokens.init(context, refreshTokenEndpoint, sessionExpiryCode, null);
+        SuperTokens.init(context, Constants.apiDomain, null, null, null);
         OkHttpClient client = okHttpClient.newBuilder().addInterceptor(new customInterceptors()).build();
 
         Request request = new Request.Builder()
@@ -431,7 +432,7 @@ public class SuperTokensOkHttpTest {
     @Test
     public void okHttp_testThatDeviceInfoIsSent() throws Exception {
         com.example.TestUtils.startST();
-        SuperTokens.init(context, refreshTokenEndpoint, sessionExpiryCode, null);
+        SuperTokens.init(context, Constants.apiDomain, null, null, null);
         Request request = new Request.Builder()
                 .url(testCheckDeviceInfoAPIURL)
                 .build();
@@ -452,7 +453,7 @@ public class SuperTokensOkHttpTest {
     @Test
     public void okHttp_testThatAPIErrorsGetPropagatedToTheUserInterception() throws Exception {
         com.example.TestUtils.startST();
-        SuperTokens.init(context, refreshTokenEndpoint, sessionExpiryCode, null);
+        SuperTokens.init(context, Constants.apiDomain, null, null, null);
 
         Request request = new Request.Builder()
                 .url(testErrorAPIURL)
@@ -479,7 +480,7 @@ public class SuperTokensOkHttpTest {
     public void okHttp_testThatAPIErrorsGetPropagatedToTheUserWithoutInterception() throws Exception {
         com.example.TestUtils.startST();
 
-        SuperTokens.init(context, refreshTokenEndpoint, sessionExpiryCode, null);
+        SuperTokens.init(context, Constants.apiDomain, null, null, null);
         OkHttpClient client = new OkHttpClient().newBuilder().build();
         Request request = new Request.Builder()
                 .url(testErrorAPIURL)
@@ -501,7 +502,7 @@ public class SuperTokensOkHttpTest {
     @Test
     public void okHttp_testThatUserPassedConfigShouldBeSentAsWell() throws Exception {
         com.example.TestUtils.startST();
-        SuperTokens.init(context, refreshTokenEndpoint, sessionExpiryCode, null);
+        SuperTokens.init(context, Constants.apiDomain, null, null, null);
 
         RequestBody userConfigBody = RequestBody.create(MediaType.parse("application/json; charset=utf-8"), "{}");
         Request request = new Request.Builder()
@@ -527,7 +528,7 @@ public class SuperTokensOkHttpTest {
     @Test
     public void okHttp_testThatThingsShouldWorkIfAntiCsrfIsDisabled() throws Exception {
         com.example.TestUtils.startST(3, false, 144000);
-        SuperTokens.init(context, refreshTokenEndpoint, sessionExpiryCode, null);
+        SuperTokens.init(context, Constants.apiDomain, null, null, null);
 
         RequestBody loginReqBody = RequestBody.create(MediaType.parse("application/json; charset=utf-8"), "{}");
         Request request = new Request.Builder()
@@ -579,7 +580,7 @@ public class SuperTokensOkHttpTest {
     @Test
     public void okHttp_testThatMultipleAPICallsInParallelAndOnly1RefreshShouldBeCalled() throws Exception {
         com.example.TestUtils.startST(3, true, 144000);
-        SuperTokens.init(context, refreshTokenEndpoint, sessionExpiryCode, null);
+        SuperTokens.init(context, Constants.apiDomain, null, null, null);
 
         RequestBody loginReqBody = RequestBody.create(MediaType.parse("application/json; charset=utf-8"), "{}");
         Request request = new Request.Builder()
@@ -649,7 +650,7 @@ public class SuperTokensOkHttpTest {
     @Test
     public void okHttp_testThatSessionShouldNotExistWhenSessionFullyExpires() throws Exception {
         com.example.TestUtils.startST(4, true, 0.08333);
-        SuperTokens.init(context, refreshTokenEndpoint, sessionExpiryCode, null);
+        SuperTokens.init(context, Constants.apiDomain, null, null, null);
 
         RequestBody userConfigBody = RequestBody.create(MediaType.parse("application/json; charset=utf-8"), "{}");
         Request request = new Request.Builder()
@@ -694,7 +695,7 @@ public class SuperTokensOkHttpTest {
         com.example.TestUtils.startST(3, true, 144000);
         HashMap<String, String> customRefreshParams = new HashMap<>();
         customRefreshParams.put("testKey", "testValue");
-        SuperTokens.init(context, refreshTokenEndpoint, sessionExpiryCode, customRefreshParams);
+        SuperTokens.init(context, Constants.apiDomain, null, null, null);
 
         RequestBody loginReqBody = RequestBody.create(MediaType.parse("application/json; charset=utf-8"), "{}");
         Request request = new Request.Builder()
@@ -734,7 +735,7 @@ public class SuperTokensOkHttpTest {
     @Test
     public void okHttp_testThatAPIsThatDontNeedAuthenticationWorkProperly() throws Exception{
         com.example.TestUtils.startST(5,true,144000);
-        SuperTokens.init(context,refreshTokenEndpoint,sessionExpiryCode,null);
+        SuperTokens.init(context, Constants.apiDomain, null, null, null);
 
         //api request which does not require authentication
         Request request = new Request.Builder()
@@ -789,7 +790,7 @@ public class SuperTokensOkHttpTest {
     @Test
     public void okHttp_testThatEverythingWorksProperly() throws Exception {
         com.example.TestUtils.startST(3, true, 144000);
-        SuperTokens.init(context, refreshTokenEndpoint, sessionExpiryCode, null);
+        SuperTokens.init(context, Constants.apiDomain, null, null, null);
 
         RequestBody loginReqBody = RequestBody.create(MediaType.parse("application/json; charset=utf-8"), "{}");
         Request request = new Request.Builder()
