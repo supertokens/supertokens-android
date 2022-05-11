@@ -1,5 +1,40 @@
 FROM rishabhpoddar/supertokens_node_driver_testing
 
-RUN apt-get update
+ENV SDK_URL="https://dl.google.com/android/repository/sdk-tools-linux-4333796.zip" \
+   ANDROID_HOME="/usr/local/android-sdk" \
+   ANDROID_VERSION=28 \
+   ANDROID_BUILD_TOOLS_VERSION=28.0.3
 
-RUN apt-get install -y gconf-service libasound2 libatk1.0-0 libatk-bridge2.0-0 libc6 libcairo2 libcups2 libdbus-1-3 libexpat1 libfontconfig1 libgcc1 libgconf-2-4 libgdk-pixbuf2.0-0 libglib2.0-0 libgtk-3-0 libnspr4 libpango-1.0-0 libpangocairo-1.0-0 libstdc++6 libx11-6 libx11-xcb1 libxcb1 libxcomposite1 libxcursor1 libxdamage1 libxext6 libxfixes3 libxi6 libxrandr2 libxrender1 libxss1 libxtst6 ca-certificates fonts-liberation libappindicator1 libnss3 lsb-release xdg-utils wget
+RUN mkdir "$ANDROID_HOME" .android \
+   && cd "$ANDROID_HOME" \
+   && curl -o sdk.zip $SDK_URL
+
+RUN apt-get install unzip
+
+# Install OpenJDK-8
+RUN apt-get update && \
+    apt-get install -y openjdk-8-jdk && \
+    apt-get install -y ant && \
+    apt-get clean;
+
+# Fix certificate issues
+RUN apt-get update && \
+    apt-get install ca-certificates-java && \
+    apt-get clean && \
+    update-ca-certificates -f;
+
+# Setup JAVA_HOME -- useful for docker commandline
+ENV JAVA_HOME /usr/lib/jvm/java-8-openjdk-amd64/
+RUN export JAVA_HOME
+
+RUN cd "$ANDROID_HOME" && unzip sdk.zip \
+   && rm sdk.zip \
+   && yes | $ANDROID_HOME/tools/bin/sdkmanager --licenses
+
+# Install Android Build Tool and Libraries
+RUN $ANDROID_HOME/tools/bin/sdkmanager --update
+RUN $ANDROID_HOME/tools/bin/sdkmanager "build-tools;${ANDROID_BUILD_TOOLS_VERSION}" \
+   "platforms;android-${ANDROID_VERSION}" \
+   "platform-tools"
+
+RUN apt-get install -y jq
