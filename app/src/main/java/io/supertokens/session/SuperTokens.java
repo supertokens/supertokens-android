@@ -25,39 +25,39 @@ import java.lang.ref.WeakReference;
 import java.net.MalformedURLException;
 import java.util.AbstractCollection;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.Iterator;
-import java.util.Map;
 
-@SuppressWarnings({"Convert2Diamond"})
 public class SuperTokens {
-    static int sessionExpiryStatusCode = 401;
-    @SuppressWarnings("unused")
-    static String apiDomain;
+    static String refreshTokenUrl;
+    static String signOutUrl;
     static boolean isInitCalled = false;
-    @SuppressWarnings("unused")
-    static final String TAG = "io.supertokens.session";
-    static String refreshTokenEndpoint;
+    static String rid;
+    static Utils.NormalisedInputType config;
     static WeakReference<Context> contextWeakReference;
-    static Map<String, String> refreshAPICustomHeaders = new HashMap<>();
 
 
     @SuppressWarnings("unused")
-    public static void init(Context applicationContext, @NonNull String refreshTokenEndpoint, @Nullable Integer sessionExpiryStatusCode,
-                            @Nullable Map<String, String> refreshAPICustomHeaders) throws MalformedURLException {
+    public static void init(
+            Context applicationContext,
+            @NonNull String apiDomain,
+            @Nullable String apiBasePath,
+            @Nullable Integer sessionExpiredStatusCode,
+            @Nullable String cookieDomain
+    ) throws MalformedURLException {
         if ( SuperTokens.isInitCalled ) {
             return;
         }
-        contextWeakReference = new WeakReference<Context>(applicationContext);
-        SuperTokens.refreshTokenEndpoint = refreshTokenEndpoint;
-        if (refreshAPICustomHeaders != null) {
-            SuperTokens.refreshAPICustomHeaders = refreshAPICustomHeaders;
-        }
-        if ( sessionExpiryStatusCode != null ) {
-            SuperTokens.sessionExpiryStatusCode = sessionExpiryStatusCode;
-        }
 
-        SuperTokens.apiDomain = SuperTokens.getApiDomain(refreshTokenEndpoint);
+        SuperTokens.config = Utils.NormalisedInputType.normaliseInputOrThrowError(
+                apiDomain,
+                apiBasePath,
+                sessionExpiredStatusCode,
+                cookieDomain
+        );
+        contextWeakReference = new WeakReference<Context>(applicationContext);
+        SuperTokens.refreshTokenUrl = SuperTokens.config.apiDomain + SuperTokens.config.apiBasePath + "/session/refresh";
+        SuperTokens.signOutUrl = SuperTokens.config.apiDomain + SuperTokens.config.apiBasePath + "/signout";
+        SuperTokens.rid = "session";
         SuperTokens.isInitCalled = true;
     }
 

@@ -51,12 +51,12 @@ public class SuperTokensInterceptor implements Interceptor {
         }
 
         String requestUrl = chain.request().url().url().toString();
-        if (!SuperTokens.getApiDomain(requestUrl).equals(SuperTokens.apiDomain)) {
+        if (!SuperTokens.getApiDomain(requestUrl).equals(SuperTokens.config.apiDomain)) {
             // The the api domain does not match we do not want to intercept. Return the response of the request.
             return chain.proceed(chain.request());
         }
 
-        if (requestUrl.equals(SuperTokens.refreshTokenEndpoint)) {
+        if (requestUrl.equals(SuperTokens.refreshTokenUrl)) {
             // We don't want to intercept calls to the refresh token endpoint. Return the response of the request.
             return chain.proceed(chain.request());
         }
@@ -89,7 +89,7 @@ public class SuperTokensInterceptor implements Interceptor {
                     refreshAPILock.readLock().unlock();
                 }
 
-                if (response.code() == SuperTokens.sessionExpiryStatusCode) {
+                if (response.code() == SuperTokens.config.sessionExpiredStatusCode) {
                     // Cloning the response object, if retry is false then we return this
                     Response clonedResponse = new Response.Builder()
                             .body(response.peekBody(Long.MAX_VALUE))
@@ -131,7 +131,7 @@ public class SuperTokensInterceptor implements Interceptor {
             return idRefresh != null;
         }
 
-        Utils.Unauthorised unauthorisedResponse = onUnauthorisedResponse(SuperTokens.refreshTokenEndpoint, preRequestIdRefreshToken, applicationContext, chain);
+        Utils.Unauthorised unauthorisedResponse = onUnauthorisedResponse(SuperTokens.refreshTokenUrl, preRequestIdRefreshToken, applicationContext, chain);
 
         if (unauthorisedResponse.status == Utils.Unauthorised.UnauthorisedStatus.SESSION_EXPIRED) {
             return false;
@@ -169,9 +169,10 @@ public class SuperTokensInterceptor implements Interceptor {
             // Add package information to headers
             refreshRequestBuilder.header(applicationContext.getString(R.string.supertokensNameHeaderKey), Utils.PACKAGE_PLATFORM);
             refreshRequestBuilder.header(applicationContext.getString(R.string.supertokensVersionHeaderKey), BuildConfig.VERSION_NAME);
-            for (Map.Entry<String, String> entry : SuperTokens.refreshAPICustomHeaders.entrySet()) {
-                refreshRequestBuilder.header(entry.getKey(), entry.getValue());
-            }
+            // TODO NEMI: Replace this with pre API hook when implemented
+//            for (Map.Entry<String, String> entry : SuperTokens.refreshAPICustomHeaders.entrySet()) {
+//                refreshRequestBuilder.header(entry.getKey(), entry.getValue());
+//            }
 
             Request refreshRequest = refreshRequestBuilder.build();
             refreshResponse = makeRequest(chain, refreshRequest);
@@ -184,7 +185,7 @@ public class SuperTokensInterceptor implements Interceptor {
             }
 
             final int code = refreshResponse.code();
-            if (code == SuperTokens.sessionExpiryStatusCode && removeIdRefreshToken) {
+            if (code == SuperTokens.config.sessionExpiredStatusCode && removeIdRefreshToken) {
                 IdRefreshToken.setToken(applicationContext, "remove");
             }
 

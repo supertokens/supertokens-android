@@ -70,6 +70,7 @@ public class SuperTokensHttpURLConnection {
                                 "For more information visit our documentation.");
                     }
                     // This will allow the user to set headers or modify request in anyway they want
+                    // TODO NEMI: Replace this with pre api hook when implemented
                     if (preConnectCallback != null) {
                         preConnectCallback.doAction(connection);
                     }
@@ -87,7 +88,7 @@ public class SuperTokensHttpURLConnection {
                     refreshAPILock.readLock().unlock();
                 }
 
-                if (responseCode == SuperTokens.sessionExpiryStatusCode) {
+                if (responseCode == SuperTokens.config.sessionExpiredStatusCode) {
                     // Network call threw UnauthorisedAccess, try to call the refresh token endpoint and retry original call
                     boolean retry = SuperTokensHttpURLConnection.handleUnauthorised(applicationContext, preRequestIdRefreshToken);
                     if (!retry) {
@@ -119,7 +120,7 @@ public class SuperTokensHttpURLConnection {
             return idRefreshToken != null;
         }
 
-        Utils.Unauthorised unauthorisedResponse = onUnauthorisedResponse(SuperTokens.refreshTokenEndpoint,preRequestIdRefreshToken, applicationContext);
+        Utils.Unauthorised unauthorisedResponse = onUnauthorisedResponse(SuperTokens.refreshTokenUrl,preRequestIdRefreshToken, applicationContext);
 
         if ( unauthorisedResponse.status == Utils.Unauthorised.UnauthorisedStatus.SESSION_EXPIRED ) {
             return false;
@@ -157,9 +158,10 @@ public class SuperTokensHttpURLConnection {
             // Add package information to headers
             refreshTokenConnection.setRequestProperty(applicationContext.getString(R.string.supertokensNameHeaderKey), Utils.PACKAGE_PLATFORM);
             refreshTokenConnection.setRequestProperty(applicationContext.getString(R.string.supertokensVersionHeaderKey), BuildConfig.VERSION_NAME);
-            for (Map.Entry<String,String> entry: SuperTokens.refreshAPICustomHeaders.entrySet()) {
-                refreshTokenConnection.setRequestProperty(entry.getKey(), entry.getValue());
-            }
+            // TODO NEMI: Replace this with pre api hooks when implemented
+//            for (Map.Entry<String,String> entry: SuperTokens.refreshAPICustomHeaders.entrySet()) {
+//                refreshTokenConnection.setRequestProperty(entry.getKey(), entry.getValue());
+//            }
 
             if (CookieManager.getDefault() == null) {
                 throw new IllegalAccessException("Please initialise a CookieManager.\n" +
@@ -177,7 +179,7 @@ public class SuperTokensHttpURLConnection {
             }
 
             final int responseCode = refreshTokenConnection.getResponseCode();
-            if (responseCode == SuperTokens.sessionExpiryStatusCode && removeIdRefreshToken) {
+            if (responseCode == SuperTokens.config.sessionExpiredStatusCode && removeIdRefreshToken) {
                 IdRefreshToken.setToken(applicationContext, "remove");
             }
 
@@ -247,5 +249,4 @@ public class SuperTokensHttpURLConnection {
     public interface PreConnectCallback {
         void doAction(HttpURLConnection con) throws IOException;
     }
-
 }
