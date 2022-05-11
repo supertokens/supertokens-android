@@ -16,52 +16,24 @@
 
 package com.example.example.android;
 
-import static io.supertokens.session.Utils.NormalisedInputType.normaliseSessionScopeOrThrowError;
-import static io.supertokens.session.Utils.NormalisedInputType.normaliseURLDomainOrThrowError;
-import static io.supertokens.session.Utils.NormalisedInputType.normaliseURLPathOrThrowError;
-
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.runners.MockitoJUnitRunner;
 
+import java.net.MalformedURLException;
+
+import io.supertokens.session.NormalisedURLDomain;
+import io.supertokens.session.NormalisedURLPath;
 import io.supertokens.session.Utils;
 
 public class ConfigTests {
-    @Test
-    public void testSessionScopeNormalisation() throws Exception {
-        assert(normaliseSessionScopeOrThrowError("api.example.com").equals("api.example.com"));
-        assert(normaliseSessionScopeOrThrowError("http://api.example.com").equals("api.example.com"));
-        assert(normaliseSessionScopeOrThrowError("https://api.example.com").equals("api.example.com"));
-        assert(normaliseSessionScopeOrThrowError("http://api.example.com?hello=1").equals("api.example.com"));
-        assert(normaliseSessionScopeOrThrowError("http://api.example.com/hello").equals("api.example.com"));
-        assert(normaliseSessionScopeOrThrowError("http://api.example.com/").equals("api.example.com"));
-        assert(normaliseSessionScopeOrThrowError("http://api.example.com:8080").equals("api.example.com"));
-        assert(normaliseSessionScopeOrThrowError("http://api.example.com#random2").equals("api.example.com"));
-        assert(normaliseSessionScopeOrThrowError("api.example.com/").equals("api.example.com"));
-        assert(normaliseSessionScopeOrThrowError("api.example.com#random").equals("api.example.com"));
-        assert(normaliseSessionScopeOrThrowError("example.com").equals("example.com"));
-        assert(normaliseSessionScopeOrThrowError("api.example.com/?hello=1&bye=2").equals("api.example.com"));
-        assert(normaliseSessionScopeOrThrowError("localhost").equals("localhost"));
-        assert(normaliseSessionScopeOrThrowError("localhost:8080").equals("localhost"));
-        assert(normaliseSessionScopeOrThrowError("localhost.org").equals("localhost.org"));
-        assert(normaliseSessionScopeOrThrowError("127.0.0.1").equals("127.0.0.1"));
 
-        assert(normaliseSessionScopeOrThrowError(".api.example.com").equals(".api.example.com"));
-        assert(normaliseSessionScopeOrThrowError(".api.example.com/").equals(".api.example.com"));
-        assert(normaliseSessionScopeOrThrowError(".api.example.com#random").equals(".api.example.com"));
-        assert(normaliseSessionScopeOrThrowError(".example.com").equals(".example.com"));
-        assert(normaliseSessionScopeOrThrowError(".api.example.com/?hello=1&bye=2").equals(".api.example.com"));
-        assert(normaliseSessionScopeOrThrowError(".localhost").equals("localhost"));
-        assert(normaliseSessionScopeOrThrowError(".localhost:8080").equals("localhost"));
-        assert(normaliseSessionScopeOrThrowError(".localhost.org").equals(".localhost.org"));
-        assert(normaliseSessionScopeOrThrowError(".127.0.0.1").equals("127.0.0.1"));
+    private String normaliseURLPathOrThrowError(String input) throws MalformedURLException {
+        return new NormalisedURLPath(input).getAsStringDangerous();
+    }
 
-        try {
-            normaliseSessionScopeOrThrowError("http://");
-            assert(false);
-        } catch (Exception e) {
-            assert e.getMessage().equals("Please provide a valid sessionScope");
-        }
+    private  String normaliseURLDomainOrThrowError(String input) throws MalformedURLException {
+        return new NormalisedURLDomain(input).getAsStringDangerous();
     }
 
     @Test

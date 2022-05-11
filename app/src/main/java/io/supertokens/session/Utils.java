@@ -18,6 +18,8 @@ package io.supertokens.session;
 
 import androidx.annotation.Nullable;
 
+import org.jetbrains.annotations.TestOnly;
+
 import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URI;
@@ -48,69 +50,22 @@ public class Utils {
         String apiDomain;
         String apiBasePath;
         int sessionExpiredStatusCode;
-        String cookieDomain;
 
         // TODO NEMI: Handle pre API and on handle event
         public NormalisedInputType(
                 String apiDomain,
                 String apiBasePath,
-                int sessionExpiredStatusCode,
-                String cookieDomain
+                int sessionExpiredStatusCode
         ) {
             this.apiDomain = apiDomain;
             this.apiBasePath = apiBasePath;
             this.sessionExpiredStatusCode = sessionExpiredStatusCode;
-            this.cookieDomain = cookieDomain;
         }
 
-        public static String normaliseURLDomainOrThrowError(String input) throws MalformedURLException {
-            return new NormalisedURLDomain(input).getAsStringDangerous();
-        }
-
-        public static String normaliseURLPathOrThrowError(String input) throws MalformedURLException {
-            return new NormalisedURLPath(input).getAsStringDangerous();
-        }
-
-        static String sessionScopeHelper(String sessionScope) throws MalformedURLException {
-            String trimmedSessionScope = sessionScope.trim().toLowerCase();
-
-            // first we convert it to a URL so that we can use the URL class
-            if (trimmedSessionScope.startsWith(".")) {
-                trimmedSessionScope = trimmedSessionScope.substring(1);
-            }
-
-            if (!trimmedSessionScope.startsWith("http://") && !trimmedSessionScope.startsWith("https://")) {
-                trimmedSessionScope = "http://" + trimmedSessionScope;
-            }
-
-            try {
-                URI urlObj = new URI(trimmedSessionScope);
-                trimmedSessionScope = urlObj.getHost();
-
-                // remove leading dot
-                if (trimmedSessionScope.startsWith(".")) {
-                    trimmedSessionScope = trimmedSessionScope.substring(1);
-                }
-
-                return trimmedSessionScope;
-            } catch (Exception e) {
-                throw new MalformedURLException("Please provide a valid sessionScope");
-            }
-        }
-
-        public static String normaliseSessionScopeOrThrowError(String sessionScope) throws MalformedURLException {
-            String noDotNormalised = sessionScopeHelper(sessionScope);
-
-            if (noDotNormalised.equals("localhost") || NormalisedURLDomain.isAnIpAddress(noDotNormalised)) {
-                return noDotNormalised;
-            }
-
-            if (sessionScope.startsWith(".")) {
-                return "." + noDotNormalised;
-            }
-
-            return noDotNormalised;
-        }
+//        @TestOnly
+//        public static String normaliseURLPathOrThrowError(String input) throws MalformedURLException {
+//            return new NormalisedURLPath(input).getAsStringDangerous();
+//        }
 
         public static NormalisedInputType normaliseInputOrThrowError(
                 String apiDomain,
@@ -118,11 +73,11 @@ public class Utils {
                 @Nullable  Integer sessionExpiredStatusCode,
                 @Nullable  String cookieDomain
         ) throws MalformedURLException {
-            String _apiDomain = normaliseURLDomainOrThrowError(apiDomain);
-            String _apiBasePath = normaliseURLPathOrThrowError("/auth");
+            String _apiDomain = new NormalisedURLDomain(apiDomain).getAsStringDangerous();
+            String _apiBasePath = new NormalisedURLPath("/auth").getAsStringDangerous();
 
             if (apiBasePath != null) {
-                _apiBasePath = normaliseURLPathOrThrowError(apiBasePath);
+                _apiBasePath = new NormalisedURLPath(apiBasePath).getAsStringDangerous();
             }
 
             int _sessionExpiredStatusCode = 401;
@@ -130,12 +85,7 @@ public class Utils {
                 _sessionExpiredStatusCode = sessionExpiredStatusCode;
             }
 
-            String _cookieDomain = null;
-            if (cookieDomain != null) {
-                _cookieDomain = normaliseSessionScopeOrThrowError(cookieDomain);
-            }
-
-            return new NormalisedInputType(_apiDomain, _apiBasePath, _sessionExpiredStatusCode, _cookieDomain);
+            return new NormalisedInputType(_apiDomain, _apiBasePath, _sessionExpiredStatusCode);
         }
     }
 }
