@@ -116,8 +116,13 @@ public class SuperTokensInterceptor implements Interceptor {
                             .sentRequestAtMillis(response.sentRequestAtMillis())
                             .build();
                     response.close();
-                    Boolean retry = handleUnauthorised(applicationContext, preRequestIdRefreshToken, chain);
-                    if (!retry) {
+
+                    Utils.Unauthorised unauthorisedResponse = onUnauthorisedResponse(preRequestIdRefreshToken, applicationContext, chain);
+                    if (unauthorisedResponse.status != Utils.Unauthorised.UnauthorisedStatus.RETRY) {
+                        if (unauthorisedResponse.error != null) {
+                            throw unauthorisedResponse.error;
+                        }
+
                         return clonedResponse;
                     }
                 } else {
@@ -128,12 +133,7 @@ public class SuperTokensInterceptor implements Interceptor {
 
                     String frontToken = response.header(applicationContext.getString(R.string.supertokensFrontTokenHeaderKey));
                     if (frontToken != null) {
-                        try {
-                            FrontToken.setToken(applicationContext, frontToken);
-                        } catch (JSONException e) {
-                            // Should never come here
-                            throw new IOException(e);
-                        }
+                        FrontToken.setToken(applicationContext, frontToken);
                     }
                     return response;
                 }
@@ -146,24 +146,7 @@ public class SuperTokensInterceptor implements Interceptor {
         }
     }
 
-    private static Boolean handleUnauthorised(Context applicationContext, String preRequestIdRefreshToken, Chain chain) throws IOException {
-        if (preRequestIdRefreshToken == null) {
-            String idRefresh = IdRefreshToken.getToken(applicationContext);
-            return idRefresh != null;
-        }
-
-        Utils.Unauthorised unauthorisedResponse = onUnauthorisedResponse(SuperTokens.refreshTokenUrl, preRequestIdRefreshToken, applicationContext, chain);
-
-        if (unauthorisedResponse.status == Utils.Unauthorised.UnauthorisedStatus.SESSION_EXPIRED) {
-            return false;
-        } else if (unauthorisedResponse.status == Utils.Unauthorised.UnauthorisedStatus.API_ERROR) {
-            throw unauthorisedResponse.error;
-        }
-
-        return true;
-    }
-
-    private static Utils.Unauthorised onUnauthorisedResponse(String refreshTokenUrl, String preRequestIdRefreshToken, Context applicationContext, Chain chain) {
+    private static Utils.Unauthorised onUnauthorisedResponse(String preRequestIdRefreshToken, Context applicationContext, Chain chain) {
         // this is intentionally not put in a loop because the loop in other projects is because locking has a timeout
         Response refreshResponse = null;
         try {
@@ -178,7 +161,7 @@ public class SuperTokensInterceptor implements Interceptor {
             }
 
             Request.Builder refreshRequestBuilder = new Request.Builder();
-            refreshRequestBuilder.url(refreshTokenUrl);
+            refreshRequestBuilder.url(SuperTokens.refreshTokenUrl);
             refreshRequestBuilder.method("POST", new FormBody.Builder().build());
 
             String antiCSRFToken = AntiCSRF.getToken(applicationContext, preRequestIdRefreshToken);
