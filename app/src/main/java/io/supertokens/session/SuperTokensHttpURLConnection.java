@@ -17,6 +17,7 @@
 package io.supertokens.session;
 
 import android.content.Context;
+import android.text.TextUtils;
 
 import java.io.IOException;
 import java.net.CookieManager;
@@ -157,6 +158,8 @@ public class SuperTokensHttpURLConnection {
             }
 
             refreshTokenConnection.setRequestProperty("rid", SuperTokens.rid);
+            refreshTokenConnection.setRequestProperty("fdi-version", TextUtils.join(",", Version.supported_fdi));
+
             // TODO NEMI: Replace this with pre api hooks when implemented
 //            for (Map.Entry<String,String> entry: SuperTokens.refreshAPICustomHeaders.entrySet()) {
 //                refreshTokenConnection.setRequestProperty(entry.getKey(), entry.getValue());

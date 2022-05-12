@@ -17,6 +17,7 @@
 package io.supertokens.session;
 
 import android.content.Context;
+import android.text.TextUtils;
 
 import org.jetbrains.annotations.NotNull;
 
@@ -168,6 +169,8 @@ public class SuperTokensInterceptor implements Interceptor {
             }
 
             refreshRequestBuilder.header("rid", SuperTokens.rid);
+            refreshRequestBuilder.header("fdi-version", TextUtils.join(",", Version.supported_fdi));
+
             // TODO NEMI: Replace this with pre API hook when implemented
 //            for (Map.Entry<String, String> entry : SuperTokens.refreshAPICustomHeaders.entrySet()) {
 //                refreshRequestBuilder.header(entry.getKey(), entry.getValue());
