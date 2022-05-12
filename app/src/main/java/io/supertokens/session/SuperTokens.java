@@ -118,7 +118,6 @@ public class SuperTokens {
         }
 
         if (responseCode >= 300) {
-            // TODO: Is this the best way to handle errors?
             return connection;
         }
 
