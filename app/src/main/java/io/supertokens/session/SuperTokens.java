@@ -23,9 +23,7 @@ import androidx.annotation.Nullable;
 
 import java.lang.ref.WeakReference;
 import java.net.MalformedURLException;
-import java.util.AbstractCollection;
 import java.util.ArrayList;
-import java.util.Iterator;
 
 public class SuperTokens {
     static String refreshTokenUrl;
@@ -42,7 +40,8 @@ public class SuperTokens {
             @NonNull String apiDomain,
             @Nullable String apiBasePath,
             @Nullable Integer sessionExpiredStatusCode,
-            @Nullable String cookieDomain
+            @Nullable String cookieDomain,
+            @Nullable CustomHeaderProvider customHeaderProvider
     ) throws MalformedURLException {
         if ( SuperTokens.isInitCalled ) {
             return;
@@ -52,7 +51,8 @@ public class SuperTokens {
                 apiDomain,
                 apiBasePath,
                 sessionExpiredStatusCode,
-                cookieDomain
+                cookieDomain,
+                customHeaderProvider
         );
         contextWeakReference = new WeakReference<Context>(applicationContext);
         SuperTokens.refreshTokenUrl = SuperTokens.config.apiDomain + SuperTokens.config.apiBasePath + "/session/refresh";

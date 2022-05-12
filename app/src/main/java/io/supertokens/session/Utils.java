@@ -54,18 +54,21 @@ public class Utils {
         String apiBasePath;
         int sessionExpiredStatusCode;
         String cookieDomain;
+        CustomHeaderProvider customHeaderMapper;
 
         // TODO NEMI: Handle pre API and on handle event
         public NormalisedInputType(
                 String apiDomain,
                 String apiBasePath,
                 int sessionExpiredStatusCode,
-                String cookieDomain
+                String cookieDomain,
+                CustomHeaderProvider customHeaderMapper
         ) {
             this.apiDomain = apiDomain;
             this.apiBasePath = apiBasePath;
             this.sessionExpiredStatusCode = sessionExpiredStatusCode;
             this.cookieDomain = cookieDomain;
+            this.customHeaderMapper = customHeaderMapper;
         }
 
         static String sessionScopeHelper(String sessionScope) throws MalformedURLException {
@@ -118,7 +121,8 @@ public class Utils {
                 String apiDomain,
                 @Nullable  String apiBasePath,
                 @Nullable  Integer sessionExpiredStatusCode,
-                @Nullable  String cookieDomain
+                @Nullable  String cookieDomain,
+                @Nullable CustomHeaderProvider customHeaderProvider
         ) throws MalformedURLException {
             String _apiDomain = new NormalisedURLDomain(apiDomain).getAsStringDangerous();
             String _apiBasePath = new NormalisedURLPath("/auth").getAsStringDangerous();
@@ -137,7 +141,12 @@ public class Utils {
                 _cookieDomain = normaliseSessionScopeOrThrowError(cookieDomain);
             }
 
-            return new NormalisedInputType(_apiDomain, _apiBasePath, _sessionExpiredStatusCode, _cookieDomain);
+            CustomHeaderProvider _customHeaderProvider = new CustomHeaderProvider.DefaultCustomHeaderMapper();
+            if (customHeaderProvider != null) {
+                _customHeaderProvider = customHeaderProvider;
+            }
+
+            return new NormalisedInputType(_apiDomain, _apiBasePath, _sessionExpiredStatusCode, _cookieDomain, _customHeaderProvider);
         }
     }
 

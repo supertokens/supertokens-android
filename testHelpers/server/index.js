@@ -25,6 +25,7 @@ let { startST, stopST, killAllST, setupST, cleanST, setKeyValueInConfig, maxVers
 // let { package_version } = require("../../lib/build/version");
 let { middleware, errorHandler } = require("supertokens-node/framework/express");
 let { verifySession } = require("supertokens-node/recipe/session/framework/express");
+const CustomRefreshAPIHeaders = require("./customRefreshHeaders");
 let noOfTimesRefreshCalledDuringTest = 0;
 let noOfTimesGetSessionCalledDuringTest = 0;
 let noOfTimesRefreshAttemptedDuringTest = 0;
@@ -189,6 +190,7 @@ app.post("/beforeeach", async (req, res) => {
     noOfTimesRefreshCalledDuringTest = 0;
     noOfTimesGetSessionCalledDuringTest = 0;
     noOfTimesRefreshAttemptedDuringTest = 0;
+    CustomRefreshAPIHeaders.resetCustomRefreshAPIHeaders();
     await killAllST();
     await setupST();
     res.send();
@@ -290,6 +292,7 @@ app.post(
 
 app.post("/auth/session/refresh", async (req, res, next) => {
     noOfTimesRefreshAttemptedDuringTest += 1;
+    CustomRefreshAPIHeaders.setCustomRefreshAPIHeaders(req.headers["testkey"]!== undefined);
     verifySession()(req, res, err => {
         if (err) {
             next(err);
@@ -354,6 +357,10 @@ app.get("/testConfig", function (req, res) {
 
 app.get("/multipleInterceptors", function (req, res) {
     res.status(200).send(req.headers["interceptorheader"]);
+});
+
+app.get("/checkCustomHeader", function (req, res) {
+    res.status(200).send(JSON.stringify(CustomRefreshAPIHeaders.getCustomRefreshAPIHeaders()))
 });
 
 app.get("/stop", async (req, res) => {
