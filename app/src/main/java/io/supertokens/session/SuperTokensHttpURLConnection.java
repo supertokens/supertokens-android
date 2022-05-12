@@ -44,15 +44,9 @@ public class SuperTokensHttpURLConnection {
         boolean doNotDoInterception = !Utils.shouldDoInterceptionBasedOnUrl(url.toString(), SuperTokens.config.apiDomain, SuperTokens.config.cookieDomain);
 
         if (doNotDoInterception) {
-            HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-
-            // TODO NEMI: Replace this with pre api hook when implemented. This also means we need to have a non superotkens pre API hook action for HTTPURLConnection
-            if (preConnectCallback != null) {
-                preConnectCallback.doAction(connection);
-            }
-
-            connection.connect();
-            return connection;
+            String errorMessage = "Trying to call newRequest with a URL that cannot be handled by SuperTokens.\n";
+            errorMessage += "If you are trying to use SuperTokens with multiple subdomains for your APIs, make sure you are setting cookieDomain in SuperTokens.init correctly";
+            throw new IllegalAccessException(errorMessage);
         }
 
         try {
