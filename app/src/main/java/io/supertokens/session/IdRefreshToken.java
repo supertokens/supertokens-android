@@ -39,20 +39,33 @@ class IdRefreshToken {
     }
 
     @SuppressLint("ApplySharedPref")
-    static void setToken(Context context, String idRefreshToken) {
+    static void setToken(Context context, String idRefreshToken, int statusCode) {
+        String previousToken = getToken(context);
         if (idRefreshToken.equals("remove")) {
             removeToken(context);
-            return;
-        }
-        String[] splitted = idRefreshToken.split(";");
-        long expiry = Long.parseLong(splitted[1]);
-        if (expiry < System.currentTimeMillis()) {
-            removeToken(context);
         } else {
-            SharedPreferences.Editor editor = getSharedPreferences(context).edit();
-            editor.putString(context.getString(R.string.supertokensIdRefreshSharedPrefsKey), idRefreshToken);
-            editor.apply();
-            idRefreshTokenInMemory = idRefreshToken;
+            String[] splitted = idRefreshToken.split(";");
+            long expiry = Long.parseLong(splitted[1]);
+            if (expiry < System.currentTimeMillis()) {
+                removeToken(context);
+            } else {
+                SharedPreferences.Editor editor = getSharedPreferences(context).edit();
+                editor.putString(context.getString(R.string.supertokensIdRefreshSharedPrefsKey), idRefreshToken);
+                editor.apply();
+                idRefreshTokenInMemory = idRefreshToken;
+            }
+        }
+
+        if (idRefreshToken.equals("remove") && previousToken != null) {
+            if (statusCode == SuperTokens.config.sessionExpiredStatusCode) {
+                SuperTokens.config.eventHandler.handleEvent(EventHandler.EventType.UNAUTHORISED);
+            } else {
+                SuperTokens.config.eventHandler.handleEvent(EventHandler.EventType.SIGN_OUT);
+            }
+        }
+
+        if (!idRefreshToken.equals("remove") && previousToken == null) {
+            SuperTokens.config.eventHandler.handleEvent(EventHandler.EventType.SESSION_CREATED);
         }
     }
 

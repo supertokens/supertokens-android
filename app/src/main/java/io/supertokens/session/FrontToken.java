@@ -105,7 +105,7 @@ public class FrontToken {
                 JSONObject newPayload = parseFrontToken(frontToken).getJSONObject("up");
 
                 if (!oldPayload.toString().equals(newPayload.toString())) {
-                    // TODO NEMI: CALL ON HANDLE EVENT
+                    SuperTokens.config.eventHandler.handleEvent(EventHandler.EventType.ACCESS_TOKEN_PAYLOAD_UPDATED);
                 }
             } catch (JSONException e) {
                 throw new IllegalStateException(e);

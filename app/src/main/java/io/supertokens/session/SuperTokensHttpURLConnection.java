@@ -90,13 +90,13 @@ public class SuperTokensHttpURLConnection {
 
                     connection.connect();
 
+                    responseCode = connection.getResponseCode();
+
                     // Get the cookies from the response and store the idRefreshToken to storage
                     String idRefreshToken = connection.getHeaderField(applicationContext.getString(R.string.supertokensIdRefreshHeaderKey));
                     if (idRefreshToken != null) {
-                        IdRefreshToken.setToken(applicationContext, idRefreshToken);
+                        IdRefreshToken.setToken(applicationContext, idRefreshToken, responseCode);
                     }
-
-                    responseCode = connection.getResponseCode();
                 } finally {
                     refreshAPILock.readLock().unlock();
                 }
@@ -144,6 +144,7 @@ public class SuperTokensHttpURLConnection {
             refreshAPILock.writeLock().lock();
             String postLockIdRefreshToken = IdRefreshToken.getToken(applicationContext);
             if ( postLockIdRefreshToken == null ) {
+                SuperTokens.config.eventHandler.handleEvent(EventHandler.EventType.UNAUTHORISED);
                 return new Utils.Unauthorised(Utils.Unauthorised.UnauthorisedStatus.SESSION_EXPIRED);
             }
 
@@ -179,16 +180,17 @@ public class SuperTokensHttpURLConnection {
             }
             refreshTokenConnection.connect();
 
+            final int responseCode = refreshTokenConnection.getResponseCode();
+
             boolean removeIdRefreshToken = true;
             String idRefreshToken = refreshTokenConnection.getHeaderField(applicationContext.getString(R.string.supertokensIdRefreshHeaderKey));
             if (idRefreshToken != null) {
-                IdRefreshToken.setToken(applicationContext, idRefreshToken);
+                IdRefreshToken.setToken(applicationContext, idRefreshToken, responseCode);
                 removeIdRefreshToken = false;
             }
 
-            final int responseCode = refreshTokenConnection.getResponseCode();
             if (responseCode == SuperTokens.config.sessionExpiredStatusCode && removeIdRefreshToken) {
-                IdRefreshToken.setToken(applicationContext, "remove");
+                IdRefreshToken.setToken(applicationContext, "remove", responseCode);
             }
 
             if (responseCode >= 300) {
@@ -211,6 +213,7 @@ public class SuperTokensHttpURLConnection {
                 FrontToken.setToken(applicationContext, responseFrontToken);
             }
 
+            SuperTokens.config.eventHandler.handleEvent(EventHandler.EventType.REFRESH_SESSION);
             return new Utils.Unauthorised(Utils.Unauthorised.UnauthorisedStatus.RETRY);
         } catch (Exception e) {
             IOException ioe = new IOException(e);

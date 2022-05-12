@@ -93,7 +93,7 @@ public class SuperTokensInterceptor implements Interceptor {
                     response = makeRequest(chain, request);
                     String idRefreshToken = response.header(applicationContext.getString(R.string.supertokensIdRefreshHeaderKey));
                     if (idRefreshToken != null) {
-                        IdRefreshToken.setToken(applicationContext, idRefreshToken);
+                        IdRefreshToken.setToken(applicationContext, idRefreshToken, response.code());
                     }
                 } finally {
                     refreshAPILock.readLock().unlock();
@@ -153,6 +153,7 @@ public class SuperTokensInterceptor implements Interceptor {
             refreshAPILock.writeLock().lock();
             String postLockIdRefreshToken = IdRefreshToken.getToken(applicationContext);
             if (postLockIdRefreshToken == null) {
+                SuperTokens.config.eventHandler.handleEvent(EventHandler.EventType.UNAUTHORISED);
                 return new Utils.Unauthorised(Utils.Unauthorised.UnauthorisedStatus.SESSION_EXPIRED);
             }
 
@@ -183,16 +184,17 @@ public class SuperTokensInterceptor implements Interceptor {
             Request refreshRequest = refreshRequestBuilder.build();
             refreshResponse = makeRequest(chain, refreshRequest);
 
+            final int code = refreshResponse.code();
+
             boolean removeIdRefreshToken = true;
             String idRefreshToken = refreshResponse.header(applicationContext.getString(R.string.supertokensIdRefreshHeaderKey));
             if (idRefreshToken != null) {
-                IdRefreshToken.setToken(applicationContext, idRefreshToken);
+                IdRefreshToken.setToken(applicationContext, idRefreshToken, code);
                 removeIdRefreshToken = false;
             }
 
-            final int code = refreshResponse.code();
             if (code == SuperTokens.config.sessionExpiredStatusCode && removeIdRefreshToken) {
-                IdRefreshToken.setToken(applicationContext, "remove");
+                IdRefreshToken.setToken(applicationContext, "remove", code);
             }
 
             if (code < 200 || code >= 300) {
@@ -216,6 +218,7 @@ public class SuperTokensInterceptor implements Interceptor {
                 FrontToken.setToken(applicationContext, frontToken);
             }
 
+            SuperTokens.config.eventHandler.handleEvent(EventHandler.EventType.REFRESH_SESSION);
             return new Utils.Unauthorised(Utils.Unauthorised.UnauthorisedStatus.RETRY);
 
         } catch (Exception e) {
