@@ -119,12 +119,7 @@ public class SuperTokensHttpURLConnection {
 
                     String responseFrontToken = connection.getHeaderField(applicationContext.getString(R.string.supertokensFrontTokenHeaderKey));
                     if (responseFrontToken != null) {
-                        try {
-                            FrontToken.setToken(applicationContext, responseFrontToken);
-                        } catch (JSONException e) {
-                            // Should never come here
-                            throw new IOException(e);
-                        }
+                        FrontToken.setToken(applicationContext, responseFrontToken);
                     }
                     return connection;
                 }

@@ -23,6 +23,7 @@ import android.util.Base64;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.io.IOException;
 import java.net.HttpCookie;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
@@ -44,13 +45,7 @@ public class FrontToken {
             return null;
         }
 
-        HttpCookie cookie = HttpCookie.parse(frontTokenInMemory).get(0);
-
-        if (cookie.hasExpired()) {
-            return null;
-        }
-
-        return cookie.getValue();
+        return frontTokenInMemory;
     }
 
     private static String getFrontToken(Context context) {
@@ -91,27 +86,10 @@ public class FrontToken {
     }
 
     private static void setFrontTokenToStorage(Context context, String frontToken) {
-        String expires = "Thu, 01 Jan 1970 00:00:01 GMT";
-        String cookieVal = "";
-
-        if (frontToken != null) {
-            cookieVal = frontToken;
-            expires = null;
-        }
-
-        if (expires != null) {
-            String toStore = FRONT_TOKEN_NAME + "=" + cookieVal + ";expires=" + expires + ";path=/;samesite=lax";
-            SharedPreferences.Editor editor = getSharedPreferences(context).edit();
-            editor.putString(context.getString(R.string.supertokensFrontTokenSharedPrefsKey), toStore);
-            editor.apply();
-            frontTokenInMemory = toStore;
-        } else {
-            String toStore = FRONT_TOKEN_NAME + "=" + cookieVal + ";expires=Fri, 31 Dec 9999 23:59:59 GMT;path=/;samesite=lax";
-            SharedPreferences.Editor editor = getSharedPreferences(context).edit();
-            editor.putString(context.getString(R.string.supertokensFrontTokenSharedPrefsKey), toStore);
-            editor.apply();
-            frontTokenInMemory = toStore;
-        }
+        SharedPreferences.Editor editor = getSharedPreferences(context).edit();
+        editor.putString(context.getString(R.string.supertokensFrontTokenSharedPrefsKey), frontToken);
+        editor.apply();
+        frontTokenInMemory = frontToken;
     }
 
     private static void setFrontToken(Context context, String frontToken) throws JSONException {
@@ -143,10 +121,15 @@ public class FrontToken {
         }
     }
 
-    public static void setToken(Context context, String frontToken) throws JSONException {
+    public static void setToken(Context context, String frontToken) throws IOException {
         synchronized (tokenLock) {
-            setFrontToken(context, frontToken);
-            tokenLock.notifyAll();
+            try {
+                setFrontToken(context, frontToken);
+            } catch (JSONException e) {
+                throw new IOException(e);
+            } finally {
+                tokenLock.notifyAll();
+            }
         }
     }
 

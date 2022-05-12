@@ -128,12 +128,7 @@ public class SuperTokensInterceptor implements Interceptor {
 
                     String frontToken = response.header(applicationContext.getString(R.string.supertokensFrontTokenHeaderKey));
                     if (frontToken != null) {
-                        try {
-                            FrontToken.setToken(applicationContext, frontToken);
-                        } catch (JSONException e) {
-                            // Should never come here
-                            throw new IOException(e);
-                        }
+                        FrontToken.setToken(applicationContext, frontToken);
                     }
                     return response;
                 }
