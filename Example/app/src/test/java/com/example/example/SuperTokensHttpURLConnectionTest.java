@@ -144,7 +144,7 @@ public class SuperTokensHttpURLConnectionTest {
     @Test
     public void httpUrlConnection_testThatSessionShouldNotExistWhenUserCallsLogOut() throws Exception {
         com.example.TestUtils.startST();
-        SuperTokens.init(context, Constants.apiDomain, null, null, null, null);
+        SuperTokens.init(context, Constants.apiDomain, null, null, null, null, null);
         CookieManager.setDefault(new CookieManager(new SuperTokensPersistentCookieStore(context), null));
 
         //do a login request
@@ -199,7 +199,7 @@ public class SuperTokensHttpURLConnectionTest {
 //
 //        //accessTokenValidity set to 4 seconds and refreshTokenValidity set to 5 seconds
 //        com.example.TestUtils.startST(4, true, 0.08333);
-//        SuperTokens.init(context, Constants.apiDomain, null, null, null, null);
+//        SuperTokens.init(context, Constants.apiDomain, null, null, null, null, null);
 //        CookieManager.setDefault(new CookieManager(new SuperTokensPersistentCookieStore(context), null));
 //
 //
@@ -258,7 +258,7 @@ public class SuperTokensHttpURLConnectionTest {
     @Test
     public void httpUrlConnection_testThatAPISThatDontRequireAuthenticationWorkCorrectly() throws Exception {
         com.example.TestUtils.startST();
-        SuperTokens.init(context, Constants.apiDomain, null, null, null, null);
+        SuperTokens.init(context, Constants.apiDomain, null, null, null, null, null);
         CookieManager.setDefault(new CookieManager(new SuperTokensPersistentCookieStore(context), null));
 
 
@@ -334,7 +334,7 @@ public class SuperTokensHttpURLConnectionTest {
     @Test
     public void httpUrlConnection_testThatCustomHeadersAreProperlySent() throws Exception {
         com.example.TestUtils.startST();
-        SuperTokens.init(context, Constants.apiDomain, null, null, null, null);
+        SuperTokens.init(context, Constants.apiDomain, null, null, null, null, null);
         CookieManager.setDefault(new CookieManager(new SuperTokensPersistentCookieStore(context), null));
 
         //login request
@@ -425,7 +425,7 @@ public class SuperTokensHttpURLConnectionTest {
     @Test
     public void httpUrlConnection_testThatAPIErrorsGetPropagatedToTheUserProperly() throws Exception {
         com.example.TestUtils.startST();
-        SuperTokens.init(context, Constants.apiDomain, null, null, null, null);
+        SuperTokens.init(context, Constants.apiDomain, null, null, null, null, null);
         CookieManager.setDefault(new CookieManager(new SuperTokensPersistentCookieStore(context), null));
 
         HttpURLConnection testErrorConnection = SuperTokensHttpURLConnection.newRequest(new URL(testErrorAPIURL), new SuperTokensHttpURLConnection.PreConnectCallback() {
@@ -450,7 +450,7 @@ public class SuperTokensHttpURLConnectionTest {
     @Test
     public void httpUrlConnection_testThatDoesSessionWorkFineWhenUserIsLoggedIn() throws Exception {
         com.example.TestUtils.startST();
-        SuperTokens.init(context, Constants.apiDomain, null, null, null, null);
+        SuperTokens.init(context, Constants.apiDomain, null, null, null, null, null);
         CookieManager.setDefault(new CookieManager(new SuperTokensPersistentCookieStore(context), null));
 
         //do a login Request
@@ -487,8 +487,8 @@ public class SuperTokensHttpURLConnectionTest {
     @Test
     public void httpUrlConnection_testThatCllingSuperTokensInitMoreThanOnceWorks() throws Exception {
         com.example.TestUtils.startST();
-        SuperTokens.init(context, Constants.apiDomain, null, null, null, null);
-        SuperTokens.init(context, Constants.apiDomain, null, null, null, null);
+        SuperTokens.init(context, Constants.apiDomain, null, null, null, null, null);
+        SuperTokens.init(context, Constants.apiDomain, null, null, null, null, null);
         CookieManager.setDefault(new CookieManager(new SuperTokensPersistentCookieStore(context), null));
 
         //login request
@@ -516,7 +516,7 @@ public class SuperTokensHttpURLConnectionTest {
         loginRequestConnection.disconnect();
 
         //supertokensinit
-        SuperTokens.init(context, Constants.apiDomain, null, null, null, null);
+        SuperTokens.init(context, Constants.apiDomain, null, null, null, null, null);
 
         //userInfo request
         HttpURLConnection userInfoRequestConnection = SuperTokensHttpURLConnection.newRequest(new URL(userInfoAPIURL), null);
@@ -555,7 +555,7 @@ public class SuperTokensHttpURLConnectionTest {
     @Test
     public void httpUrlConnection_testThatUserPassedConfigShouldBeSent() throws Exception {
         com.example.TestUtils.startST();
-        SuperTokens.init(context, Constants.apiDomain, null, null, null, null);
+        SuperTokens.init(context, Constants.apiDomain, null, null, null, null, null);
         CookieManager.setDefault(new CookieManager(new SuperTokensPersistentCookieStore(context), null));
 
         HttpURLConnection loginRequestConnection = SuperTokensHttpURLConnection.newRequest(new URL(loginAPIURL), new SuperTokensHttpURLConnection.PreConnectCallback() {
@@ -598,7 +598,7 @@ public class SuperTokensHttpURLConnectionTest {
 
                 return null;
             }
-        });
+        }, null);
         CookieManager.setDefault(new CookieManager(new SuperTokensPersistentCookieStore(context), null));
 
 
@@ -659,7 +659,7 @@ public class SuperTokensHttpURLConnectionTest {
     @Test
     public void httpUrlConnection_testThatThingsShouldWorkIfAntiCsrfIsDisabled() throws Exception {
         com.example.TestUtils.startST(3, false, 144000);
-        SuperTokens.init(context, Constants.apiDomain, null, null, null, null);
+        SuperTokens.init(context, Constants.apiDomain, null, null, null, null, null);
         CookieManager.setDefault(new CookieManager(new SuperTokensPersistentCookieStore(context), null));
 
         //login request
@@ -732,7 +732,7 @@ public class SuperTokensHttpURLConnectionTest {
     @Test
     public void httpUrlConnection_testThatCallingConnectionConnectInPreRequestCallBackIsNotAProblem() throws Exception {
         com.example.TestUtils.startST();
-        SuperTokens.init(context, Constants.apiDomain, null, null, null, null);
+        SuperTokens.init(context, Constants.apiDomain, null, null, null, null, null);
         CookieManager.setDefault(new CookieManager(new SuperTokensPersistentCookieStore(context), null));
 
         HttpURLConnection loginRequestConnection = SuperTokensHttpURLConnection.newRequest(new URL(loginAPIURL), new SuperTokensHttpURLConnection.PreConnectCallback() {
@@ -781,7 +781,7 @@ public class SuperTokensHttpURLConnectionTest {
     @Test
     public void httpUrlConnection_testThatMultipleAPICallsInParallelAndOnly1RefreshShouldBeCalled() throws Exception{
         com.example.TestUtils.startST(3, true, 144000);
-        SuperTokens.init(context, Constants.apiDomain, null, null, null, null);
+        SuperTokens.init(context, Constants.apiDomain, null, null, null, null, null);
         CookieManager.setDefault(new CookieManager(new SuperTokensPersistentCookieStore(context), null));
 
         //login request
@@ -868,7 +868,7 @@ public class SuperTokensHttpURLConnectionTest {
     @Test
     public void  httpUrlConnection_testThatEverythingWorksProperly() throws Exception{
         com.example.TestUtils.startST(3, true, 144000);
-        SuperTokens.init(context, Constants.apiDomain, null, null, null, null);
+        SuperTokens.init(context, Constants.apiDomain, null, null, null, null, null);
         CookieManager.setDefault(new CookieManager(new SuperTokensPersistentCookieStore(context), null));
 
         //login request

@@ -149,7 +149,7 @@ public class SuperTokensOkHttpTest {
     @Test
     public void okHttp_testApiWithoutParams() throws Exception {
         com.example.TestUtils.startST();
-        SuperTokens.init(context, Constants.apiDomain, null, null, null, null);
+        SuperTokens.init(context, Constants.apiDomain, null, null, null, null, null);
         JsonObject bodyJson = new JsonObject();
         bodyJson.addProperty("userId", Constants.userId);
         RequestBody body = RequestBody.create(MediaType.parse("application/json; charset=utf-8"), bodyJson.toString());
@@ -169,7 +169,7 @@ public class SuperTokensOkHttpTest {
     @Test
     public void okHttp_testApiWithParams() throws Exception {
         com.example.TestUtils.startST();
-        SuperTokens.init(context, Constants.apiDomain, null, null, null, null);
+        SuperTokens.init(context, Constants.apiDomain, null, null, null, null, null);
         JsonObject bodyJson = new JsonObject();
         bodyJson.addProperty("userId", Constants.userId);
         RequestBody body = RequestBody.create(MediaType.parse("application/json; charset=utf-8"), bodyJson.toString());
@@ -189,7 +189,7 @@ public class SuperTokensOkHttpTest {
     @Test
     public void okHttp_refreshIsCalledAfterAccessTokenExpiry() throws Exception {
         com.example.TestUtils.startST(3, true, 144000);
-        SuperTokens.init(context, Constants.apiDomain, null, null, null, null);
+        SuperTokens.init(context, Constants.apiDomain, null, null, null, null, null);
         JsonObject bodyJson = new JsonObject();
         bodyJson.addProperty("userId", Constants.userId);
         RequestBody body = RequestBody.create(MediaType.parse("application/json; charset=utf-8"), bodyJson.toString());
@@ -227,7 +227,7 @@ public class SuperTokensOkHttpTest {
     @Test
     public void okHttp_sessionShouldExistWhenUserCallsLogOut() throws Exception {
         com.example.TestUtils.startST();
-        SuperTokens.init(context, Constants.apiDomain, null, null, null, null);
+        SuperTokens.init(context, Constants.apiDomain, null, null, null, null, null);
 
         JsonObject bodyJson = new JsonObject();
         bodyJson.addProperty("userId", Constants.userId);
@@ -267,7 +267,7 @@ public class SuperTokensOkHttpTest {
     @Test
     public void okHttp_customHeadersShouldBeSent() throws Exception {
         com.example.TestUtils.startST();
-        SuperTokens.init(context, Constants.apiDomain, null, null, null, null);
+        SuperTokens.init(context, Constants.apiDomain, null, null, null, null, null);
 
         //when logged in
         JsonObject bodyJson = new JsonObject();
@@ -352,7 +352,7 @@ public class SuperTokensOkHttpTest {
     @Test
     public void okHttp_testDoesSessionExistWorkFineWhenUserIsLoggedIn() throws Exception {
         com.example.TestUtils.startST();
-        SuperTokens.init(context, Constants.apiDomain, null, null, null, null);
+        SuperTokens.init(context, Constants.apiDomain, null, null, null, null, null);
 
         JsonObject bodyJson = new JsonObject();
         bodyJson.addProperty("userId", Constants.userId);
@@ -378,8 +378,8 @@ public class SuperTokensOkHttpTest {
     @Test
     public void okHttp_testThatCallingSuperTokensInitMoreThanOnceWorks() throws Exception {
         com.example.TestUtils.startST(10, true, 144000);
-        SuperTokens.init(context, Constants.apiDomain, null, null, null, null);
-        SuperTokens.init(context, Constants.apiDomain, null, null, null, null);
+        SuperTokens.init(context, Constants.apiDomain, null, null, null, null, null);
+        SuperTokens.init(context, Constants.apiDomain, null, null, null, null, null);
 
         JsonObject bodyJson = new JsonObject();
         bodyJson.addProperty("userId", Constants.userId);
@@ -396,7 +396,7 @@ public class SuperTokensOkHttpTest {
         }
 
         loginResponse.close();
-        SuperTokens.init(context, Constants.apiDomain, null, null, null, null);
+        SuperTokens.init(context, Constants.apiDomain, null, null, null, null, null);
 
         Request userInfoRequest = new Request.Builder()
                 .url(userInfoAPIURL)
@@ -435,7 +435,7 @@ public class SuperTokensOkHttpTest {
     @Test
     public void okHttp_testThatMultipleInterceptorsAreThereAndTheyShouldAllWork() throws Exception {
         com.example.TestUtils.startST();
-        SuperTokens.init(context, Constants.apiDomain, null, null, null, null);
+        SuperTokens.init(context, Constants.apiDomain, null, null, null, null, null);
         OkHttpClient client = okHttpClient.newBuilder().addInterceptor(new customInterceptors()).build();
 
         Request request = new Request.Builder()
@@ -461,7 +461,7 @@ public class SuperTokensOkHttpTest {
     @Test
     public void okHttp_testThatAPIErrorsGetPropagatedToTheUserInterception() throws Exception {
         com.example.TestUtils.startST();
-        SuperTokens.init(context, Constants.apiDomain, null, null, null, null);
+        SuperTokens.init(context, Constants.apiDomain, null, null, null, null, null);
 
         Request request = new Request.Builder()
                 .url(testErrorAPIURL)
@@ -488,7 +488,7 @@ public class SuperTokensOkHttpTest {
     public void okHttp_testThatAPIErrorsGetPropagatedToTheUserWithoutInterception() throws Exception {
         com.example.TestUtils.startST();
 
-        SuperTokens.init(context, Constants.apiDomain, null, null, null, null);
+        SuperTokens.init(context, Constants.apiDomain, null, null, null, null, null);
         OkHttpClient client = new OkHttpClient().newBuilder().build();
         Request request = new Request.Builder()
                 .url(testErrorAPIURL)
@@ -510,7 +510,7 @@ public class SuperTokensOkHttpTest {
     @Test
     public void okHttp_testThatUserPassedConfigShouldBeSentAsWell() throws Exception {
         com.example.TestUtils.startST();
-        SuperTokens.init(context, Constants.apiDomain, null, null, null, null);
+        SuperTokens.init(context, Constants.apiDomain, null, null, null, null, null);
 
         JsonObject bodyJson = new JsonObject();
         bodyJson.addProperty("userId", Constants.userId);
@@ -540,7 +540,7 @@ public class SuperTokensOkHttpTest {
     @Test
     public void okHttp_testThatThingsShouldWorkIfAntiCsrfIsDisabled() throws Exception {
         com.example.TestUtils.startST(3, false, 144000);
-        SuperTokens.init(context, Constants.apiDomain, null, null, null, null);
+        SuperTokens.init(context, Constants.apiDomain, null, null, null, null, null);
 
         JsonObject bodyJson = new JsonObject();
         bodyJson.addProperty("userId", Constants.userId);
@@ -596,7 +596,7 @@ public class SuperTokensOkHttpTest {
     @Test
     public void okHttp_testThatMultipleAPICallsInParallelAndOnly1RefreshShouldBeCalled() throws Exception {
         com.example.TestUtils.startST(3, true, 144000);
-        SuperTokens.init(context, Constants.apiDomain, null, null, null, null);
+        SuperTokens.init(context, Constants.apiDomain, null, null, null, null, null);
 
         JsonObject bodyJson = new JsonObject();
         bodyJson.addProperty("userId", Constants.userId);
@@ -671,7 +671,7 @@ public class SuperTokensOkHttpTest {
 //    @Test
 //    public void okHttp_testThatSessionShouldNotExistWhenSessionFullyExpires() throws Exception {
 //        com.example.TestUtils.startST(4, true, 0.08333);
-//        SuperTokens.init(context, Constants.apiDomain, null, null, null, null);
+//        SuperTokens.init(context, Constants.apiDomain, null, null, null, null, null);
 //
 //        JsonObject bodyJson = new JsonObject();
 //        bodyJson.addProperty("userId", Constants.userId);
@@ -730,7 +730,7 @@ public class SuperTokensOkHttpTest {
 
                 return null;
             }
-        });
+        }, null);
 
         JsonObject bodyJson = new JsonObject();
         bodyJson.addProperty("userId", Constants.userId);
@@ -774,7 +774,7 @@ public class SuperTokensOkHttpTest {
     @Test
     public void okHttp_testThatAPIsThatDontNeedAuthenticationWorkProperly() throws Exception{
         com.example.TestUtils.startST(5,true,144000);
-        SuperTokens.init(context, Constants.apiDomain, null, null, null, null);
+        SuperTokens.init(context, Constants.apiDomain, null, null, null, null, null);
 
         //api request which does not require authentication
         Request request = new Request.Builder()
@@ -833,7 +833,7 @@ public class SuperTokensOkHttpTest {
     @Test
     public void okHttp_testThatEverythingWorksProperly() throws Exception {
         com.example.TestUtils.startST(3, true, 144000);
-        SuperTokens.init(context, Constants.apiDomain, null, null, null, null);
+        SuperTokens.init(context, Constants.apiDomain, null, null, null, null, null);
 
         JsonObject bodyJson = new JsonObject();
         bodyJson.addProperty("userId", Constants.userId);

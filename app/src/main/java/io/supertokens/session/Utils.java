@@ -55,6 +55,7 @@ public class Utils {
         int sessionExpiredStatusCode;
         String cookieDomain;
         CustomHeaderProvider customHeaderMapper;
+        EventHandler eventHandler;
 
         // TODO NEMI: Handle pre API and on handle event
         public NormalisedInputType(
@@ -62,13 +63,15 @@ public class Utils {
                 String apiBasePath,
                 int sessionExpiredStatusCode,
                 String cookieDomain,
-                CustomHeaderProvider customHeaderMapper
+                CustomHeaderProvider customHeaderMapper,
+                EventHandler eventHandler
         ) {
             this.apiDomain = apiDomain;
             this.apiBasePath = apiBasePath;
             this.sessionExpiredStatusCode = sessionExpiredStatusCode;
             this.cookieDomain = cookieDomain;
             this.customHeaderMapper = customHeaderMapper;
+            this.eventHandler = eventHandler;
         }
 
         static String sessionScopeHelper(String sessionScope) throws MalformedURLException {
@@ -122,7 +125,8 @@ public class Utils {
                 @Nullable  String apiBasePath,
                 @Nullable  Integer sessionExpiredStatusCode,
                 @Nullable  String cookieDomain,
-                @Nullable CustomHeaderProvider customHeaderProvider
+                @Nullable CustomHeaderProvider customHeaderProvider,
+                @Nullable EventHandler eventHandler
         ) throws MalformedURLException {
             String _apiDomain = new NormalisedURLDomain(apiDomain).getAsStringDangerous();
             String _apiBasePath = new NormalisedURLPath("/auth").getAsStringDangerous();
@@ -146,7 +150,12 @@ public class Utils {
                 _customHeaderProvider = customHeaderProvider;
             }
 
-            return new NormalisedInputType(_apiDomain, _apiBasePath, _sessionExpiredStatusCode, _cookieDomain, _customHeaderProvider);
+            EventHandler _eventHandler = new EventHandler.DefaultEventHandler();
+            if (eventHandler != null) {
+                _eventHandler = eventHandler;
+            }
+
+            return new NormalisedInputType(_apiDomain, _apiBasePath, _sessionExpiredStatusCode, _cookieDomain, _customHeaderProvider, _eventHandler);
         }
     }
 

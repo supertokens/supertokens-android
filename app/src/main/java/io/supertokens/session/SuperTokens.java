@@ -48,7 +48,8 @@ public class SuperTokens {
             @Nullable String apiBasePath,
             @Nullable Integer sessionExpiredStatusCode,
             @Nullable String cookieDomain,
-            @Nullable CustomHeaderProvider customHeaderProvider
+            @Nullable CustomHeaderProvider customHeaderProvider,
+            @Nullable EventHandler eventHandler
     ) throws MalformedURLException {
         if ( SuperTokens.isInitCalled ) {
             return;
@@ -59,7 +60,8 @@ public class SuperTokens {
                 apiBasePath,
                 sessionExpiredStatusCode,
                 cookieDomain,
-                customHeaderProvider
+                customHeaderProvider,
+                eventHandler
         );
         contextWeakReference = new WeakReference<Context>(applicationContext);
         SuperTokens.refreshTokenUrl = SuperTokens.config.apiDomain + SuperTokens.config.apiBasePath + "/session/refresh";
@@ -94,6 +96,7 @@ public class SuperTokens {
     @SuppressWarnings("unused")
     public static HttpURLConnection signOut(Context context) throws IOException, IllegalAccessException {
         if (!doesSessionExist(context)) {
+            SuperTokens.config.eventHandler.handleEvent(EventHandler.EventType.SIGN_OUT, null);
             return null;
         }
 
