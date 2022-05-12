@@ -27,12 +27,12 @@ public interface EventHandler {
         UNAUTHORISED
     }
 
-    public void handleEvent(EventType eventType, @Nullable Boolean sessionExpiredOrRevoked);
+    public void handleEvent(EventType eventType);
 
     class DefaultEventHandler implements EventHandler {
 
         @Override
-        public void handleEvent(EventType eventType, @Nullable Boolean sessionExpiredOrRevoked) {
+        public void handleEvent(EventType eventType) {
             // Do nothing
         }
     }

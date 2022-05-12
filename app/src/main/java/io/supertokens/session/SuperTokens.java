@@ -96,7 +96,7 @@ public class SuperTokens {
     @SuppressWarnings("unused")
     public static HttpURLConnection signOut(Context context) throws IOException, IllegalAccessException {
         if (!doesSessionExist(context)) {
-            SuperTokens.config.eventHandler.handleEvent(EventHandler.EventType.SIGN_OUT, null);
+            SuperTokens.config.eventHandler.handleEvent(EventHandler.EventType.SIGN_OUT);
             return null;
         }
 

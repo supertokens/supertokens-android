@@ -58,14 +58,14 @@ class IdRefreshToken {
 
         if (idRefreshToken.equals("remove") && previousToken != null) {
             if (statusCode == SuperTokens.config.sessionExpiredStatusCode) {
-                SuperTokens.config.eventHandler.handleEvent(EventHandler.EventType.UNAUTHORISED, true);
+                SuperTokens.config.eventHandler.handleEvent(EventHandler.EventType.UNAUTHORISED);
             } else {
-                SuperTokens.config.eventHandler.handleEvent(EventHandler.EventType.SIGN_OUT, null);
+                SuperTokens.config.eventHandler.handleEvent(EventHandler.EventType.SIGN_OUT);
             }
         }
 
         if (!idRefreshToken.equals("remove") && previousToken == null) {
-            SuperTokens.config.eventHandler.handleEvent(EventHandler.EventType.SESSION_CREATED, null);
+            SuperTokens.config.eventHandler.handleEvent(EventHandler.EventType.SESSION_CREATED);
         }
     }
 

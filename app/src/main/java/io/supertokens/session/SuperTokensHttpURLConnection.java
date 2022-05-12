@@ -144,7 +144,7 @@ public class SuperTokensHttpURLConnection {
             refreshAPILock.writeLock().lock();
             String postLockIdRefreshToken = IdRefreshToken.getToken(applicationContext);
             if ( postLockIdRefreshToken == null ) {
-                SuperTokens.config.eventHandler.handleEvent(EventHandler.EventType.UNAUTHORISED, false);
+                SuperTokens.config.eventHandler.handleEvent(EventHandler.EventType.UNAUTHORISED);
                 return new Utils.Unauthorised(Utils.Unauthorised.UnauthorisedStatus.SESSION_EXPIRED);
             }
 
@@ -213,7 +213,7 @@ public class SuperTokensHttpURLConnection {
                 FrontToken.setToken(applicationContext, responseFrontToken);
             }
 
-            SuperTokens.config.eventHandler.handleEvent(EventHandler.EventType.REFRESH_SESSION, null);
+            SuperTokens.config.eventHandler.handleEvent(EventHandler.EventType.REFRESH_SESSION);
             return new Utils.Unauthorised(Utils.Unauthorised.UnauthorisedStatus.RETRY);
         } catch (Exception e) {
             IOException ioe = new IOException(e);
