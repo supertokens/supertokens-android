@@ -18,9 +18,11 @@
     <string name="supertokensAntiCSRFTokenKey">supertokens-android-anticsrf-key</string>
     <string name="supertokensSharedPrefsKey">supertokens-android-shared-preferences</string>
     <string name="supertokensIdRefreshSharedPrefsKey">supertokens-android-idrefreshtoken-key</string>
+    <string name="supertokensFrontTokenSharedPrefsKey">supertokens-android-fronttoken-key</string>
     <string name="app_name">SuperTokens Android</string>
     <string name="supertokensIdRefreshHeaderKey">id-refresh-token</string>
     <string name="supertokensAntiCSRFHeaderKey">anti-csrf</string>
+    <string name="supertokensFrontTokenHeaderKey">front-token</string>
     <string name="superTokensCookieSharedPrefsKey">supertokens-cookie-shared-prefs</string>
     <string name="supertokensUsageModeOkhttp">supertokens-usage-okhttp</string>
     <string name="supertokensUsageModeURLConn">supertokens-usage-httpurlconnection</string>

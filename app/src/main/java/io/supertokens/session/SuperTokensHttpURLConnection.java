@@ -19,6 +19,8 @@ package io.supertokens.session;
 import android.content.Context;
 import android.text.TextUtils;
 
+import org.json.JSONException;
+
 import java.io.IOException;
 import java.net.CookieManager;
 import java.net.HttpURLConnection;
@@ -114,6 +116,16 @@ public class SuperTokensHttpURLConnection {
                     if ( responseAntiCSRFToken != null ) {
                         AntiCSRF.setToken(applicationContext, IdRefreshToken.getToken(applicationContext), responseAntiCSRFToken);
                     }
+
+                    String responseFrontToken = connection.getHeaderField(applicationContext.getString(R.string.supertokensFrontTokenHeaderKey));
+                    if (responseFrontToken != null) {
+                        try {
+                            FrontToken.setToken(applicationContext, responseFrontToken);
+                        } catch (JSONException e) {
+                            // Should never come here
+                            throw new IOException(e);
+                        }
+                    }
                     return connection;
                 }
                 connection.disconnect();
@@ -121,6 +133,7 @@ public class SuperTokensHttpURLConnection {
         } finally {
             if ( IdRefreshToken.getToken(applicationContext) == null ) {
                 AntiCSRF.removeToken(applicationContext);
+                FrontToken.removeToken(applicationContext);
             }
         }
     }
@@ -209,6 +222,11 @@ public class SuperTokensHttpURLConnection {
                 AntiCSRF.setToken(applicationContext, IdRefreshToken.getToken(applicationContext), responseAntiCSRFToken);
             }
 
+            String responseFrontToken = refreshTokenConnection.getHeaderField(applicationContext.getString(R.string.supertokensFrontTokenHeaderKey));
+            if (responseFrontToken != null) {
+                FrontToken.setToken(applicationContext, responseFrontToken);
+            }
+
             return new Utils.Unauthorised(Utils.Unauthorised.UnauthorisedStatus.RETRY);
         } catch (Exception e) {
             IOException ioe = new IOException(e);
@@ -227,8 +245,15 @@ public class SuperTokensHttpURLConnection {
             if ( refreshTokenConnection != null ) {
                 refreshTokenConnection.disconnect();
             }
+
+            if (IdRefreshToken.getToken(applicationContext) == null) {
+                AntiCSRF.removeToken(applicationContext);
+                FrontToken.removeToken(applicationContext);
+            }
         }
     }
+
+
 
 //    /**
 //     *
