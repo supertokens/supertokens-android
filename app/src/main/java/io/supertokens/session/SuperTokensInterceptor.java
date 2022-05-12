@@ -190,10 +190,12 @@ public class SuperTokensInterceptor implements Interceptor {
             refreshRequestBuilder.header("rid", SuperTokens.rid);
             refreshRequestBuilder.header("fdi-version", Utils.join(Version.supported_fdi, ","));
 
-            // TODO NEMI: Replace this with pre API hook when implemented
-//            for (Map.Entry<String, String> entry : SuperTokens.refreshAPICustomHeaders.entrySet()) {
-//                refreshRequestBuilder.header(entry.getKey(), entry.getValue());
-//            }
+            Map<String, String> customRefreshHeaders = SuperTokens.config.customHeaderMapper.getRequestHeaders(CustomHeaderProvider.RequestType.REFRESH);
+            if (customRefreshHeaders != null) {
+                for (Map.Entry<String, String> entry : customRefreshHeaders.entrySet()) {
+                    refreshRequestBuilder.header(entry.getKey(), entry.getValue());
+                }
+            }
 
             Request refreshRequest = refreshRequestBuilder.build();
             refreshResponse = makeRequest(chain, refreshRequest);

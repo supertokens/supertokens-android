@@ -169,10 +169,12 @@ public class SuperTokensHttpURLConnection {
             refreshTokenConnection.setRequestProperty("rid", SuperTokens.rid);
             refreshTokenConnection.setRequestProperty("fdi-version", Utils.join(Version.supported_fdi, ","));
 
-            // TODO NEMI: Replace this with pre api hooks when implemented
-//            for (Map.Entry<String,String> entry: SuperTokens.refreshAPICustomHeaders.entrySet()) {
-//                refreshTokenConnection.setRequestProperty(entry.getKey(), entry.getValue());
-//            }
+            Map<String, String> customRefreshHeaders = SuperTokens.config.customHeaderMapper.getRequestHeaders(CustomHeaderProvider.RequestType.REFRESH);
+            if (customRefreshHeaders != null) {
+                for (Map.Entry<String, String> entry : customRefreshHeaders.entrySet()) {
+                    refreshTokenConnection.setRequestProperty(entry.getKey(), entry.getValue());
+                }
+            }
 
             if (CookieManager.getDefault() == null) {
                 throw new IllegalAccessException("Please initialise a CookieManager.\n" +
