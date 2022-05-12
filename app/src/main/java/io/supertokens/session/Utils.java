@@ -18,11 +18,8 @@ package io.supertokens.session;
 
 import androidx.annotation.Nullable;
 
-import org.jetbrains.annotations.TestOnly;
-
 import java.io.IOException;
 import java.net.MalformedURLException;
-import java.net.URI;
 
 public class Utils {
     static final String PACKAGE_PLATFORM = "android";
@@ -61,11 +58,6 @@ public class Utils {
             this.apiBasePath = apiBasePath;
             this.sessionExpiredStatusCode = sessionExpiredStatusCode;
         }
-
-//        @TestOnly
-//        public static String normaliseURLPathOrThrowError(String input) throws MalformedURLException {
-//            return new NormalisedURLPath(input).getAsStringDangerous();
-//        }
 
         public static NormalisedInputType normaliseInputOrThrowError(
                 String apiDomain,
