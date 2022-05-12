@@ -68,6 +68,7 @@ public class Utils {
             this.apiBasePath = apiBasePath;
             this.sessionExpiredStatusCode = sessionExpiredStatusCode;
             this.cookieDomain = cookieDomain;
+            this.customHeaderMapper = customHeaderMapper;
         }
 
         static String sessionScopeHelper(String sessionScope) throws MalformedURLException {
