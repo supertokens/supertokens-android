@@ -110,6 +110,8 @@ public class SuperTokensOkHttpTest {
         Mockito.when(context.getString(R.string.supertokensAntiCSRFTokenKey)).thenReturn("supertokens-android-anticsrf-key");
         Mockito.when(context.getString(R.string.supertokensAntiCSRFHeaderKey)).thenReturn("anti-csrf");
         Mockito.when(context.getString(R.string.supertokensIdRefreshHeaderKey)).thenReturn("id-refresh-token");
+        Mockito.when(context.getString(R.string.supertokensFrontTokenSharedPrefsKey)).thenReturn("supertokens-android-fronttoken-key");
+        Mockito.when(context.getString(R.string.supertokensFrontTokenHeaderKey)).thenReturn("front-token");
         OkHttpClient.Builder clientBuilder = new OkHttpClient.Builder();
         clientBuilder.interceptors().add(new SuperTokensInterceptor());
         clientBuilder.cookieJar(new PersistentCookieJar(new SetCookieCache(), new SharedPrefsCookiePersistor(context)));

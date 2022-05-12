@@ -36,6 +36,10 @@ android {
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
 
 }
 
@@ -54,5 +58,6 @@ dependencies {
     testImplementation 'com.github.franmontiel:PersistentCookieJar:v1.0.1'
     testImplementation 'com.squareup.retrofit2:retrofit:2.3.0'
     testImplementation 'com.squareup.retrofit2:converter-gson:2.3.0'
+    testImplementation 'org.json:json:20220320'
     compile files('../../app/build/outputs/aar/app-debug.aar')
 }

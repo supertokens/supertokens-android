@@ -20,6 +20,7 @@ import android.content.Context;
 import android.text.TextUtils;
 
 import org.jetbrains.annotations.NotNull;
+import org.json.JSONException;
 
 import java.io.IOException;
 import java.util.Map;
@@ -124,12 +125,18 @@ public class SuperTokensInterceptor implements Interceptor {
                     if (antiCSRF != null) {
                         AntiCSRF.setToken(applicationContext, IdRefreshToken.getToken(applicationContext), antiCSRF);
                     }
+
+                    String frontToken = response.header(applicationContext.getString(R.string.supertokensFrontTokenHeaderKey));
+                    if (frontToken != null) {
+                        FrontToken.setToken(applicationContext, frontToken);
+                    }
                     return response;
                 }
             }
         } finally {
             if (IdRefreshToken.getToken(applicationContext) == null) {
                 AntiCSRF.removeToken(applicationContext);
+                FrontToken.removeToken(applicationContext);
             }
         }
     }
@@ -214,6 +221,11 @@ public class SuperTokensInterceptor implements Interceptor {
                 AntiCSRF.setToken(applicationContext, IdRefreshToken.getToken(applicationContext), antiCSRF);
             }
 
+            String frontToken = refreshResponse.header(applicationContext.getString(R.string.supertokensFrontTokenHeaderKey));
+            if (frontToken != null) {
+                FrontToken.setToken(applicationContext, frontToken);
+            }
+
             return new Utils.Unauthorised(Utils.Unauthorised.UnauthorisedStatus.RETRY);
 
         } catch (Exception e) {
@@ -233,6 +245,11 @@ public class SuperTokensInterceptor implements Interceptor {
             refreshAPILock.writeLock().unlock();
             if (refreshResponse != null) {
                 refreshResponse.close();
+            }
+
+            if (IdRefreshToken.getToken(applicationContext) == null) {
+                AntiCSRF.removeToken(applicationContext);
+                FrontToken.removeToken(applicationContext);
             }
         }
     }
