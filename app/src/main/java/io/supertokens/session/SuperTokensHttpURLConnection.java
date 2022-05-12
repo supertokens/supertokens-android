@@ -217,7 +217,7 @@ public class SuperTokensHttpURLConnection {
             }
             String idRefreshToken = IdRefreshToken.getToken(applicationContext);
             if ( idRefreshToken == null ) {
-                return new Utils.Unauthorised(Utils.Unauthorised.UnauthorisedStatus.SESSION_EXPIRED, ioe);
+                return new Utils.Unauthorised(Utils.Unauthorised.UnauthorisedStatus.SESSION_EXPIRED);
             }
 
             return new Utils.Unauthorised(Utils.Unauthorised.UnauthorisedStatus.API_ERROR, ioe);
