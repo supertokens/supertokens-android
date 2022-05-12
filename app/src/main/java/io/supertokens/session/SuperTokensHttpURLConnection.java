@@ -17,6 +17,7 @@
 package io.supertokens.session;
 
 import android.content.Context;
+import android.text.TextUtils;
 
 import java.io.IOException;
 import java.net.CookieManager;
@@ -39,6 +40,15 @@ public class SuperTokensHttpURLConnection {
         if ( applicationContext == null ) {
             throw new IllegalAccessException("Context is null");
         }
+
+        boolean doNotDoInterception = !Utils.shouldDoInterceptionBasedOnUrl(url.toString(), SuperTokens.config.apiDomain, SuperTokens.config.cookieDomain);
+
+        if (doNotDoInterception) {
+            String errorMessage = "Trying to call newRequest with a URL that cannot be handled by SuperTokens.\n";
+            errorMessage += "If you are trying to use SuperTokens with multiple subdomains for your APIs, make sure you are setting cookieDomain in SuperTokens.init correctly";
+            throw new IllegalAccessException(errorMessage);
+        }
+
         try {
             while (true) {
                 HttpURLConnection connection;
@@ -56,10 +66,6 @@ public class SuperTokensHttpURLConnection {
                     if (antiCSRFToken != null) {
                         connection.setRequestProperty(applicationContext.getString(R.string.supertokensAntiCSRFHeaderKey), antiCSRFToken);
                     }
-
-                    // Add package information to headers
-                    connection.setRequestProperty(applicationContext.getString(R.string.supertokensNameHeaderKey), Utils.PACKAGE_PLATFORM);
-                    connection.setRequestProperty(applicationContext.getString(R.string.supertokensVersionHeaderKey), BuildConfig.VERSION_NAME);
 
                     // Get the default cookie manager that is used, if null set a new one
                     if (CookieManager.getDefault() == null) {
@@ -160,10 +166,9 @@ public class SuperTokensHttpURLConnection {
                 refreshTokenConnection.setRequestProperty(applicationContext.getString(R.string.supertokensAntiCSRFHeaderKey), antiCSRFToken);
             }
 
-            // Add package information to headers
-            refreshTokenConnection.setRequestProperty(applicationContext.getString(R.string.supertokensNameHeaderKey), Utils.PACKAGE_PLATFORM);
-            refreshTokenConnection.setRequestProperty(applicationContext.getString(R.string.supertokensVersionHeaderKey), BuildConfig.VERSION_NAME);
             refreshTokenConnection.setRequestProperty("rid", SuperTokens.rid);
+            refreshTokenConnection.setRequestProperty("fdi-version", Utils.join(Version.supported_fdi, ","));
+
             // TODO NEMI: Replace this with pre api hooks when implemented
 //            for (Map.Entry<String,String> entry: SuperTokens.refreshAPICustomHeaders.entrySet()) {
 //                refreshTokenConnection.setRequestProperty(entry.getKey(), entry.getValue());

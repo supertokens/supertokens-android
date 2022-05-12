@@ -17,6 +17,7 @@
 package io.supertokens.session;
 
 import android.content.Context;
+import android.text.TextUtils;
 
 import org.jetbrains.annotations.NotNull;
 
@@ -51,13 +52,20 @@ public class SuperTokensInterceptor implements Interceptor {
         }
 
         String requestUrl = chain.request().url().url().toString();
-        if (!SuperTokens.getApiDomain(requestUrl).equals(SuperTokens.config.apiDomain)) {
-            // The the api domain does not match we do not want to intercept. Return the response of the request.
+
+        boolean doNotDoInterception = !Utils.shouldDoInterceptionBasedOnUrl(requestUrl, SuperTokens.config.apiDomain, SuperTokens.config.cookieDomain);
+
+        if (doNotDoInterception) {
             return chain.proceed(chain.request());
         }
 
         if (requestUrl.equals(SuperTokens.refreshTokenUrl)) {
-            // We don't want to intercept calls to the refresh token endpoint. Return the response of the request.
+            /**
+             * We don't want to intercept calls to the refresh token endpoint. Return the response of the request.
+             *
+             * Note: This check is required in the case of okhttp because requests made internally get passed back to the
+             * interception chain
+             */
             return chain.proceed(chain.request());
         }
 
@@ -74,10 +82,6 @@ public class SuperTokensInterceptor implements Interceptor {
                     if (antiCSRFToken != null) {
                         requestBuilder.header(applicationContext.getString(R.string.supertokensAntiCSRFHeaderKey), antiCSRFToken);
                     }
-
-                    // Add package information to headers
-                    requestBuilder.header(applicationContext.getString(R.string.supertokensNameHeaderKey), Utils.PACKAGE_PLATFORM);
-                    requestBuilder.header(applicationContext.getString(R.string.supertokensVersionHeaderKey), BuildConfig.VERSION_NAME);
 
                     Request request = requestBuilder.build();
 
@@ -171,10 +175,9 @@ public class SuperTokensInterceptor implements Interceptor {
                 refreshRequestBuilder.header(applicationContext.getString(R.string.supertokensAntiCSRFHeaderKey), antiCSRFToken);
             }
 
-            // Add package information to headers
-            refreshRequestBuilder.header(applicationContext.getString(R.string.supertokensNameHeaderKey), Utils.PACKAGE_PLATFORM);
-            refreshRequestBuilder.header(applicationContext.getString(R.string.supertokensVersionHeaderKey), BuildConfig.VERSION_NAME);
             refreshRequestBuilder.header("rid", SuperTokens.rid);
+            refreshRequestBuilder.header("fdi-version", Utils.join(Version.supported_fdi, ","));
+
             // TODO NEMI: Replace this with pre API hook when implemented
 //            for (Map.Entry<String, String> entry : SuperTokens.refreshAPICustomHeaders.entrySet()) {
 //                refreshRequestBuilder.header(entry.getKey(), entry.getValue());
