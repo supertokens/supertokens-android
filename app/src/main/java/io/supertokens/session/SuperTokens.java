@@ -118,8 +118,7 @@ public class SuperTokens {
         }
 
         if (responseCode >= 300) {
-            // TODO: Is this the best way to handle errors?
-            return connection;
+            throw new IOException("Sign out failed with response code " + responseCode);
         }
 
         return null;
@@ -136,31 +135,40 @@ public class SuperTokens {
         return unauthorisedResponse.status == Utils.Unauthorised.UnauthorisedStatus.RETRY;
     }
 
-    public static String getUserId(Context context) throws JSONException, IOException {
+    public static String getUserId(Context context) {
         JSONObject tokenInfo = FrontToken.getTokenInfo(context);
         if (tokenInfo == null) {
-            throw new IOException("No session exists");
+            throw new IllegalStateException("No session exists");
         }
 
-        return tokenInfo.getString("uid");
+        try {
+            return tokenInfo.getString("uid");
+        } catch (JSONException e) {
+            throw new IllegalStateException(e);
+        }
     }
 
-    public static JSONObject getAccessTokenPayloadSecurely(Context context) throws JSONException, IOException {
+    public static JSONObject getAccessTokenPayloadSecurely(Context context) throws IOException {
         JSONObject tokenInfo = FrontToken.getTokenInfo(context);
         if (tokenInfo == null) {
-            throw new IOException("No session exists");
+            throw new IllegalStateException("No session exists");
         }
 
-        long accessTokenExpiry = tokenInfo.getLong("ate");
-        if (accessTokenExpiry < System.currentTimeMillis()) {
-            boolean retry = attemptRefreshingSession(context);
-            if (retry) {
-                return getAccessTokenPayloadSecurely(context);
-            } else {
-                throw new IOException("Could not refresh session");
+        try {
+            long accessTokenExpiry = tokenInfo.getLong("ate");
+
+            if (accessTokenExpiry < System.currentTimeMillis()) {
+                boolean retry = attemptRefreshingSession(context);
+                if (retry) {
+                    return getAccessTokenPayloadSecurely(context);
+                } else {
+                    throw new IOException("Could not refresh session");
+                }
             }
-        }
 
-        return tokenInfo.getJSONObject("up");
+            return tokenInfo.getJSONObject("up");
+        } catch (JSONException e) {
+            throw new IllegalStateException(e);
+        }
     }
 }
