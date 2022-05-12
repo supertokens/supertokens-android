@@ -16,9 +16,12 @@
 
 package io.supertokens.session;
 
-import java.io.IOException;
+import androidx.annotation.Nullable;
 
-class Utils {
+import java.io.IOException;
+import java.net.MalformedURLException;
+
+public class Utils {
     static final String PACKAGE_PLATFORM = "android";
     static class Unauthorised {
         UnauthorisedStatus status;
@@ -37,6 +40,44 @@ class Utils {
         Unauthorised(UnauthorisedStatus status, IOException error) {
             this.status = status;
             this.error = error;
+        }
+    }
+
+    public static class NormalisedInputType {
+        String apiDomain;
+        String apiBasePath;
+        int sessionExpiredStatusCode;
+
+        // TODO NEMI: Handle pre API and on handle event
+        public NormalisedInputType(
+                String apiDomain,
+                String apiBasePath,
+                int sessionExpiredStatusCode
+        ) {
+            this.apiDomain = apiDomain;
+            this.apiBasePath = apiBasePath;
+            this.sessionExpiredStatusCode = sessionExpiredStatusCode;
+        }
+
+        public static NormalisedInputType normaliseInputOrThrowError(
+                String apiDomain,
+                @Nullable  String apiBasePath,
+                @Nullable  Integer sessionExpiredStatusCode,
+                @Nullable  String cookieDomain
+        ) throws MalformedURLException {
+            String _apiDomain = new NormalisedURLDomain(apiDomain).getAsStringDangerous();
+            String _apiBasePath = new NormalisedURLPath("/auth").getAsStringDangerous();
+
+            if (apiBasePath != null) {
+                _apiBasePath = new NormalisedURLPath(apiBasePath).getAsStringDangerous();
+            }
+
+            int _sessionExpiredStatusCode = 401;
+            if (sessionExpiredStatusCode != null) {
+                _sessionExpiredStatusCode = sessionExpiredStatusCode;
+            }
+
+            return new NormalisedInputType(_apiDomain, _apiBasePath, _sessionExpiredStatusCode);
         }
     }
 }
