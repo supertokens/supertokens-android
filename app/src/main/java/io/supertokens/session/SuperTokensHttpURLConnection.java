@@ -40,6 +40,21 @@ public class SuperTokensHttpURLConnection {
         if ( applicationContext == null ) {
             throw new IllegalAccessException("Context is null");
         }
+
+        boolean doNotDoInterception = !Utils.shouldDoInterceptionBasedOnUrl(url.toString(), SuperTokens.config.apiDomain, SuperTokens.config.cookieDomain);
+
+        if (doNotDoInterception) {
+            HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+
+            // TODO NEMI: Replace this with pre api hook when implemented. This also means we need to have a non superotkens pre API hook action for HTTPURLConnection
+            if (preConnectCallback != null) {
+                preConnectCallback.doAction(connection);
+            }
+
+            connection.connect();
+            return connection;
+        }
+
         try {
             while (true) {
                 HttpURLConnection connection;

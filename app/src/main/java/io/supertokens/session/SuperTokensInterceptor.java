@@ -52,13 +52,20 @@ public class SuperTokensInterceptor implements Interceptor {
         }
 
         String requestUrl = chain.request().url().url().toString();
-        if (!SuperTokens.getApiDomain(requestUrl).equals(SuperTokens.config.apiDomain)) {
-            // The the api domain does not match we do not want to intercept. Return the response of the request.
+
+        boolean doNotDoInterception = !Utils.shouldDoInterceptionBasedOnUrl(requestUrl, SuperTokens.config.apiDomain, SuperTokens.config.cookieDomain);
+
+        if (doNotDoInterception) {
             return chain.proceed(chain.request());
         }
 
         if (requestUrl.equals(SuperTokens.refreshTokenUrl)) {
-            // We don't want to intercept calls to the refresh token endpoint. Return the response of the request.
+            /**
+             * We don't want to intercept calls to the refresh token endpoint. Return the response of the request.
+             *
+             * Note: This check is required in the case of okhttp because requests made internally get passed back to the
+             * interception chain
+             */
             return chain.proceed(chain.request());
         }
 

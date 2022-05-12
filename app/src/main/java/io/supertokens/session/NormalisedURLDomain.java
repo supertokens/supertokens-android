@@ -50,20 +50,14 @@ public class NormalisedURLDomain {
 
             URL urlObj = new URL(trimmedInput);
 
-            String portSuffix = "";
-
-            if (urlObj.getPort() != -1) {
-                portSuffix = ":" + urlObj.getPort();
-            }
-
             if (ignoreProtocol) {
                 if (urlObj.getHost().startsWith("localhost") || isAnIpAddress(urlObj.getHost())) {
-                    output = "http://" + urlObj.getHost() + portSuffix;
+                    output = "http://" + Utils.getHostWithProtocolFromURL(urlObj);
                 } else {
-                    output = "https://" + urlObj.getHost() + portSuffix;
+                    output = "https://" + Utils.getHostWithProtocolFromURL(urlObj);
                 }
             } else {
-                output = urlObj.getProtocol() + "://" + urlObj.getHost() + portSuffix;
+                output = urlObj.getProtocol() + "://" + Utils.getHostWithProtocolFromURL(urlObj);
             }
 
             return output;
