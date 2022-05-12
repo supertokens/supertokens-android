@@ -21,6 +21,7 @@ import java.util.Map;
 public interface CustomHeaderProvider {
     public enum RequestType {
         REFRESH,
+        SIGN_OUT
     }
 
     public Map<String, String> getRequestHeaders(RequestType requestType);

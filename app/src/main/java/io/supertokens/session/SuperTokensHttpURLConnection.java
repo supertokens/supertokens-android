@@ -137,7 +137,7 @@ public class SuperTokensHttpURLConnection {
         }
     }
 
-    private static Utils.Unauthorised onUnauthorisedResponse(String preRequestIdRefreshToken, Context applicationContext) {
+    static Utils.Unauthorised onUnauthorisedResponse(String preRequestIdRefreshToken, Context applicationContext) {
         // this is intentionally not put in a loop because the loop in other projects is because locking has a timeout
         HttpURLConnection refreshTokenConnection = null;
         try {

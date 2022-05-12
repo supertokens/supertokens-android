@@ -21,9 +21,16 @@ import android.content.Context;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
+import org.json.JSONException;
+import org.json.JSONObject;
+
+import java.io.IOException;
 import java.lang.ref.WeakReference;
+import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
+import java.net.URL;
 import java.util.ArrayList;
+import java.util.Map;
 
 public class SuperTokens {
     static String refreshTokenUrl;
@@ -82,5 +89,78 @@ public class SuperTokens {
     public static boolean doesSessionExist(Context context) {
         String idRefreshToken = IdRefreshToken.getToken(context);
         return idRefreshToken != null;
+    }
+
+    @SuppressWarnings("unused")
+    public static HttpURLConnection signOut(Context context) throws IOException, IllegalAccessException {
+        if (!doesSessionExist(context)) {
+            return null;
+        }
+
+        URL signOutUrl = new URL(SuperTokens.signOutUrl);
+        HttpURLConnection connection = SuperTokensHttpURLConnection.newRequest(signOutUrl, new SuperTokensHttpURLConnection.PreConnectCallback() {
+            @Override
+            public void doAction(HttpURLConnection con) throws IOException {
+                Map<String, String> customHeaders = SuperTokens.config.customHeaderMapper.getRequestHeaders(CustomHeaderProvider.RequestType.SIGN_OUT);
+                if (customHeaders != null) {
+                    for (Map.Entry<String, String> entry : customHeaders.entrySet()) {
+                        con.setRequestProperty(entry.getKey(), entry.getValue());
+                    }
+                }
+            }
+        });
+
+        int responseCode = connection.getResponseCode();
+
+        if (responseCode == SuperTokens.config.sessionExpiredStatusCode) {
+            // refresh must have already sent session expiry event
+            return null;
+        }
+
+        if (responseCode >= 300) {
+            // TODO: Is this the best way to handle errors?
+            return connection;
+        }
+
+        return null;
+    }
+
+    public static boolean attemptRefreshingSession(Context context) throws IOException {
+        String preRequestIdRefreshToken = IdRefreshToken.getToken(context);
+        Utils.Unauthorised unauthorisedResponse = SuperTokensHttpURLConnection.onUnauthorisedResponse(preRequestIdRefreshToken, context);
+
+        if (unauthorisedResponse.status == Utils.Unauthorised.UnauthorisedStatus.API_ERROR) {
+            throw unauthorisedResponse.error;
+        }
+
+        return unauthorisedResponse.status == Utils.Unauthorised.UnauthorisedStatus.RETRY;
+    }
+
+    public static String getUserId(Context context) throws JSONException, IOException {
+        JSONObject tokenInfo = FrontToken.getTokenInfo(context);
+        if (tokenInfo == null) {
+            throw new IOException("No session exists");
+        }
+
+        return tokenInfo.getString("uid");
+    }
+
+    public static JSONObject getAccessTokenPayloadSecurely(Context context) throws JSONException, IOException {
+        JSONObject tokenInfo = FrontToken.getTokenInfo(context);
+        if (tokenInfo == null) {
+            throw new IOException("No session exists");
+        }
+
+        long accessTokenExpiry = tokenInfo.getLong("ate");
+        if (accessTokenExpiry < System.currentTimeMillis()) {
+            boolean retry = attemptRefreshingSession(context);
+            if (retry) {
+                return getAccessTokenPayloadSecurely(context);
+            } else {
+                throw new IOException("Could not refresh session");
+            }
+        }
+
+        return tokenInfo.getJSONObject("up");
     }
 }

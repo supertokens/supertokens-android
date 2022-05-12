@@ -61,7 +61,7 @@ public class FrontToken {
         return jsonObject;
     }
 
-    private static JSONObject getTokenInfo(Context context) throws JSONException {
+    static JSONObject getTokenInfo(Context context) throws JSONException {
         synchronized (tokenLock) {
             while (true) {
                 String frontToken = getFrontToken(context);
