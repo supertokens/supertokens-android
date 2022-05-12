@@ -20,6 +20,8 @@ import androidx.annotation.Nullable;
 
 import java.io.IOException;
 import java.net.MalformedURLException;
+import java.util.AbstractCollection;
+import java.util.Iterator;
 
 public class Utils {
     static final String PACKAGE_PLATFORM = "android";
@@ -79,5 +81,16 @@ public class Utils {
 
             return new NormalisedInputType(_apiDomain, _apiBasePath, _sessionExpiredStatusCode);
         }
+    }
+
+    public static String join(AbstractCollection<String> s, String delimiter) {
+        if (s == null || s.isEmpty()) return "";
+        Iterator<String> iter = s.iterator();
+        StringBuilder builder = new StringBuilder(iter.next());
+        while( iter.hasNext() )
+        {
+            builder.append(delimiter).append(iter.next());
+        }
+        return builder.toString();
     }
 }

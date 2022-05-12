@@ -169,7 +169,7 @@ public class SuperTokensInterceptor implements Interceptor {
             }
 
             refreshRequestBuilder.header("rid", SuperTokens.rid);
-            refreshRequestBuilder.header("fdi-version", TextUtils.join(",", Version.supported_fdi));
+            refreshRequestBuilder.header("fdi-version", Utils.join(Version.supported_fdi, ","));
 
             // TODO NEMI: Replace this with pre API hook when implemented
 //            for (Map.Entry<String, String> entry : SuperTokens.refreshAPICustomHeaders.entrySet()) {

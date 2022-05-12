@@ -72,7 +72,7 @@ public class SuperTokens {
                     throw new MalformedURLException("Invalid URL provided for refresh token endpoint");
                 }
             }
-            return join(apiDomainArray, "/");
+            return Utils.join(apiDomainArray, "/");
         } else {
             throw new MalformedURLException("Refresh token endpoint must start with http or https");
         }
@@ -82,16 +82,5 @@ public class SuperTokens {
     public static boolean doesSessionExist(Context context) {
         String idRefreshToken = IdRefreshToken.getToken(context);
         return idRefreshToken != null;
-    }
-
-    private static String join(AbstractCollection<String> s, String delimiter) {
-        if (s == null || s.isEmpty()) return "";
-        Iterator<String> iter = s.iterator();
-        StringBuilder builder = new StringBuilder(iter.next());
-        while( iter.hasNext() )
-        {
-            builder.append(delimiter).append(iter.next());
-        }
-        return builder.toString();
     }
 }
