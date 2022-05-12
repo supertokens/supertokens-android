@@ -103,8 +103,12 @@ public class SuperTokensHttpURLConnection {
 
                 if (responseCode == SuperTokens.config.sessionExpiredStatusCode) {
                     // Network call threw UnauthorisedAccess, try to call the refresh token endpoint and retry original call
-                    boolean retry = SuperTokensHttpURLConnection.handleUnauthorised(applicationContext, preRequestIdRefreshToken);
-                    if (!retry) {
+                    Utils.Unauthorised unauthorisedResponse = SuperTokensHttpURLConnection.onUnauthorisedResponse(preRequestIdRefreshToken, applicationContext);
+                    if (unauthorisedResponse.status != Utils.Unauthorised.UnauthorisedStatus.RETRY) {
+                        if (unauthorisedResponse.error != null) {
+                            throw unauthorisedResponse.error;
+                        }
+
                         return connection;
                     }
                 } else if (responseCode == -1) {
@@ -138,24 +142,7 @@ public class SuperTokensHttpURLConnection {
         }
     }
 
-    private static boolean handleUnauthorised(Context applicationContext, String preRequestIdRefreshToken) throws IOException {
-        if ( preRequestIdRefreshToken == null ) {
-            String idRefreshToken = IdRefreshToken.getToken(applicationContext);
-            return idRefreshToken != null;
-        }
-
-        Utils.Unauthorised unauthorisedResponse = onUnauthorisedResponse(SuperTokens.refreshTokenUrl,preRequestIdRefreshToken, applicationContext);
-
-        if ( unauthorisedResponse.status == Utils.Unauthorised.UnauthorisedStatus.SESSION_EXPIRED ) {
-            return false;
-        } else if (unauthorisedResponse.status == Utils.Unauthorised.UnauthorisedStatus.API_ERROR) {
-            throw unauthorisedResponse.error;
-        }
-
-        return true;
-    }
-
-    private static Utils.Unauthorised onUnauthorisedResponse(String refreshTokenEndpoint, String preRequestIdRefreshToken, Context applicationContext) {
+    private static Utils.Unauthorised onUnauthorisedResponse(String preRequestIdRefreshToken, Context applicationContext) {
         // this is intentionally not put in a loop because the loop in other projects is because locking has a timeout
         HttpURLConnection refreshTokenConnection = null;
         try {
@@ -169,7 +156,7 @@ public class SuperTokensHttpURLConnection {
                 return new Utils.Unauthorised(Utils.Unauthorised.UnauthorisedStatus.RETRY);
             }
 
-            URL refreshTokenUrl = new URL(refreshTokenEndpoint);
+            URL refreshTokenUrl = new URL(SuperTokens.refreshTokenUrl);
             refreshTokenConnection = (HttpURLConnection) refreshTokenUrl.openConnection();
             refreshTokenConnection.setRequestMethod("POST");
 
@@ -207,7 +194,7 @@ public class SuperTokensHttpURLConnection {
                 IdRefreshToken.setToken(applicationContext, "remove");
             }
 
-            if (responseCode < 200 || responseCode >= 300) {
+            if (responseCode >= 300) {
                 throw new IOException(refreshTokenConnection.getResponseMessage());
             }
 
@@ -235,7 +222,7 @@ public class SuperTokensHttpURLConnection {
             }
             String idRefreshToken = IdRefreshToken.getToken(applicationContext);
             if ( idRefreshToken == null ) {
-                return new Utils.Unauthorised(Utils.Unauthorised.UnauthorisedStatus.SESSION_EXPIRED);
+                return new Utils.Unauthorised(Utils.Unauthorised.UnauthorisedStatus.SESSION_EXPIRED, ioe);
             }
 
             return new Utils.Unauthorised(Utils.Unauthorised.UnauthorisedStatus.API_ERROR, ioe);
