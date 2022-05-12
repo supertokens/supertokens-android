@@ -137,7 +137,7 @@ public class SuperTokensHttpURLConnection {
         }
     }
 
-    private static Utils.Unauthorised onUnauthorisedResponse(String preRequestIdRefreshToken, Context applicationContext) {
+    static Utils.Unauthorised onUnauthorisedResponse(String preRequestIdRefreshToken, Context applicationContext) {
         // this is intentionally not put in a loop because the loop in other projects is because locking has a timeout
         HttpURLConnection refreshTokenConnection = null;
         try {
@@ -236,35 +236,6 @@ public class SuperTokensHttpURLConnection {
             }
         }
     }
-
-
-
-//    /**
-//     *
-//     * @return
-//     * @throws {@link IllegalAccessException} if SuperTokens.init is not called or application context is null
-//     * @throws {@link IOException} if request fails
-//     */
-//    public static boolean attemptRefreshingSession() throws IllegalAccessException, IOException {
-//        if ( !SuperTokens.isInitCalled ) {
-//            throw new IllegalAccessException("SuperTokens.init function needs to be called before using attemptRefreshingSession");
-//        }
-//
-//        Context applicationContext = SuperTokens.contextWeakReference.get();
-//        if ( applicationContext == null ) {
-//            throw new IllegalAccessException("Context is null");
-//        }
-//
-//        try {
-//            String preRequestIdRefreshToken = IdRefreshToken.getToken(applicationContext);
-//            return handleUnauthorised(applicationContext, preRequestIdRefreshToken);
-//        } finally {
-//            String idRefreshToken = IdRefreshToken.getToken(applicationContext);
-//            if ( idRefreshToken == null ) {
-//                AntiCSRF.removeToken(applicationContext);
-//            }
-//        }
-//    }
 
     public interface PreConnectCallback {
         void doAction(HttpURLConnection con) throws IOException;

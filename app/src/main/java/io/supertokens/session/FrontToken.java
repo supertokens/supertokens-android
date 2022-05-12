@@ -56,12 +56,16 @@ public class FrontToken {
         return getFrontTokenFromStorage(context);
     }
 
-    private static JSONObject parseFrontToken(String frontTokenDecoded) throws JSONException {
-        JSONObject jsonObject = new JSONObject(new String(Base64.decode(frontTokenDecoded, Base64.DEFAULT), Charset.forName("UTF-8")));
-        return jsonObject;
+    private static JSONObject parseFrontToken(String frontTokenDecoded) {
+        try {
+            JSONObject jsonObject = new JSONObject(new String(Base64.decode(frontTokenDecoded, Base64.DEFAULT), Charset.forName("UTF-8")));
+            return jsonObject;
+        } catch (JSONException e) {
+            throw new IllegalStateException(e);
+        }
     }
 
-    private static JSONObject getTokenInfo(Context context) throws JSONException {
+    static JSONObject getTokenInfo(Context context) {
         synchronized (tokenLock) {
             while (true) {
                 String frontToken = getFrontToken(context);
@@ -92,15 +96,19 @@ public class FrontToken {
         frontTokenInMemory = frontToken;
     }
 
-    private static void setFrontToken(Context context, String frontToken) throws JSONException {
+    private static void setFrontToken(Context context, String frontToken) {
         String oldToken = getFrontTokenFromStorage(context);
 
         if (oldToken != null && frontToken != null) {
-            JSONObject oldPayload = parseFrontToken(oldToken).getJSONObject("up");
-            JSONObject newPayload = parseFrontToken(frontToken).getJSONObject("up");
+            try {
+                JSONObject oldPayload = parseFrontToken(oldToken).getJSONObject("up");
+                JSONObject newPayload = parseFrontToken(frontToken).getJSONObject("up");
 
-            if (!oldPayload.toString().equals(newPayload.toString())) {
-                // TODO NEMI: CALL ON HANDLE EVENT
+                if (!oldPayload.toString().equals(newPayload.toString())) {
+                    // TODO NEMI: CALL ON HANDLE EVENT
+                }
+            } catch (JSONException e) {
+                throw new IllegalStateException(e);
             }
         }
 
@@ -121,15 +129,10 @@ public class FrontToken {
         }
     }
 
-    public static void setToken(Context context, String frontToken) throws IOException {
+    public static void setToken(Context context, String frontToken) {
         synchronized (tokenLock) {
-            try {
-                setFrontToken(context, frontToken);
-            } catch (JSONException e) {
-                throw new IOException(e);
-            } finally {
-                tokenLock.notifyAll();
-            }
+            setFrontToken(context, frontToken);
+            tokenLock.notifyAll();
         }
     }
 
