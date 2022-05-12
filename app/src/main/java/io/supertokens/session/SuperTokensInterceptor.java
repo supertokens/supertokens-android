@@ -75,10 +75,6 @@ public class SuperTokensInterceptor implements Interceptor {
                         requestBuilder.header(applicationContext.getString(R.string.supertokensAntiCSRFHeaderKey), antiCSRFToken);
                     }
 
-                    // Add package information to headers
-                    requestBuilder.header(applicationContext.getString(R.string.supertokensNameHeaderKey), Utils.PACKAGE_PLATFORM);
-                    requestBuilder.header(applicationContext.getString(R.string.supertokensVersionHeaderKey), BuildConfig.VERSION_NAME);
-
                     Request request = requestBuilder.build();
 
                     if (request.header("rid") == null) {
@@ -171,9 +167,6 @@ public class SuperTokensInterceptor implements Interceptor {
                 refreshRequestBuilder.header(applicationContext.getString(R.string.supertokensAntiCSRFHeaderKey), antiCSRFToken);
             }
 
-            // Add package information to headers
-            refreshRequestBuilder.header(applicationContext.getString(R.string.supertokensNameHeaderKey), Utils.PACKAGE_PLATFORM);
-            refreshRequestBuilder.header(applicationContext.getString(R.string.supertokensVersionHeaderKey), BuildConfig.VERSION_NAME);
             refreshRequestBuilder.header("rid", SuperTokens.rid);
             // TODO NEMI: Replace this with pre API hook when implemented
 //            for (Map.Entry<String, String> entry : SuperTokens.refreshAPICustomHeaders.entrySet()) {

@@ -22,9 +22,6 @@
     <string name="supertokensIdRefreshHeaderKey">id-refresh-token</string>
     <string name="supertokensAntiCSRFHeaderKey">anti-csrf</string>
     <string name="superTokensCookieSharedPrefsKey">supertokens-cookie-shared-prefs</string>
-    <string name="superTokensCookieNameStoreKey">supertokens-cookie-names</string>
     <string name="supertokensUsageModeOkhttp">supertokens-usage-okhttp</string>
     <string name="supertokensUsageModeURLConn">supertokens-usage-httpurlconnection</string>
-    <string name="supertokensNameHeaderKey">supertokens-sdk-name</string>
-    <string name="supertokensVersionHeaderKey">supertokens-sdk-version</string>
 </resources>

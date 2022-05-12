@@ -57,10 +57,6 @@ public class SuperTokensHttpURLConnection {
                         connection.setRequestProperty(applicationContext.getString(R.string.supertokensAntiCSRFHeaderKey), antiCSRFToken);
                     }
 
-                    // Add package information to headers
-                    connection.setRequestProperty(applicationContext.getString(R.string.supertokensNameHeaderKey), Utils.PACKAGE_PLATFORM);
-                    connection.setRequestProperty(applicationContext.getString(R.string.supertokensVersionHeaderKey), BuildConfig.VERSION_NAME);
-
                     // Get the default cookie manager that is used, if null set a new one
                     if (CookieManager.getDefault() == null) {
                         // Passing null for cookie policy to use default
@@ -160,9 +156,6 @@ public class SuperTokensHttpURLConnection {
                 refreshTokenConnection.setRequestProperty(applicationContext.getString(R.string.supertokensAntiCSRFHeaderKey), antiCSRFToken);
             }
 
-            // Add package information to headers
-            refreshTokenConnection.setRequestProperty(applicationContext.getString(R.string.supertokensNameHeaderKey), Utils.PACKAGE_PLATFORM);
-            refreshTokenConnection.setRequestProperty(applicationContext.getString(R.string.supertokensVersionHeaderKey), BuildConfig.VERSION_NAME);
             refreshTokenConnection.setRequestProperty("rid", SuperTokens.rid);
             // TODO NEMI: Replace this with pre api hooks when implemented
 //            for (Map.Entry<String,String> entry: SuperTokens.refreshAPICustomHeaders.entrySet()) {
