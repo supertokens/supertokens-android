@@ -44,16 +44,6 @@ public class FrontToken {
             return null;
         }
 
-        // TODO NEMI: Check for expiry
-        String[] split = frontTokenInMemory.split(";");
-
-        if (split.length == 0) {
-            return null;
-        }
-
-        String value = null;
-        long expiry = 0;
-
         HttpCookie cookie = HttpCookie.parse(frontTokenInMemory).get(0);
 
         if (cookie.hasExpired()) {
