@@ -1,4 +1,5 @@
 apply plugin: 'com.android.library'
+apply plugin: 'maven-publish'
 def publishVersionID = '0.1.0'
 
 android {
