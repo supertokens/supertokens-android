@@ -21,6 +21,20 @@ android {
     testOptions {
         unitTests.returnDefaultValues = true
     }
+
+    afterEvaluate {
+        publishing {
+            publications {
+                release(MavenPublication) {
+                    groupId = 'com.supertokens'
+                    artifactId = 'session'
+                    version = '0.1.0'
+
+                    from components.release
+                }
+            }
+        }
+    }
 }
 
 dependencies {
