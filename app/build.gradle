@@ -1,26 +1,11 @@
 apply plugin: 'com.android.library'
-def publishVersionID = '1.2.1'
-
-//publish {
-//
-//    def groupProjectID = 'io.supertokens'
-//    def artifactProjectID = 'session'
-//
-//    userOrg = 'supertokens'
-//    repoName = 'SuperTokensAndroid'
-//    groupId = groupProjectID
-//    artifactId = artifactProjectID
-//    publishVersion = publishVersionID
-//    desc = 'SuperTokens session management implementation for Android apps'
-//    website = 'https://github.com/supertokens/supertokens-android'
-//
-//}
+def publishVersionID = '0.1.0'
 
 android {
-    compileSdkVersion 30
+    compileSdkVersion 32
     defaultConfig {
         minSdkVersion 17
-        targetSdkVersion 30
+        targetSdkVersion 32
         versionCode 1
         versionName publishVersionID
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
