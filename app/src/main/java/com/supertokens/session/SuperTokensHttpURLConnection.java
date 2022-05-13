@@ -17,11 +17,14 @@
 package com.supertokens.session;
 
 import android.content.Context;
+import android.util.Log;
 
 import java.io.IOException;
 import java.net.CookieManager;
+import java.net.HttpCookie;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
@@ -86,6 +89,28 @@ public class SuperTokensHttpURLConnection {
                     }
 
                     connection.connect();
+
+                    List<String> cookies = connection.getHeaderFields().get("Set-Cookie");
+
+                    if (cookies != null) {
+                        for (int i = 0; i < cookies.size(); i++) {
+                            HttpCookie currentCookie = HttpCookie.parse(cookies.get(i)).get(0);
+
+                            String pathToUse = "/";
+
+                            if (currentCookie.getPath() == null) {
+                                currentCookie.setPath(pathToUse);
+                            } else {
+                                pathToUse = currentCookie.getPath();
+                            }
+
+                            String urlDomain = new NormalisedURLDomain(url.toString()).getAsStringDangerous();
+
+                            URL urlToUse = new URL(urlDomain + pathToUse);
+
+                            Log.e("SUPERTOKENS LOGS", "Cookie Name: " + currentCookie.getName() + "::: Cookie path: " + currentCookie.getPath() + ":::: Path to use" + pathToUse);
+                        }
+                    }
 
                     responseCode = connection.getResponseCode();
 
