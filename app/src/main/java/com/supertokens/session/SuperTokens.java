@@ -104,6 +104,7 @@ public class SuperTokens {
         HttpURLConnection connection = SuperTokensHttpURLConnection.newRequest(signOutUrl, new SuperTokensHttpURLConnection.PreConnectCallback() {
             @Override
             public void doAction(HttpURLConnection con) throws IOException {
+                con.setRequestMethod("POST");
                 Map<String, String> customHeaders = SuperTokens.config.customHeaderMapper.getRequestHeaders(CustomHeaderProvider.RequestType.SIGN_OUT);
                 if (customHeaders != null) {
                     for (Map.Entry<String, String> entry : customHeaders.entrySet()) {
