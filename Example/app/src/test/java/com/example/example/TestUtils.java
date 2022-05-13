@@ -16,6 +16,7 @@
 
 package com.example;
 
+import com.example.example.Constants;
 import com.google.gson.Gson;
 
 import java.io.BufferedReader;
@@ -25,7 +26,7 @@ import java.lang.reflect.Field;
 import java.net.HttpURLConnection;
 import java.net.URL;
 
-import io.supertokens.session.SuperTokens;
+import com.supertokens.session.SuperTokens;
 import okhttp3.MediaType;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
@@ -34,17 +35,17 @@ import okhttp3.Response;
 
 public class TestUtils {
 
-    private static final String testBaseURL = "http://127.0.0.1:8080/";
+    private static final String testBaseURL = Constants.apiDomain;
     private static final String beforeEachAPIURL = testBaseURL + "beforeeach";
     private static final String afterAPIURL = testBaseURL + "after";
     private static final String startSTAPIURL = testBaseURL + "startst";
     private static final String stopAPIURL = testBaseURL + "stop";
-    private static final String refreshCounterAPIURL = testBaseURL + "refreshCounter";
+    private static final String refreshCounterAPIURL = testBaseURL + "refreshCalledTime";
 
-    public static final String VERSION_NAME = "1.2.0";
+    public static final String VERSION_NAME = "1.2.1";
 
     public static void setInitToFalse() throws NoSuchFieldException, IllegalAccessException, ClassNotFoundException {
-            Class<?> forName = Class.forName("io.supertokens.session.SuperTokens");
+            Class<?> forName = Class.forName("com.supertokens.session.SuperTokens");
             Field[] declaredFields = forName.getDeclaredFields();
             for (Field field : declaredFields) {
                 if (field.getName().equals("isInitCalled")) {
@@ -127,9 +128,8 @@ public class TestUtils {
         }
 
         String body = response.body().string();
-        GetRefreshCounterResponse counterResponse = new Gson().fromJson(body, GetRefreshCounterResponse.class);
         response.close();
-        return counterResponse.counter;
+        return Integer.parseInt(body);
     }
 
     public static String getBodyFromConnection(HttpURLConnection connection) throws IOException{

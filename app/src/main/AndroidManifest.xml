@@ -15,7 +15,7 @@
   -->
 
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-          package="io.supertokens.session">
+          package="com.supertokens.session">
 
     <application android:allowBackup="true"
                  android:label="@string/app_name"

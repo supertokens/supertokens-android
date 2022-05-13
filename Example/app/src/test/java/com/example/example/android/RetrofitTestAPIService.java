@@ -14,16 +14,22 @@
  * under the License.
  */
 
-package io.supertokens.session.android;
+package com.supertokens.session.android;
 
 import com.example.TestUtils;
+import com.google.gson.JsonObject;
+
 import okhttp3.ResponseBody;
 import retrofit2.Call;
 import retrofit2.http.*;
 
 public interface RetrofitTestAPIService {
     @POST("login")
-    Call<Void> login();
+    @Headers({
+            "Content-Type: application/json",
+            "Accept: application/json"
+    })
+    Call<Void> login(@Body JsonObject body);
 
     @GET("userInfo")
     Call<ResponseBody> userInfo();
@@ -47,7 +53,7 @@ public interface RetrofitTestAPIService {
     @GET("checkDeviceInfo")
     Call<ResponseBody> checkDeviceInfo();
 
-    @GET("testPing")
+    @GET("ping")
     Call<ResponseBody> testPing();
 
     @GET("testError")

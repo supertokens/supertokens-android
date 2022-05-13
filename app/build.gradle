@@ -1,31 +1,12 @@
 apply plugin: 'com.android.library'
-
-apply plugin: 'com.novoda.bintray-release'
-
-apply plugin: 'com.android.library'
-
-def publishVersionID = '1.2.0'
-
-publish {
-
-    def groupProjectID = 'io.supertokens'
-    def artifactProjectID = 'session'
-
-    userOrg = 'supertokens'
-    repoName = 'SuperTokensAndroid'
-    groupId = groupProjectID
-    artifactId = artifactProjectID
-    publishVersion = publishVersionID
-    desc = 'SuperTokens session management implementation for Android apps'
-    website = 'https://github.com/supertokens/supertokens-android'
-
-}
+apply plugin: 'maven-publish'
+def publishVersionID = '0.1.0'
 
 android {
-    compileSdkVersion 28
+    compileSdkVersion 32
     defaultConfig {
         minSdkVersion 17
-        targetSdkVersion 28
+        targetSdkVersion 32
         versionCode 1
         versionName publishVersionID
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
@@ -39,6 +20,20 @@ android {
 
     testOptions {
         unitTests.returnDefaultValues = true
+    }
+
+    afterEvaluate {
+        publishing {
+            publications {
+                release(MavenPublication) {
+                    groupId = 'com.supertokens'
+                    artifactId = 'session'
+                    version = '0.1.0'
+
+                    from components.release
+                }
+            }
+        }
     }
 }
 
