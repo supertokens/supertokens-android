@@ -138,12 +138,6 @@ public class SuperTokensHttpURLConnection {
 
                     connection.connect();
 
-                    /*
-                        Android has a bug where it ignored cookies with paths that dont match the uri path.
-                        We manually parse the cookies and force set them
-                     */
-                    List<String> cookies = connection.getHeaderFields().get("Set-Cookie");
-
                     manuallySetCookiesFromResponse(url, connection);
 
                     responseCode = connection.getResponseCode();
