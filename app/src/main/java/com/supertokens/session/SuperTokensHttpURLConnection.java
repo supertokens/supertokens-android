@@ -23,7 +23,10 @@ import java.io.IOException;
 import java.net.CookieManager;
 import java.net.HttpCookie;
 import java.net.HttpURLConnection;
+import java.net.URISyntaxException;
 import java.net.URL;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -90,6 +93,10 @@ public class SuperTokensHttpURLConnection {
 
                     connection.connect();
 
+                    /*
+                        Android has a bug where it ignored cookies with paths that dont match the uri path.
+                        We manually parse the cookies and force set them
+                     */
                     List<String> cookies = connection.getHeaderFields().get("Set-Cookie");
 
                     if (cookies != null) {
@@ -98,9 +105,7 @@ public class SuperTokensHttpURLConnection {
 
                             String pathToUse = "/";
 
-                            if (currentCookie.getPath() == null) {
-                                currentCookie.setPath(pathToUse);
-                            } else {
+                            if (currentCookie.getPath() != null) {
                                 pathToUse = currentCookie.getPath();
                             }
 
@@ -108,7 +113,18 @@ public class SuperTokensHttpURLConnection {
 
                             URL urlToUse = new URL(urlDomain + pathToUse);
 
-                            Log.e("SUPERTOKENS LOGS", "Cookie Name: " + currentCookie.getName() + "::: Cookie path: " + currentCookie.getPath() + ":::: Path to use" + pathToUse);
+                            Map<String, List<String>> fakeSetCookieHeader = new HashMap<>();
+                            List<String> fakeCookieValue = new ArrayList<>();
+                            fakeCookieValue.add(cookies.get(i));
+
+                            fakeSetCookieHeader.put("Set-Cookie", fakeCookieValue);
+
+                            try {
+                                CookieManager.getDefault().put(urlToUse.toURI(), fakeSetCookieHeader);
+                            } catch (URISyntaxException e) {
+                                // Should not come here
+                                throw new IllegalStateException("Could not parse response correctly");
+                            }
                         }
                     }
 
