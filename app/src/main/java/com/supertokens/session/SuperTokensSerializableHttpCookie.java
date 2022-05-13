@@ -14,7 +14,7 @@
  * under the License.
  */
 
-package io.supertokens.session;
+package com.supertokens.session;
 
 import java.io.*;
 import java.lang.reflect.Field;

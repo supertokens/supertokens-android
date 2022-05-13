@@ -14,9 +14,7 @@
  * under the License.
  */
 
-package io.supertokens.session;
-
-import androidx.annotation.Nullable;
+package com.supertokens.session;
 
 public interface EventHandler {
     public enum EventType {

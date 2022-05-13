@@ -14,13 +14,11 @@
  * under the License.
  */
 
-package io.supertokens.session;
+package com.supertokens.session;
 
 import android.content.Context;
-import android.text.TextUtils;
 
 import org.jetbrains.annotations.NotNull;
-import org.json.JSONException;
 
 import java.io.IOException;
 import java.util.Map;

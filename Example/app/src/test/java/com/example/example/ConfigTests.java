@@ -16,8 +16,8 @@
 
 package com.example.example.android;
 
-import static io.supertokens.session.Utils.NormalisedInputType.normaliseSessionScopeOrThrowErrorForTests;
-import static io.supertokens.session.Utils.shouldDoInterceptionBasedOnUrl;
+import static com.supertokens.session.Utils.NormalisedInputType.normaliseSessionScopeOrThrowErrorForTests;
+import static com.supertokens.session.Utils.shouldDoInterceptionBasedOnUrl;
 
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -25,9 +25,9 @@ import org.mockito.runners.MockitoJUnitRunner;
 
 import java.net.MalformedURLException;
 
-import io.supertokens.session.NormalisedURLDomain;
-import io.supertokens.session.NormalisedURLPath;
-import io.supertokens.session.Utils;
+import com.supertokens.session.NormalisedURLDomain;
+import com.supertokens.session.NormalisedURLPath;
+import com.supertokens.session.Utils;
 
 public class ConfigTests {
 

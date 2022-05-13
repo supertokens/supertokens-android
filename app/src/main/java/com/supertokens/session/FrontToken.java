@@ -14,7 +14,7 @@
  * under the License.
  */
 
-package io.supertokens.session;
+package com.supertokens.session;
 
 import android.content.Context;
 import android.content.SharedPreferences;
@@ -23,12 +23,7 @@ import android.util.Base64;
 import org.json.JSONException;
 import org.json.JSONObject;
 
-import java.io.IOException;
-import java.net.HttpCookie;
 import java.nio.charset.Charset;
-import java.nio.charset.StandardCharsets;
-import java.text.SimpleDateFormat;
-import java.util.Date;
 
 public class FrontToken {
     static final Object tokenLock = new Object();

@@ -14,7 +14,7 @@
  * under the License.
  */
 
-package io.supertokens.session.android;
+package com.supertokens.session.android;
 
 import android.content.SharedPreferences;
 import androidx.annotation.Nullable;

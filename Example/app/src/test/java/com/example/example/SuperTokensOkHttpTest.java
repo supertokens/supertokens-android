@@ -51,10 +51,10 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.logging.Handler;
 
-import io.supertokens.session.CustomHeaderProvider;
-import io.supertokens.session.SuperTokens;
-import io.supertokens.session.SuperTokensInterceptor;
-import io.supertokens.session.android.MockSharedPrefs;
+import com.supertokens.session.CustomHeaderProvider;
+import com.supertokens.session.SuperTokens;
+import com.supertokens.session.SuperTokensInterceptor;
+import com.supertokens.session.android.MockSharedPrefs;
 import okhttp3.Interceptor;
 import okhttp3.MediaType;
 import okhttp3.OkHttpClient;

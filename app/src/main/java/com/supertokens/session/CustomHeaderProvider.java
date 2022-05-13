@@ -14,11 +14,22 @@
  * under the License.
  */
 
-package io.supertokens.session;
+package com.supertokens.session;
 
-import java.util.ArrayList;
-import java.util.Arrays;
+import java.util.Map;
 
-public class Version {
-    public static ArrayList<String> supported_fdi= new ArrayList<>(Arrays.asList("1.8", "1.9", "1.10", "1.11", "1.12", "1.13"));
+public interface CustomHeaderProvider {
+    public enum RequestType {
+        REFRESH,
+        SIGN_OUT
+    }
+
+    public Map<String, String> getRequestHeaders(RequestType requestType);
+
+    class DefaultCustomHeaderMapper implements CustomHeaderProvider {
+        @Override
+        public Map<String, String> getRequestHeaders(RequestType requestType) {
+            return null;
+        }
+    }
 }

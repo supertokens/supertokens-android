@@ -26,7 +26,7 @@ import java.lang.reflect.Field;
 import java.net.HttpURLConnection;
 import java.net.URL;
 
-import io.supertokens.session.SuperTokens;
+import com.supertokens.session.SuperTokens;
 import okhttp3.MediaType;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
@@ -45,7 +45,7 @@ public class TestUtils {
     public static final String VERSION_NAME = "1.2.1";
 
     public static void setInitToFalse() throws NoSuchFieldException, IllegalAccessException, ClassNotFoundException {
-            Class<?> forName = Class.forName("io.supertokens.session.SuperTokens");
+            Class<?> forName = Class.forName("com.supertokens.session.SuperTokens");
             Field[] declaredFields = forName.getDeclaredFields();
             for (Field field : declaredFields) {
                 if (field.getName().equals("isInitCalled")) {

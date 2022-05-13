@@ -14,7 +14,7 @@
  * under the License.
  */
 
-package io.supertokens.session.android;
+package com.supertokens.session.android;
 
 import com.example.TestUtils;
 import com.google.gson.JsonObject;
