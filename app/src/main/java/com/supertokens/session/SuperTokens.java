@@ -105,6 +105,7 @@ public class SuperTokens {
             @Override
             public void doAction(HttpURLConnection con) throws IOException {
                 con.setRequestMethod("POST");
+                con.setRequestProperty("rid", SuperTokens.rid);
                 Map<String, String> customHeaders = SuperTokens.config.customHeaderMapper.getRequestHeaders(CustomHeaderProvider.RequestType.SIGN_OUT);
                 if (customHeaders != null) {
                     for (Map.Entry<String, String> entry : customHeaders.entrySet()) {
