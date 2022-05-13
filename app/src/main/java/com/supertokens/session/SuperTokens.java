@@ -94,10 +94,10 @@ public class SuperTokens {
     }
 
     @SuppressWarnings("unused")
-    public static HttpURLConnection signOut(Context context) throws IOException, IllegalAccessException {
+    public static void signOut(Context context) throws IOException, IllegalAccessException {
         if (!doesSessionExist(context)) {
             SuperTokens.config.eventHandler.handleEvent(EventHandler.EventType.SIGN_OUT);
-            return null;
+            return;
         }
 
         URL signOutUrl = new URL(SuperTokens.signOutUrl);
@@ -119,14 +119,14 @@ public class SuperTokens {
 
         if (responseCode == SuperTokens.config.sessionExpiredStatusCode) {
             // refresh must have already sent session expiry event
-            return null;
+            return;
         }
 
         if (responseCode >= 300) {
             throw new IOException("Sign out failed with response code " + responseCode);
         }
 
-        return null;
+        return;
     }
 
     public static boolean attemptRefreshingSession(Context context) throws IOException {
