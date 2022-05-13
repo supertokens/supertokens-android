@@ -17,11 +17,17 @@
 package com.supertokens.session;
 
 import android.content.Context;
+import android.util.Log;
 
 import java.io.IOException;
 import java.net.CookieManager;
+import java.net.HttpCookie;
 import java.net.HttpURLConnection;
+import java.net.URISyntaxException;
 import java.net.URL;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
@@ -29,6 +35,51 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 public class SuperTokensHttpURLConnection {
     private static final Object refreshTokenLock = new Object();
     private static final ReentrantReadWriteLock refreshAPILock = new ReentrantReadWriteLock();
+
+    private static void manuallySetCookiesFromResponse(URL url, HttpURLConnection connection) throws IOException {
+        /*
+            Android has a bug where it does not set cookies when the API url path
+            does not start with the cookie path
+
+            To fix this we read the Set-Cookie header and then for each cookie we create
+            a URL using the same path as the cookie path and the same domain as the URL
+            of the original request.
+
+            We then set the cookies using CookieManager.getDefault. Note: We dont need to
+            check for CookieManager.getDefault being null because newRequest checks this before
+            using connection.connect
+         */
+        List<String> cookies = connection.getHeaderFields().get("Set-Cookie");
+
+        if (cookies != null) {
+            for (int i = 0; i < cookies.size(); i++) {
+                HttpCookie currentCookie = HttpCookie.parse(cookies.get(i)).get(0);
+
+                String pathToUse = "/";
+
+                if (currentCookie.getPath() != null) {
+                    pathToUse = currentCookie.getPath();
+                }
+
+                String urlDomain = new NormalisedURLDomain(url.toString()).getAsStringDangerous();
+
+                URL urlToUse = new URL(urlDomain + pathToUse);
+
+                Map<String, List<String>> fakeSetCookieHeader = new HashMap<>();
+                List<String> fakeCookieValue = new ArrayList<>();
+                fakeCookieValue.add(cookies.get(i));
+
+                fakeSetCookieHeader.put("Set-Cookie", fakeCookieValue);
+
+                try {
+                    CookieManager.getDefault().put(urlToUse.toURI(), fakeSetCookieHeader);
+                } catch (URISyntaxException e) {
+                    // Should not come here
+                    throw new IllegalStateException("Could not parse response correctly");
+                }
+            }
+        }
+    }
 
     public static HttpURLConnection newRequest(URL url, PreConnectCallback preConnectCallback) throws IllegalAccessException, IOException {
         if ( !SuperTokens.isInitCalled ) {
@@ -86,6 +137,8 @@ public class SuperTokensHttpURLConnection {
                     }
 
                     connection.connect();
+
+                    manuallySetCookiesFromResponse(url, connection);
 
                     responseCode = connection.getResponseCode();
 
@@ -176,6 +229,8 @@ public class SuperTokensHttpURLConnection {
                         "For more information visit our documentation.");
             }
             refreshTokenConnection.connect();
+
+            manuallySetCookiesFromResponse(refreshTokenUrl, refreshTokenConnection);
 
             final int responseCode = refreshTokenConnection.getResponseCode();
 
