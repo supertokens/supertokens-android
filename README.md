@@ -165,19 +165,19 @@ You can make requests the same way you normally would. The SuperTokens intercept
 
 3. `SuperTokens.signOut`
 
-   Sign the user out
+Sign the user out
 
 4. `SuperTokens.attemptRefreshingSession`
 
-   Calls the refresh API
+Calls the refresh API
 
 5. `SuperTokens.getUserId`
 
-   Returns the user id from the current session
+Returns the user id from the current session
 
 6. `SuperTokens.getAccessTokenPayloadSecurely`
 
-   Returns the data stored in the access token payload
+Returns the data stored in the access token payload
 
 ## Contributing
 Please refer to the [CONTRIBUTING.md](https://github.com/supertokens/supertokens-android/blob/master/CONTRIBUTING.md) file in this repo.
