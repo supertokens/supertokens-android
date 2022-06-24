@@ -76,6 +76,13 @@ import okhttp3.OkHttpClient;
  - Proper change in anti-csrf token once access token resets
  */
 
+
+/**
+ * NOTE: When running tests for httpurlconnection we cannot read httponly cookies, which results
+ * in the logic of manually setting the cookies from the response to fail. Until we can find a
+ * solution for this, we need to test manually
+ */
+
 @SuppressWarnings({"CatchMayIgnoreException", "FieldCanBeLocal", "SingleStatementInBlock"})
 @RunWith(MockitoJUnitRunner.class)
 public class SuperTokensHttpURLConnectionTest {

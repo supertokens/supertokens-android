@@ -16,9 +16,8 @@
 
 package com.supertokens.session;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-
-public class Version {
-    public static ArrayList<String> supported_fdi= new ArrayList<>(Arrays.asList("1.8", "1.9", "1.10", "1.11", "1.12", "1.13", "1.14"));
+public class SuperTokensGeneralError extends Exception {
+    public SuperTokensGeneralError(String message) {
+        super(message);
+    }
 }
