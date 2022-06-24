@@ -23,8 +23,11 @@ import androidx.annotation.Nullable;
 
 import org.json.JSONException;
 import org.json.JSONObject;
+import org.json.JSONTokener;
 
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.lang.ref.WeakReference;
 import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
@@ -94,7 +97,7 @@ public class SuperTokens {
     }
 
     @SuppressWarnings("unused")
-    public static void signOut(Context context) throws IOException, IllegalAccessException {
+    public static void signOut(Context context) throws IOException, IllegalAccessException, SuperTokensGeneralError {
         if (!doesSessionExist(context)) {
             SuperTokens.config.eventHandler.handleEvent(EventHandler.EventType.SIGN_OUT);
             return;
@@ -124,6 +127,33 @@ public class SuperTokens {
 
         if (responseCode >= 300) {
             throw new IOException("Sign out failed with response code " + responseCode);
+        }
+
+        try {
+            StringBuilder stringBuilder = new StringBuilder();
+            BufferedReader reader = new BufferedReader(new InputStreamReader(connection.getInputStream()));
+            String line;
+
+            while((line = reader.readLine()) != null) {
+                stringBuilder.append(line + "\n");
+            }
+
+            String jsonString = stringBuilder.toString();
+
+            JSONObject jsonBody = new JSONObject(new JSONTokener(jsonString));
+
+            String statusFromResponse = jsonBody.getString("status");
+
+            if (statusFromResponse.equals("GENERAL_ERROR")) {
+                String messageFromResponse = jsonBody.getString("message");
+
+                throw new SuperTokensGeneralError(messageFromResponse);
+            }
+        } catch (JSONException e) {
+            /*
+             * Error when converting the body to json or reading from it
+             */
+            throw new IllegalStateException(e);
         }
 
         return;
