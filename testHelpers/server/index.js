@@ -22,13 +22,13 @@ let bodyParser = require("body-parser");
 let http = require("http");
 let cors = require("cors");
 let { startST, stopST, killAllST, setupST, cleanST, setKeyValueInConfig, maxVersion } = require("./utils");
-// let { package_version } = require("../../lib/build/version");
 let { middleware, errorHandler } = require("supertokens-node/framework/express");
 let { verifySession } = require("supertokens-node/recipe/session/framework/express");
-const CustomRefreshAPIHeaders = require("./customRefreshHeaders");
+const { spawnSync } = require("child_process");
 let noOfTimesRefreshCalledDuringTest = 0;
 let noOfTimesGetSessionCalledDuringTest = 0;
 let noOfTimesRefreshAttemptedDuringTest = 0;
+let customRefreshHeaderValue = "";
 let supertokens_node_version = require("supertokens-node/lib/build/version").version;
 
 let urlencodedParser = bodyParser.urlencoded({ limit: "20mb", extended: true, parameterLimit: 20000 });
@@ -142,7 +142,7 @@ app.post("/login", async (req, res) => {
     res.send(session.getUserId());
 });
 
-app.post("/startST", async (req, res) => {
+app.post("/startst", async (req, res) => {
     let accessTokenValidity = req.body.accessTokenValidity === undefined ? 1 : req.body.accessTokenValidity;
     let enableAntiCsrf = req.body.enableAntiCsrf === undefined ? true : req.body.enableAntiCsrf;
     let enableJWT = req.body.enableJWT === undefined ? false : req.body.enableJWT;
@@ -171,7 +171,8 @@ app.get("/featureFlags", async (req, res) => {
 
     res.status(200).json({
         sessionJwt:
-            maxVersion(supertokens_node_version, "8.3") === supertokens_node_version && currentEnableJWT === true
+            maxVersion(supertokens_node_version, "8.3") === supertokens_node_version && currentEnableJWT === true,
+        sessionClaims: maxVersion(supertokens_node_version, "12.0") === supertokens_node_version
     });
 });
 
@@ -190,7 +191,7 @@ app.post("/beforeeach", async (req, res) => {
     noOfTimesRefreshCalledDuringTest = 0;
     noOfTimesGetSessionCalledDuringTest = 0;
     noOfTimesRefreshAttemptedDuringTest = 0;
-    CustomRefreshAPIHeaders.resetCustomRefreshAPIHeaders();
+    customRefreshHeaderValue = "";
     await killAllST();
     await setupST();
     res.send();
@@ -263,6 +264,41 @@ app.post(
     }
 );
 
+app.post(
+    "/update-jwt-with-handle",
+    (req, res, next) => verifySession()(req, res, next),
+    async (req, res) => {
+        if (Session.getJWTPayload !== undefined) {
+            await Session.updateJWTPayload(req.session.getHandle(), req.body);
+            res.json(req.session.getJWTPayload());
+        } else {
+            await Session.updateAccessTokenPayload(req.session.getHandle(), req.body);
+            res.json(req.session.getAccessTokenPayload());
+        }
+    }
+);
+
+app.post(
+    "/session-claims-error",
+    (req, res, next) =>
+        verifySession({
+            overrideGlobalClaimValidators: () => [
+                {
+                    id: "test-claim-failing",
+                    shouldRefetch: () => false,
+                    validate: () => ({ isValid: false, reason: { message: "testReason" } })
+                }
+            ]
+        })(req, res, next),
+    async (req, res) => {
+        res.json({});
+    }
+);
+
+app.post("/403-without-body", async (req, res) => {
+    res.sendStatus(403);
+});
+
 app.use("/testing", async (req, res) => {
     let tH = req.headers["testing"];
     if (tH !== undefined) {
@@ -290,13 +326,22 @@ app.post(
     }
 );
 
+app.get("/refreshHeader", async (req, res) => {
+    res.status(200).json({
+        value: customRefreshHeaderValue,
+    });
+});
+
 app.post("/auth/session/refresh", async (req, res, next) => {
     noOfTimesRefreshAttemptedDuringTest += 1;
-    CustomRefreshAPIHeaders.setCustomRefreshAPIHeaders(req.headers["testkey"]!== undefined);
     verifySession()(req, res, err => {
         if (err) {
             next(err);
         } else {
+            if (req.headers["custom-header"] !== undefined) {
+                customRefreshHeaderValue = req.headers["custom-header"];
+            }
+
             if (req.headers["rid"] === undefined) {
                 res.send("refresh failed");
             } else {
@@ -313,7 +358,9 @@ app.get("/refreshCalledTime", async (req, res) => {
 });
 
 app.get("/refreshAttemptedTime", async (req, res) => {
-    res.status(200).send("" + noOfTimesRefreshAttemptedDuringTest);
+    res.status(200).json({
+        counter: noOfTimesRefreshAttemptedDuringTest
+    });
 });
 
 app.get("/getSessionCalledTime", async (req, res) => {
@@ -346,47 +393,21 @@ app.post("/checkAllowCredentials", (req, res) => {
 app.get("/index.html", (req, res) => {
     res.sendFile("index.html", { root: __dirname });
 });
-
 app.get("/testError", (req, res) => {
     res.status(500).send("test error message");
-});
-
-app.get("/testConfig", function (req, res) {
-    res.status(200).send(req.query.key);
-});
-
-app.get("/multipleInterceptors", function (req, res) {
-    res.status(200).send(req.headers["interceptorheader"]);
-});
-
-app.get("/checkCustomHeader", function (req, res) {
-    res.status(200).send(JSON.stringify(CustomRefreshAPIHeaders.getCustomRefreshAPIHeaders()))
 });
 
 app.get("/stop", async (req, res) => {
     process.exit();
 });
 
-app.get(
-    "/userInfo",
-    (req, res, next) => verifySession()(req, res, next),
-    async (req, res) => {
-        let userId = (await Session.getSession(req, res)).getUserId()
-        res.send(JSON.stringify({userId}));
-    }
-);
+app.post("/test/startServer", async (req, res) => {
+    spawnSync("./startServer", [
+        process.env.INSTALL_PATH,
+        process.env.NODE_PORT === undefined ? 8080 : process.env.NODE_PORT,
+    ])
 
-app.get("/header", async function (req, res) {
-    let testHeader = req.headers["st-custom-header"];
-    let success = true;
-    if (testHeader === undefined) {
-        success = false;
-    }
-    let data = {
-        success,
-    }
-
-    res.send(JSON.stringify(data));
+    res.status(200).send("")
 });
 
 app.use("*", async (req, res, next) => {
@@ -400,4 +421,5 @@ app.use(async (err, req, res, next) => {
 });
 
 let server = http.createServer(app);
-server.listen(process.env.NODE_PORT === undefined ? 8080 : process.env.NODE_PORT, "::");
+// server.listen(process.env.NODE_PORT === undefined ? 8080 : process.env.NODE_PORT, "::");
+server.listen(8080, "::");

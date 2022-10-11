@@ -38,7 +38,7 @@ public class TestUtils {
     private static final String testBaseURL = Constants.apiDomain;
     private static final String beforeEachAPIURL = testBaseURL + "beforeeach";
     private static final String afterAPIURL = testBaseURL + "after";
-    private static final String startSTAPIURL = testBaseURL + "startst";
+    private static final String startSTAPIURL = testBaseURL + "/startst";
     private static final String stopAPIURL = testBaseURL + "stop";
     private static final String refreshCounterAPIURL = testBaseURL + "refreshCalledTime";
 
@@ -55,12 +55,12 @@ public class TestUtils {
             }
     }
 
-    public static void callBeforeEachAPI() {
+    public static void beforeAll() {
         try {
             RequestBody reqbody = RequestBody.create(null, new byte[0]);
             OkHttpClient client = new OkHttpClient.Builder().build();
             Request request = new Request.Builder()
-                    .url(new URL(beforeEachAPIURL))
+                    .url(new URL(testBaseURL + "/test/startServer"))
                     .method("POST",reqbody)
                     .build();
             client.newCall(request).execute();
@@ -68,41 +68,47 @@ public class TestUtils {
         }
     }
 
-    public static void callAfterAPI() {
+    public static void afterAll() {
         try {
             RequestBody reqbody = RequestBody.create(null, new byte[0]);
             OkHttpClient client = new OkHttpClient.Builder().build();
             Request request = new Request.Builder()
-                    .url(new URL(afterAPIURL))
+                    .url(new URL(testBaseURL + "/after"))
+                    .method("POST",reqbody)
+                    .build();
+            client.newCall(request).execute();
+
+            request = new Request.Builder()
+                    .url(new URL(testBaseURL + "/stopst"))
+                    .build();
+            client.newCall(request).execute();
+        } catch (Exception e) {
+        }
+    }
+
+    public static void beforeEach() {
+        try {
+            SuperTokens.resetForTests();
+            RequestBody reqbody = RequestBody.create(null, new byte[0]);
+            OkHttpClient client = new OkHttpClient.Builder().build();
+            Request request = new Request.Builder()
+                    .url(new URL(testBaseURL + "/beforeeach"))
                     .method("POST",reqbody)
                     .build();
             client.newCall(request).execute();
         } catch (Exception e) {
-
-        }
-    }
-
-    public static void stopAPI() {
-        try {
-            OkHttpClient client = new OkHttpClient.Builder().build();
-            Request request = new Request.Builder()
-                    .url(new URL(stopAPIURL))
-                    .build();
-            client.newCall(request).execute();
-        } catch (Exception e) {
-
         }
     }
 
     public static void startST() {
-        startST(10, true,144000);
+        startST(1, true,144000);
     }
 
     public static void startST(long validity, boolean AntiCsrf, double refreshTokenValidity) {
         try {
             final MediaType JSON
                     = MediaType.parse("application/json; charset=utf-8");
-            RequestBody body = RequestBody.create(JSON, "{\"accessTokenValidity\": " + validity + ",\"setAntiCsrf\": " + AntiCsrf +",\"refreshTokenValidity\": "+refreshTokenValidity+"}");
+            RequestBody body = RequestBody.create(JSON, "{\"accessTokenValidity\": " + validity + ",\"enableAntiCsrf\": " + AntiCsrf + "}");
             OkHttpClient client = new OkHttpClient.Builder().build();
             Request request = new Request.Builder()
                     .url(new URL(startSTAPIURL))

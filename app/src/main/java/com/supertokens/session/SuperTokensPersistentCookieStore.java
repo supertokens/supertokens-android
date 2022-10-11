@@ -42,7 +42,7 @@ public class SuperTokensPersistentCookieStore implements CookieStore {
     private Map<URI, Set<HttpCookie>> allCookies;
 
     public SuperTokensPersistentCookieStore(Context context) {
-        sharedPreferences = context.getSharedPreferences(context.getString(R.string.superTokensCookieSharedPrefsKey),
+        sharedPreferences = context.getSharedPreferences("supertokens-cookie-shared-prefs",
                 Context.MODE_PRIVATE);
         loadAllFromPersistence();
     }

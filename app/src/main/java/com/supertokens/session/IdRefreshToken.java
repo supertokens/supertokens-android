@@ -26,7 +26,7 @@ class IdRefreshToken {
 
     static String getToken(Context context) {
         if ( idRefreshTokenInMemory == null ) {
-            idRefreshTokenInMemory = getSharedPreferences(context).getString(context.getString(R.string.supertokensIdRefreshSharedPrefsKey), null);
+            idRefreshTokenInMemory = getSharedPreferences(context).getString(Constants.ID_TOKEN_PREFS_KEY, null);
         }
         if (idRefreshTokenInMemory != null) {
             String[] splitted = idRefreshTokenInMemory.split(";");
@@ -50,7 +50,7 @@ class IdRefreshToken {
                 removeToken(context);
             } else {
                 SharedPreferences.Editor editor = getSharedPreferences(context).edit();
-                editor.putString(context.getString(R.string.supertokensIdRefreshSharedPrefsKey), idRefreshToken);
+                editor.putString(Constants.ID_TOKEN_PREFS_KEY, idRefreshToken);
                 editor.apply();
                 idRefreshTokenInMemory = idRefreshToken;
             }
@@ -72,12 +72,12 @@ class IdRefreshToken {
     @SuppressLint("ApplySharedPref")
     static void removeToken(Context context) {
         SharedPreferences.Editor editor = getSharedPreferences(context).edit();
-        editor.remove(context.getString(R.string.supertokensIdRefreshSharedPrefsKey));
+        editor.remove(Constants.ID_TOKEN_PREFS_KEY);
         editor.apply();
         idRefreshTokenInMemory = null;
     }
 
     private static SharedPreferences getSharedPreferences(Context context) {
-        return context.getSharedPreferences(context.getString(R.string.supertokensSharedPrefsKey), Context.MODE_PRIVATE);
+        return context.getSharedPreferences(Constants.SHARED_PREFERENCES_KEY, Context.MODE_PRIVATE);
     }
 }

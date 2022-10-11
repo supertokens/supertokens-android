@@ -79,7 +79,7 @@ public class SuperTokensInterceptor implements Interceptor {
                     String antiCSRFToken = AntiCSRF.getToken(applicationContext, preRequestIdRefreshToken);
 
                     if (antiCSRFToken != null) {
-                        requestBuilder.header(applicationContext.getString(R.string.supertokensAntiCSRFHeaderKey), antiCSRFToken);
+                        requestBuilder.header(Constants.CSRF_HEADER_KEY, antiCSRFToken);
                     }
 
                     Request request = requestBuilder.build();
@@ -89,7 +89,7 @@ public class SuperTokensInterceptor implements Interceptor {
                     }
 
                     response = makeRequest(chain, request);
-                    String idRefreshToken = response.header(applicationContext.getString(R.string.supertokensIdRefreshHeaderKey));
+                    String idRefreshToken = response.header(Constants.ID_TOKEN_HEADER_KEY);
                     if (idRefreshToken != null) {
                         IdRefreshToken.setToken(applicationContext, idRefreshToken, response.code());
                     }
@@ -124,12 +124,12 @@ public class SuperTokensInterceptor implements Interceptor {
                         return clonedResponse;
                     }
                 } else {
-                    String antiCSRF = response.header(applicationContext.getString(R.string.supertokensAntiCSRFHeaderKey));
+                    String antiCSRF = response.header(Constants.CSRF_HEADER_KEY);
                     if (antiCSRF != null) {
                         AntiCSRF.setToken(applicationContext, IdRefreshToken.getToken(applicationContext), antiCSRF);
                     }
 
-                    String frontToken = response.header(applicationContext.getString(R.string.supertokensFrontTokenHeaderKey));
+                    String frontToken = response.header(Constants.FRONT_TOKEN_HEADER_KEY);
                     if (frontToken != null) {
                         FrontToken.setToken(applicationContext, frontToken);
                     }
@@ -166,7 +166,7 @@ public class SuperTokensInterceptor implements Interceptor {
             String antiCSRFToken = AntiCSRF.getToken(applicationContext, preRequestIdRefreshToken);
 
             if (antiCSRFToken != null) {
-                refreshRequestBuilder.header(applicationContext.getString(R.string.supertokensAntiCSRFHeaderKey), antiCSRFToken);
+                refreshRequestBuilder.header(Constants.CSRF_HEADER_KEY, antiCSRFToken);
             }
 
             refreshRequestBuilder.header("rid", SuperTokens.rid);
@@ -185,7 +185,7 @@ public class SuperTokensInterceptor implements Interceptor {
             final int code = refreshResponse.code();
 
             boolean removeIdRefreshToken = true;
-            String idRefreshToken = refreshResponse.header(applicationContext.getString(R.string.supertokensIdRefreshHeaderKey));
+            String idRefreshToken = refreshResponse.header(Constants.ID_TOKEN_HEADER_KEY);
             if (idRefreshToken != null) {
                 IdRefreshToken.setToken(applicationContext, idRefreshToken, code);
                 removeIdRefreshToken = false;
@@ -206,12 +206,12 @@ public class SuperTokensInterceptor implements Interceptor {
                 return new Utils.Unauthorised(Utils.Unauthorised.UnauthorisedStatus.SESSION_EXPIRED);
             }
 
-            String antiCSRF = refreshResponse.header(applicationContext.getString(R.string.supertokensAntiCSRFHeaderKey));
+            String antiCSRF = refreshResponse.header(Constants.CSRF_HEADER_KEY);
             if (antiCSRF != null) {
                 AntiCSRF.setToken(applicationContext, IdRefreshToken.getToken(applicationContext), antiCSRF);
             }
 
-            String frontToken = refreshResponse.header(applicationContext.getString(R.string.supertokensFrontTokenHeaderKey));
+            String frontToken = refreshResponse.header(Constants.FRONT_TOKEN_HEADER_KEY);
             if (frontToken != null) {
                 FrontToken.setToken(applicationContext, frontToken);
             }

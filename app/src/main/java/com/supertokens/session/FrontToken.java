@@ -32,7 +32,7 @@ public class FrontToken {
 
     private static String getFrontTokenFromStorage(Context context) {
         if (frontTokenInMemory == null) {
-            frontTokenInMemory = getSharedPreferences(context).getString(context.getString(R.string.supertokensFrontTokenSharedPrefsKey), null);
+            frontTokenInMemory = getSharedPreferences(context).getString(Constants.FRONT_TOKEN_PREFS_KEY, null);
         }
 
         // If it is still null then there was no value in storage
@@ -86,7 +86,7 @@ public class FrontToken {
 
     private static void setFrontTokenToStorage(Context context, String frontToken) {
         SharedPreferences.Editor editor = getSharedPreferences(context).edit();
-        editor.putString(context.getString(R.string.supertokensFrontTokenSharedPrefsKey), frontToken);
+        editor.putString(Constants.FRONT_TOKEN_PREFS_KEY, frontToken);
         editor.apply();
         frontTokenInMemory = frontToken;
     }
@@ -112,7 +112,7 @@ public class FrontToken {
 
     private static void removeTokenFromStorage(Context context) {
         SharedPreferences.Editor editor = getSharedPreferences(context).edit();
-        editor.remove(context.getString(R.string.supertokensFrontTokenSharedPrefsKey));
+        editor.remove(Constants.FRONT_TOKEN_PREFS_KEY);
         editor.apply();
         frontTokenInMemory = null;
     }
@@ -132,6 +132,6 @@ public class FrontToken {
     }
 
     private static SharedPreferences getSharedPreferences(Context context) {
-        return context.getSharedPreferences(context.getString(R.string.supertokensSharedPrefsKey), Context.MODE_PRIVATE);
+        return context.getSharedPreferences(Constants.SHARED_PREFERENCES_KEY, Context.MODE_PRIVATE);
     }
 }
