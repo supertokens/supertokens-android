@@ -24,48 +24,45 @@ import retrofit2.Call;
 import retrofit2.http.*;
 
 public interface RetrofitTestAPIService {
-    @POST("login")
+    @POST("/login")
     @Headers({
             "Content-Type: application/json",
             "Accept: application/json"
     })
     Call<Void> login(@Body JsonObject body);
 
-    @GET("userInfo")
+    @GET("/")
     Call<ResponseBody> userInfo();
 
-    @POST("logout")
+    @POST("/logout")
     Call<Void> logout();
 
-    @POST("testReset")
+    @POST("/testReset")
     @Headers({
         "Content-Type: application/json",
         "Accept: application/json"
     })
     Call<Void> reset(@Header("atValidity") int validity);
 
-    @GET("testRefreshCounter")
+    @GET("/testRefreshCounter")
     Call<TestUtils.GetRefreshCounterResponse> refreshCounter();
 
-    @GET("header")
+    @GET("/header")
     Call<ResponseBody> testHeader(@Header("st-custom-header") String header);
 
-    @GET("checkDeviceInfo")
+    @GET("/checkDeviceInfo")
     Call<ResponseBody> checkDeviceInfo();
 
-    @GET("ping")
+    @GET("/ping")
     Call<ResponseBody> testPing();
 
-    @GET("testError")
+    @GET("/testError")
     Call<ResponseBody> testError();
 
-    @GET("checkCustomHeader")
+    @GET("/refreshHeader")
     Call<ResponseBody> checkCustomHeaders();
 
-    @GET("multipleInterceptors")
+    @POST("/multipleInterceptors")
     Call<ResponseBody> multipleInterceptors();
-
-    @GET("testConfig")
-    Call<ResponseBody> testConfig(@Query("key") String key);
 
 }
