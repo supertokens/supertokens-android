@@ -212,14 +212,6 @@ app.post("/testUserConfig", async (req, res) => {
     res.status(200).send();
 });
 
-app.post("/multipleInterceptors", async (req, res) => {
-    res.status(200).send(
-        req.headers.interceptorheader2 !== undefined && req.headers.interceptorheader1 !== undefined
-            ? "success"
-            : "failure"
-    );
-});
-
 app.get(
     "/",
     (req, res, next) => verifySession()(req, res, next),
@@ -408,6 +400,14 @@ app.post("/test/startServer", async (req, res) => {
     ])
 
     res.status(200).send("")
+});
+
+app.post("/multipleInterceptors", async (req, res) => {
+    res.status(200).send(
+        req.headers.interceptorheader !== undefined
+            ? "success"
+            : "failure"
+    );
 });
 
 app.use("*", async (req, res, next) => {

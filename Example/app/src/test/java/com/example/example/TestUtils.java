@@ -26,6 +26,7 @@ import java.lang.reflect.Field;
 import java.net.HttpURLConnection;
 import java.net.URL;
 
+import com.google.gson.JsonObject;
 import com.supertokens.session.SuperTokens;
 import okhttp3.MediaType;
 import okhttp3.OkHttpClient;
@@ -40,7 +41,7 @@ public class TestUtils {
     private static final String afterAPIURL = testBaseURL + "after";
     private static final String startSTAPIURL = testBaseURL + "/startst";
     private static final String stopAPIURL = testBaseURL + "stop";
-    private static final String refreshCounterAPIURL = testBaseURL + "refreshCalledTime";
+    private static final String refreshCounterAPIURL = testBaseURL + "/refreshAttemptedTime";
 
     public static final String VERSION_NAME = "1.2.1";
 
@@ -135,7 +136,7 @@ public class TestUtils {
 
         String body = response.body().string();
         response.close();
-        return Integer.parseInt(body);
+        return (new Gson().fromJson(body, JsonObject.class)).get("counter").getAsInt();
     }
 
     public static String getBodyFromConnection(HttpURLConnection connection) throws IOException{
