@@ -1,6 +1,9 @@
 echo "Starting tests for FDI $1";
 
 update-alternatives --set java $(update-alternatives --list java | grep jdk-15)
+update-alternatives --set javac $(update-alternatives --list javac | grep jdk-15)
+JAVA_HOME=/usr/java/jdk-15.0.1
+export JAVA_HOME
 
 java -version
 
