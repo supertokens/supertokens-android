@@ -17,6 +17,6 @@
 package com.example.example;
 
 public class Constants {
-    public static String apiDomain = "http://127.0.0.1:8080/";
+    public static String apiDomain = "http://127.0.0.1:8080";
     public static String userId = "testing-supertokens-android";
 }

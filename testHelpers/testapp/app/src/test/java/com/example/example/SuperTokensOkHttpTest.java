@@ -17,6 +17,7 @@
 package com.example;
 
 import android.content.Context;
+import android.content.SharedPreferences;
 import android.os.Looper;
 import android.text.TextUtils;
 
@@ -25,6 +26,7 @@ import com.example.example.R;
 import com.franmontiel.persistentcookiejar.PersistentCookieJar;
 import com.franmontiel.persistentcookiejar.cache.SetCookieCache;
 import com.franmontiel.persistentcookiejar.persistence.SharedPrefsCookiePersistor;
+import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 
@@ -36,7 +38,7 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.mockito.Mockito;
-import org.mockito.runners.MockitoJUnitRunner;
+import org.mockito.junit.MockitoJUnitRunner;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -67,15 +69,15 @@ import okhttp3.ResponseBody;
 @RunWith(MockitoJUnitRunner.class)
 public class SuperTokensOkHttpTest {
     private final String testBaseURL = Constants.apiDomain;
-    private final String refreshTokenEndpoint = testBaseURL + "refresh";
-    private final String loginAPIURL = testBaseURL + "login";
-    private final String userInfoAPIURL = testBaseURL + "userInfo";
-    private final String logoutAPIURL = testBaseURL + "logout";
-    private final String testHeaderAPIURL = testBaseURL + "header";
-    private final String testMultipleInterceptorsAPIURL = testBaseURL + "multipleInterceptors";
-    private final String testCheckDeviceInfoAPIURL = testBaseURL + "checkDeviceInfo";
-    private final String testErrorAPIURL = testBaseURL + "testError";
-    private final String testPingAPIURL = testBaseURL + "ping";
+    private final String refreshTokenEndpoint = testBaseURL + "/refresh";
+    private final String loginAPIURL = testBaseURL + "/login";
+    private final String userInfoAPIURL = testBaseURL + "/";
+    private final String logoutAPIURL = testBaseURL + "/logout";
+    private final String testHeaderAPIURL = testBaseURL + "/header";
+    private final String testMultipleInterceptorsAPIURL = testBaseURL + "/multipleInterceptors";
+    private final String testCheckDeviceInfoAPIURL = testBaseURL + "/checkDeviceInfo";
+    private final String testErrorAPIURL = testBaseURL + "/testError";
+    private final String testPingAPIURL = testBaseURL + "/ping";
 
     private final int sessionExpiryCode = 401;
     private static MockSharedPrefs mockSharedPrefs;
@@ -84,19 +86,15 @@ public class SuperTokensOkHttpTest {
     @Mock
     Context context;
 
+    @Mock
+    SharedPreferences mockSharedPreferences;
+
+    @Mock
+    SharedPreferences.Editor sharedPreferencesEditor;
+
     @BeforeClass
     public static void beforeAll() throws Exception {
-        String filePath = "../com-root";
-        {
-            if (new File("../../../supertokens-root").exists()) {
-                filePath = "../supertokens-root";
-            }
-        }
-        ProcessBuilder pb = new ProcessBuilder("./testHelpers/startServer", filePath);
-        pb.directory(new File("../../"));
-        pb.inheritIO();
-        Process process = pb.start();
-        Thread.sleep(1000);
+        com.example.TestUtils.beforeAll();
     }
 
     @Before
@@ -105,27 +103,22 @@ public class SuperTokensOkHttpTest {
         Mockito.mock(TextUtils.class);
         Mockito.mock(Looper.class);
         Mockito.mock(Handler.class);
-        mockSharedPrefs = new MockSharedPrefs();
-        Mockito.when(context.getSharedPreferences(Mockito.anyString(), Mockito.anyInt())).thenReturn(mockSharedPrefs);
-        Mockito.when(context.getSharedPreferences(Mockito.anyString(), Mockito.anyInt())).thenReturn(mockSharedPrefs);
-        Mockito.when(context.getString(R.string.supertokensIdRefreshSharedPrefsKey)).thenReturn("supertokens-android-idrefreshtoken-key");
-        Mockito.when(context.getString(R.string.supertokensAntiCSRFTokenKey)).thenReturn("supertokens-android-anticsrf-key");
-        Mockito.when(context.getString(R.string.supertokensAntiCSRFHeaderKey)).thenReturn("anti-csrf");
-        Mockito.when(context.getString(R.string.supertokensIdRefreshHeaderKey)).thenReturn("id-refresh-token");
-        Mockito.when(context.getString(R.string.supertokensFrontTokenSharedPrefsKey)).thenReturn("supertokens-android-fronttoken-key");
-        Mockito.when(context.getString(R.string.supertokensFrontTokenHeaderKey)).thenReturn("front-token");
+        Mockito.when(context.getSharedPreferences(Mockito.anyString(), Mockito.anyInt())).thenAnswer(invocation -> {
+            return mockSharedPreferences;
+        });
+        Mockito.when(mockSharedPreferences.edit()).thenReturn(sharedPreferencesEditor);
+        Mockito.when(sharedPreferencesEditor.putString(Mockito.anyString(), Mockito.anyString())).thenReturn(sharedPreferencesEditor);
         OkHttpClient.Builder clientBuilder = new OkHttpClient.Builder();
         clientBuilder.interceptors().add(new SuperTokensInterceptor());
         clientBuilder.cookieJar(new PersistentCookieJar(new SetCookieCache(), new SharedPrefsCookiePersistor(context)));
         okHttpClient = clientBuilder.build();
 
-        com.example.TestUtils.callBeforeEachAPI();
+        com.example.TestUtils.beforeEach();
     }
 
     @AfterClass
     public static void after() {
-        com.example.TestUtils.callAfterAPI();
-        com.example.TestUtils.stopAPI();
+        com.example.TestUtils.afterAll();
     }
 
 
@@ -149,7 +142,7 @@ public class SuperTokensOkHttpTest {
     @Test
     public void okHttp_testApiWithoutParams() throws Exception {
         com.example.TestUtils.startST();
-        SuperTokens.init(context, Constants.apiDomain, null, null, null, null, null);
+        new SuperTokens.Builder(context, Constants.apiDomain).build();
         JsonObject bodyJson = new JsonObject();
         bodyJson.addProperty("userId", Constants.userId);
         RequestBody body = RequestBody.create(MediaType.parse("application/json; charset=utf-8"), bodyJson.toString());
@@ -169,7 +162,7 @@ public class SuperTokensOkHttpTest {
     @Test
     public void okHttp_testApiWithParams() throws Exception {
         com.example.TestUtils.startST();
-        SuperTokens.init(context, Constants.apiDomain, null, null, null, null, null);
+        new SuperTokens.Builder(context, Constants.apiDomain).build();
         JsonObject bodyJson = new JsonObject();
         bodyJson.addProperty("userId", Constants.userId);
         RequestBody body = RequestBody.create(MediaType.parse("application/json; charset=utf-8"), bodyJson.toString());
@@ -189,7 +182,7 @@ public class SuperTokensOkHttpTest {
     @Test
     public void okHttp_refreshIsCalledAfterAccessTokenExpiry() throws Exception {
         com.example.TestUtils.startST(3, true, 144000);
-        SuperTokens.init(context, Constants.apiDomain, null, null, null, null, null);
+        new SuperTokens.Builder(context, Constants.apiDomain).build();
         JsonObject bodyJson = new JsonObject();
         bodyJson.addProperty("userId", Constants.userId);
         RequestBody body = RequestBody.create(MediaType.parse("application/json; charset=utf-8"), bodyJson.toString());
@@ -227,7 +220,7 @@ public class SuperTokensOkHttpTest {
     @Test
     public void okHttp_sessionShouldExistWhenUserCallsLogOut() throws Exception {
         com.example.TestUtils.startST();
-        SuperTokens.init(context, Constants.apiDomain, null, null, null, null, null);
+        new SuperTokens.Builder(context, Constants.apiDomain).build();
 
         JsonObject bodyJson = new JsonObject();
         bodyJson.addProperty("userId", Constants.userId);
@@ -263,96 +256,11 @@ public class SuperTokensOkHttpTest {
         logoutResponse.close();
     }
 
-    //- test custom headers are being sent when logged in and when not.****
-    @Test
-    public void okHttp_customHeadersShouldBeSent() throws Exception {
-        com.example.TestUtils.startST();
-        SuperTokens.init(context, Constants.apiDomain, null, null, null, null, null);
-
-        //when logged in
-        JsonObject bodyJson = new JsonObject();
-        bodyJson.addProperty("userId", Constants.userId);
-        RequestBody body = RequestBody.create(MediaType.parse("application/json; charset=utf-8"), bodyJson.toString());
-        Request request = new Request.Builder()
-                .url(loginAPIURL)
-                .method("POST", body)
-                .addHeader("Accept", "application/json")
-                .addHeader("Content-Type", "application/json")
-                .build();
-        Response loginResponse = okHttpClient.newCall(request).execute();
-        if (loginResponse.code() != 200) {
-            throw new Exception("Error making login request");
-        }
-        loginResponse.close();
-
-        Request request2 = new Request.Builder()
-                .url(testHeaderAPIURL)
-                .header("st-custom-header", "st")
-                .build();
-
-        //send request with custom headers
-        Response testHeaderResponse = okHttpClient.newCall(request2).execute();
-
-        //check response for valid status code
-        if (testHeaderResponse.code() != 200) {
-            throw new Exception("test Header api failed");
-        }
-
-        ResponseBody responseBody = testHeaderResponse.body();
-        if (responseBody == null) {
-            throw new Exception("testHeaderAPI returned with invalid response");
-        }
-        String bodyString = responseBody.string();
-        JsonObject bodyObject = new JsonParser().parse(bodyString).getAsJsonObject();
-        testHeaderResponse.close();
-
-        //check the body for {"success": true}
-        if (!bodyObject.get("success").getAsBoolean()) {
-            throw new Exception("testHeader API returned false");
-        }
-
-        //after logout
-        RequestBody logoutReqBody = RequestBody.create(MediaType.parse("application/json; charset=utf-8"), "{}");
-        request = new Request.Builder()
-                .url(logoutAPIURL)
-                .method("POST", logoutReqBody)
-                .build();
-        Response logoutResponse = okHttpClient.newCall(request).execute();
-
-        if (logoutResponse.code() != 200) {
-            throw new Exception("Error making logout request");
-        }
-
-        logoutResponse.close();
-
-        request2 = new Request.Builder()
-                .url(testHeaderAPIURL)
-                .header("st-custom-header", "st")
-                .build();
-
-        //send request with custom headers
-        testHeaderResponse = okHttpClient.newCall(request2).execute();
-
-        //check response for valid status code
-        if (testHeaderResponse.code() != 200) {
-            throw new Exception("test Header api failed");
-        }
-
-        bodyString = Objects.requireNonNull(testHeaderResponse.body()).string();
-        bodyObject = new JsonParser().parse(bodyString).getAsJsonObject();
-
-        //check the body for {"success": true}
-        if (!bodyObject.get("success").getAsBoolean()) {
-            throw new Exception("testHeader API returned false");
-        }
-        testHeaderResponse.close();
-    }
-
     // - testing doesSessionExist works fine when user is logged in***
     @Test
     public void okHttp_testDoesSessionExistWorkFineWhenUserIsLoggedIn() throws Exception {
         com.example.TestUtils.startST();
-        SuperTokens.init(context, Constants.apiDomain, null, null, null, null, null);
+        new SuperTokens.Builder(context, Constants.apiDomain).build();
 
         JsonObject bodyJson = new JsonObject();
         bodyJson.addProperty("userId", Constants.userId);
@@ -378,8 +286,8 @@ public class SuperTokensOkHttpTest {
     @Test
     public void okHttp_testThatCallingSuperTokensInitMoreThanOnceWorks() throws Exception {
         com.example.TestUtils.startST(10, true, 144000);
-        SuperTokens.init(context, Constants.apiDomain, null, null, null, null, null);
-        SuperTokens.init(context, Constants.apiDomain, null, null, null, null, null);
+        new SuperTokens.Builder(context, Constants.apiDomain).build();
+        new SuperTokens.Builder(context, Constants.apiDomain).build();
 
         JsonObject bodyJson = new JsonObject();
         bodyJson.addProperty("userId", Constants.userId);
@@ -396,7 +304,7 @@ public class SuperTokensOkHttpTest {
         }
 
         loginResponse.close();
-        SuperTokens.init(context, Constants.apiDomain, null, null, null, null, null);
+        new SuperTokens.Builder(context, Constants.apiDomain).build();
 
         Request userInfoRequest = new Request.Builder()
                 .url(userInfoAPIURL)
@@ -435,11 +343,13 @@ public class SuperTokensOkHttpTest {
     @Test
     public void okHttp_testThatMultipleInterceptorsAreThereAndTheyShouldAllWork() throws Exception {
         com.example.TestUtils.startST();
-        SuperTokens.init(context, Constants.apiDomain, null, null, null, null, null);
+        new SuperTokens.Builder(context, Constants.apiDomain).build();
         OkHttpClient client = okHttpClient.newBuilder().addInterceptor(new customInterceptors()).build();
 
+        RequestBody logoutReqBody = RequestBody.create(MediaType.parse("application/json; charset=utf-8"), "{}");
         Request request = new Request.Builder()
                 .url(testMultipleInterceptorsAPIURL)
+                .method("POST", logoutReqBody)
                 .build();
         Response multipleInterceptorResponse = client.newCall(request).execute();
 
@@ -447,12 +357,8 @@ public class SuperTokensOkHttpTest {
             throw new Exception("Error when doing multipleInterceptors ");
         }
 
-        if (!Objects.equals(Objects.requireNonNull(multipleInterceptorResponse.body()).string(), "value1")) {
+        if (!Objects.equals(Objects.requireNonNull(multipleInterceptorResponse.body()).string(), "success")) {
             throw new Exception("Request Interception did not take place");
-        }
-
-        if (!Objects.equals(multipleInterceptorResponse.header("interceptorheader2"), "value2")) {
-            throw new Exception("Response Interception did not take place");
         }
         multipleInterceptorResponse.close();
     }
@@ -461,7 +367,7 @@ public class SuperTokensOkHttpTest {
     @Test
     public void okHttp_testThatAPIErrorsGetPropagatedToTheUserInterception() throws Exception {
         com.example.TestUtils.startST();
-        SuperTokens.init(context, Constants.apiDomain, null, null, null, null, null);
+        new SuperTokens.Builder(context, Constants.apiDomain).build();
 
         Request request = new Request.Builder()
                 .url(testErrorAPIURL)
@@ -488,7 +394,7 @@ public class SuperTokensOkHttpTest {
     public void okHttp_testThatAPIErrorsGetPropagatedToTheUserWithoutInterception() throws Exception {
         com.example.TestUtils.startST();
 
-        SuperTokens.init(context, Constants.apiDomain, null, null, null, null, null);
+        new SuperTokens.Builder(context, Constants.apiDomain).build();
         OkHttpClient client = new OkHttpClient().newBuilder().build();
         Request request = new Request.Builder()
                 .url(testErrorAPIURL)
@@ -510,7 +416,7 @@ public class SuperTokensOkHttpTest {
     @Test
     public void okHttp_testThatUserPassedConfigShouldBeSentAsWell() throws Exception {
         com.example.TestUtils.startST();
-        SuperTokens.init(context, Constants.apiDomain, null, null, null, null, null);
+        new SuperTokens.Builder(context, Constants.apiDomain).build();
 
         JsonObject bodyJson = new JsonObject();
         bodyJson.addProperty("userId", Constants.userId);
@@ -540,7 +446,7 @@ public class SuperTokensOkHttpTest {
     @Test
     public void okHttp_testThatThingsShouldWorkIfAntiCsrfIsDisabled() throws Exception {
         com.example.TestUtils.startST(3, false, 144000);
-        SuperTokens.init(context, Constants.apiDomain, null, null, null, null, null);
+        new SuperTokens.Builder(context, Constants.apiDomain).build();
 
         JsonObject bodyJson = new JsonObject();
         bodyJson.addProperty("userId", Constants.userId);
@@ -596,7 +502,7 @@ public class SuperTokensOkHttpTest {
     @Test
     public void okHttp_testThatMultipleAPICallsInParallelAndOnly1RefreshShouldBeCalled() throws Exception {
         com.example.TestUtils.startST(3, true, 144000);
-        SuperTokens.init(context, Constants.apiDomain, null, null, null, null, null);
+        new SuperTokens.Builder(context, Constants.apiDomain).build();
 
         JsonObject bodyJson = new JsonObject();
         bodyJson.addProperty("userId", Constants.userId);
@@ -671,7 +577,7 @@ public class SuperTokensOkHttpTest {
 //    @Test
 //    public void okHttp_testThatSessionShouldNotExistWhenSessionFullyExpires() throws Exception {
 //        com.example.TestUtils.startST(4, true, 0.08333);
-//        SuperTokens.init(context, Constants.apiDomain, null, null, null, null, null);
+//        new SuperTokens.Builder(context, Constants.apiDomain).build();
 //
 //        JsonObject bodyJson = new JsonObject();
 //        bodyJson.addProperty("userId", Constants.userId);
@@ -718,19 +624,19 @@ public class SuperTokensOkHttpTest {
     @Test
     public void okHttp_testThatCustomRefreshAPIHeadersAreSent() throws Exception {
         com.example.TestUtils.startST(3, true, 144000);
-        SuperTokens.init(context, Constants.apiDomain, null, null, null, new CustomHeaderProvider() {
+        new SuperTokens.Builder(context, Constants.apiDomain).customHeaderProvider(new CustomHeaderProvider() {
             @Override
             public Map<String, String> getRequestHeaders(RequestType requestType) {
                 if (requestType == RequestType.REFRESH) {
                     Map<String, String> headers = new HashMap<>();
-                    headers.put("testKey", "testValue");
+                    headers.put("custom-header", "custom-value");
 
                     return headers;
                 }
 
                 return null;
             }
-        }, null);
+        }).build();
 
         JsonObject bodyJson = new JsonObject();
         bodyJson.addProperty("userId", Constants.userId);
@@ -757,11 +663,11 @@ public class SuperTokensOkHttpTest {
         //getCustomRefreshAPIHeaders
 
         request = new Request.Builder()
-                .url(testBaseURL + "checkCustomHeader")
+                .url(testBaseURL + "/refreshHeader")
                 .build();
         Response response = okHttpClient.newCall(request).execute();
 
-        if (!Objects.requireNonNull(response.body()).string().equals("true")){
+        if (!(new Gson().fromJson(Objects.requireNonNull(response.body()).string(), JsonObject.class).get("value").getAsString().equals("custom-value"))){
             throw new Exception("Custom parameters were not set");
         }
 
@@ -774,7 +680,7 @@ public class SuperTokensOkHttpTest {
     @Test
     public void okHttp_testThatAPIsThatDontNeedAuthenticationWorkProperly() throws Exception{
         com.example.TestUtils.startST(5,true,144000);
-        SuperTokens.init(context, Constants.apiDomain, null, null, null, null, null);
+        new SuperTokens.Builder(context, Constants.apiDomain).build();
 
         //api request which does not require authentication
         Request request = new Request.Builder()
@@ -833,7 +739,7 @@ public class SuperTokensOkHttpTest {
     @Test
     public void okHttp_testThatEverythingWorksProperly() throws Exception {
         com.example.TestUtils.startST(3, true, 144000);
-        SuperTokens.init(context, Constants.apiDomain, null, null, null, null, null);
+        new SuperTokens.Builder(context, Constants.apiDomain).build();
 
         JsonObject bodyJson = new JsonObject();
         bodyJson.addProperty("userId", Constants.userId);
@@ -865,12 +771,6 @@ public class SuperTokensOkHttpTest {
         if (com.example.TestUtils.getRefreshTokenCounter() != 1) {
             throw new Exception("refresh API was called more/less than 1 time");
         }
-        
-        JsonObject userInfo = new JsonParser().parse(userInfoResponse.body().string()).getAsJsonObject();
-
-        if (userInfo.get("userId") == null){
-            throw new Exception("user Info was not properly sent ");
-        }
 
         userInfoResponse.close();
 
@@ -899,12 +799,9 @@ public class SuperTokensOkHttpTest {
         public Response intercept(@NotNull Chain chain) throws IOException {
             Request.Builder requestBuilder = chain.request().newBuilder();
             requestBuilder.header("interceptorHeader", "value1");
-
-
             Request request = requestBuilder.build();
-            Response response = chain.proceed(request);
 
-            return response.newBuilder().header("interceptorHeader2", "value2").build();
+            return chain.proceed(request);
         }
     }
 }

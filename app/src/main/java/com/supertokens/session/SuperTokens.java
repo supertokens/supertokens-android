@@ -21,6 +21,7 @@ import android.content.Context;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
+import org.jetbrains.annotations.TestOnly;
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.json.JSONTokener;
@@ -70,6 +71,16 @@ public class SuperTokens {
         SuperTokens.signOutUrl = SuperTokens.config.apiDomain + SuperTokens.config.apiBasePath + "/signout";
         SuperTokens.rid = "session";
         SuperTokens.isInitCalled = true;
+    }
+
+    @TestOnly
+    public static void resetForTests() {
+        SuperTokens.isInitCalled = false;
+        SuperTokens.config = null;
+        SuperTokens.refreshTokenUrl = null;
+        SuperTokens.signOutUrl = null;
+        SuperTokens.rid = null;
+        SuperTokens.contextWeakReference = null;
     }
 
     static String getApiDomain(@NonNull String url) throws MalformedURLException {
@@ -217,6 +228,7 @@ public class SuperTokens {
 
         public Builder(Context applicationContext, String apiDomain) {
             this.apiDomain = apiDomain;
+            this.applicationContext = applicationContext;
         }
 
         public Builder apiBasePath(String apiBasePath) {

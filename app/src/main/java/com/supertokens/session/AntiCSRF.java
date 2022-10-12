@@ -72,11 +72,11 @@ class AntiCSRF {
     }
 
     private static SharedPreferences getSharedPreferences(Context context) {
-        return context.getSharedPreferences(context.getString(R.string.supertokensSharedPrefsKey), Context.MODE_PRIVATE);
+        return context.getSharedPreferences(Constants.SHARED_PREFERENCES_KEY, Context.MODE_PRIVATE);
     }
 
     private static String getSharedPrefsAntiCSRFKey(Context context) {
-        return context.getString(R.string.supertokensAntiCSRFTokenKey);
+        return Constants.CSRF_TOKEN_PREFS_KEY;
     }
 
     static class AntiCSRFTokenInfo {
