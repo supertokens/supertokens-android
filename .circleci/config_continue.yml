@@ -38,8 +38,6 @@ jobs:
       - run: cd / && echo 'export PATH' >> /etc/profile
       - run: cd / && update-alternatives --install "/usr/bin/java" "java" "/usr/java/jdk-15.0.1/bin/java" 2
       - run: cd / && update-alternatives --install "/usr/bin/javac" "javac" "/usr/java/jdk-15.0.1/bin/javac" 2
-      - run: cd / && update-alternatives --set java $(update-alternatives --list java | grep jdk-15)
-      - run: java -version
       - run: (cd .circleci/ && ./doTests.sh  << parameters.fdi-version >>)
   test-success:
     docker:

@@ -1,5 +1,9 @@
 echo "Starting tests for FDI $1";
 
+update-alternatives --set java $(update-alternatives --list java | grep jdk-15)
+
+java -version
+
 if [ -z "$SUPERTOKENS_API_KEY" ]; then
     echo "SUPERTOKENS_API_KEY not set"
     exit 1
