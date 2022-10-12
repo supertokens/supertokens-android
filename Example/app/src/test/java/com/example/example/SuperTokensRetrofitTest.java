@@ -128,7 +128,7 @@ public class SuperTokensRetrofitTest {
     @Test
     public void retrofit_testDoesSessionExistWorksFineWhenUserIsLoggedIn() throws Exception{
         com.example.TestUtils.startST();
-        SuperTokens.init(context, Constants.apiDomain, null, null, null, null, null);
+        new SuperTokens.Builder(context, Constants.apiDomain).build();
         JsonObject body = new JsonObject();
         body.addProperty("userId", Constants.userId);
         Response <Void> loginResponse = retrofitTestAPIService.login(body).execute();
@@ -147,7 +147,7 @@ public class SuperTokensRetrofitTest {
     @Test
     public void retrofit_testSessionShouldNotExitWhenUserCallsLogout() throws Exception{
         com.example.TestUtils.startST();
-        SuperTokens.init(context, Constants.apiDomain, null, null, null, null, null);
+        new SuperTokens.Builder(context, Constants.apiDomain).build();
 
         //do login request
         JsonObject body = new JsonObject();
@@ -176,7 +176,7 @@ public class SuperTokensRetrofitTest {
 //
 //        //accessTokenValidity set to 4 seconds and refreshTokenValidity set to 5 seconds
 //        com.example.TestUtils.startST(4, true, 0.08333);
-//        SuperTokens.init(context, Constants.apiDomain, null, null, null, null, null);
+//        new SuperTokens.Builder(context, Constants.apiDomain).build();
 //
 //
 //        //do a login request
@@ -209,7 +209,7 @@ public class SuperTokensRetrofitTest {
     @Test
     public void retrofit_testThatAPISThatDontRequireAuthenticationWorkCorrectly() throws Exception {
         com.example.TestUtils.startST();
-        SuperTokens.init(context, Constants.apiDomain, null, null, null, null, null);
+        new SuperTokens.Builder(context, Constants.apiDomain).build();
 
 
         //test testPing api before login
@@ -267,7 +267,7 @@ public class SuperTokensRetrofitTest {
     @Test
     public void retrofit_testThatAPIErrorsGetPropagatedToTheUserProperlyWithInterception() throws Exception {
         com.example.TestUtils.startST();
-        SuperTokens.init(context, Constants.apiDomain, null, null, null, null, null);
+        new SuperTokens.Builder(context, Constants.apiDomain).build();
 
         Response<ResponseBody> testErrorResponse = retrofitTestAPIService.testError().execute();
         if (testErrorResponse.errorBody() == null){
@@ -283,7 +283,7 @@ public class SuperTokensRetrofitTest {
     @Test
     public void retrofit_testThatAPIErrorsGetPropagatedToTheUserProperlyWithoutInterception() throws Exception {
         com.example.TestUtils.startST();
-        SuperTokens.init(context, Constants.apiDomain, null, null, null, null, null);
+        new SuperTokens.Builder(context, Constants.apiDomain).build();
 
         OkHttpClient client = okHttpClient.newBuilder().build();
 
@@ -307,8 +307,8 @@ public class SuperTokensRetrofitTest {
     @Test
     public void retrofit_testThatCallingSuperTokensInitMoreThanOnceWorks() throws Exception {
         com.example.TestUtils.startST();
-        SuperTokens.init(context, Constants.apiDomain, null, null, null, null, null);
-        SuperTokens.init(context, Constants.apiDomain, null, null, null, null, null);
+        new SuperTokens.Builder(context, Constants.apiDomain).build();
+        new SuperTokens.Builder(context, Constants.apiDomain).build();
 
         //login request
         JsonObject body = new JsonObject();
@@ -320,7 +320,7 @@ public class SuperTokensRetrofitTest {
         }
 
         //supertokensinit
-        SuperTokens.init(context, Constants.apiDomain, null, null, null, null, null);
+        new SuperTokens.Builder(context, Constants.apiDomain).build();
 
         Response<ResponseBody> userInfoResponse = retrofitTestAPIService.userInfo().execute();
         if (userInfoResponse.code() != 200) {
@@ -347,7 +347,7 @@ public class SuperTokensRetrofitTest {
     @Test
     public void retrofit_testThatThingsShouldWorkIfAntiCsrfIsDisabled() throws Exception {
         com.example.TestUtils.startST(3, false, 144000);
-        SuperTokens.init(context, Constants.apiDomain, null, null, null, null, null);
+        new SuperTokens.Builder(context, Constants.apiDomain).build();
 
         JsonObject body = new JsonObject();
         body.addProperty("userId", Constants.userId);
@@ -385,7 +385,7 @@ public class SuperTokensRetrofitTest {
     @Test
     public void okHttp_testThatMultipleAPICallsInParallelAndOnly1RefreshShouldBeCalled() throws Exception {
         com.example.TestUtils.startST(3, true, 144000);
-        SuperTokens.init(context, Constants.apiDomain, null, null, null, null, null);
+        new SuperTokens.Builder(context, Constants.apiDomain).build();
 
         JsonObject body = new JsonObject();
         body.addProperty("userId", Constants.userId);
@@ -445,7 +445,7 @@ public class SuperTokensRetrofitTest {
     @Test
     public void okHttp_testThatCustomRefreshAPIHeadersAreSent() throws Exception {
         com.example.TestUtils.startST(3, true, 144000);
-        SuperTokens.init(context, Constants.apiDomain, null, null, null, new CustomHeaderProvider() {
+        new SuperTokens.Builder(context, Constants.apiDomain).customHeaderProvider(new CustomHeaderProvider() {
             @Override
             public Map<String, String> getRequestHeaders(RequestType requestType) {
                 if (requestType == RequestType.REFRESH) {
@@ -457,7 +457,8 @@ public class SuperTokensRetrofitTest {
 
                 return null;
             }
-        }, null);
+        }).build();
+
         JsonObject body = new JsonObject();
         body.addProperty("userId", Constants.userId);
         Response<Void> loginResponse = retrofitTestAPIService.login(body).execute();
@@ -492,7 +493,7 @@ public class SuperTokensRetrofitTest {
     @Test
     public void okHttp_testThatMultipleInterceptorsAreThereAndTheyShouldAllWork() throws Exception {
         com.example.TestUtils.startST();
-        SuperTokens.init(context, Constants.apiDomain, null, null, null, null, null);
+        new SuperTokens.Builder(context, Constants.apiDomain).build();
         OkHttpClient client = okHttpClient.newBuilder().addInterceptor(new customInterceptors()).build();
 
         Retrofit retrofit = new Retrofit.Builder()
@@ -514,7 +515,7 @@ public class SuperTokensRetrofitTest {
     @Test
     public void retrofit_testThatEverythingShouldWork() throws Exception {
         com.example.TestUtils.startST(3, true, 144000);
-        SuperTokens.init(context, Constants.apiDomain, null, null, null, null, null);
+        new SuperTokens.Builder(context, Constants.apiDomain).build();
 
         JsonObject body = new JsonObject();
         body.addProperty("userId", Constants.userId);

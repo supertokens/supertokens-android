@@ -228,6 +228,7 @@ public class SuperTokens {
 
         public Builder(Context applicationContext, String apiDomain) {
             this.apiDomain = apiDomain;
+            this.applicationContext = applicationContext;
         }
 
         public Builder apiBasePath(String apiBasePath) {
