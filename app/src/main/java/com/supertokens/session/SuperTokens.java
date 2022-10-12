@@ -244,7 +244,7 @@ public class SuperTokens {
             return this;
         }
 
-        public void init() throws MalformedURLException {
+        public void build() throws MalformedURLException {
             SuperTokens.init(applicationContext, apiDomain, apiBasePath, sessionExpiredStatusCode, cookieDomain, customHeaderProvider, eventHandler);
         }
     }
