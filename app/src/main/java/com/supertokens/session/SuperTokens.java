@@ -43,9 +43,8 @@ public class SuperTokens {
     static Utils.NormalisedInputType config;
     static WeakReference<Context> contextWeakReference;
 
-
     @SuppressWarnings("unused")
-    public static void init(
+    private static void init(
             Context applicationContext,
             @NonNull String apiDomain,
             @Nullable String apiBasePath,
@@ -204,6 +203,49 @@ public class SuperTokens {
             return tokenInfo.getJSONObject("up");
         } catch (JSONException e) {
             throw new IllegalStateException(e);
+        }
+    }
+
+    public static class Builder {
+        String apiDomain;
+        Context applicationContext;
+        String apiBasePath;
+        Integer sessionExpiredStatusCode;
+        String cookieDomain;
+        CustomHeaderProvider customHeaderProvider;
+        EventHandler eventHandler;
+
+        public Builder(Context applicationContext, String apiDomain) {
+            this.apiDomain = apiDomain;
+        }
+
+        public Builder apiBasePath(String apiBasePath) {
+            this.apiBasePath = apiBasePath;
+            return this;
+        }
+
+        public Builder sessionExpiredStatusCode(Integer sessionExpiredStatusCode) {
+            this.sessionExpiredStatusCode = sessionExpiredStatusCode;
+            return this;
+        }
+
+        public Builder cookieDomain(String cookieDomain) {
+            this.cookieDomain = cookieDomain;
+            return this;
+        }
+
+        public Builder customHeaderProvider(CustomHeaderProvider customHeaderProvider) {
+            this.customHeaderProvider = customHeaderProvider;
+            return this;
+        }
+
+        public Builder eventHandler(EventHandler eventHandler) {
+            this.eventHandler = eventHandler;
+            return this;
+        }
+
+        public void build() throws MalformedURLException {
+            SuperTokens.init(applicationContext, apiDomain, apiBasePath, sessionExpiredStatusCode, cookieDomain, customHeaderProvider, eventHandler);
         }
     }
 }
