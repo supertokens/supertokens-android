@@ -37,43 +37,7 @@ To your `build.gradle`(app) file
 Initialise SuperTokens using
 
 ```java
-SuperTokens.init(
-    applicationContext,
-    /*
-    The domain for your API layer, this is used by the SDK when making network requests
-    */
-    apiDomain,
-    
-    /*
-    (OPTIONAL)
-    The base path used when calling SuperTokens.init in the Backend SDK
-    /auth by default
-    */
-    apiBasePath,
-    
-    /*
-    (OPTIONAL)
-    The status code used by your API layer to depict session expiration
-    401 By default
-    */
-    sessionExpiredStatusCode,
-    
-    cookieDomain,
-    
-    /*
-    (OPTIONAL)
-    Use this to set custom request headers for network requests made by the SDK
-    For example: Sign out, refresh etc
-    */
-    customHeaderProvider,
-    
-    /*
-    (OPTIONAL)
-    Use this to listen to events that the SuperTokens SDK fires over the lifetime of the user
-    For example: SESSION_CREATED, SIGN_OUT, ACCESS_TOKEN_PAYLOAD_UPDATED etc
-    */
-    eventHandler,
-)
+new SuperTokens.Builder(applicationContext, apiDomain).build();
 ```
 
 Make sure to call `SuperTokens.init` before using any of the SuperTokens functionality
