@@ -21,10 +21,6 @@ We're so excited you're interested in helping with SuperTokens! We are happy to 
 1. Please setup `supertokens-core` by following [this guide](https://github.com/supertokens/supertokens-core/blob/master/CONTRIBUTING.md#development-setup). If you are not contributing to `supertokens-core`, please skip  steps 1 & 4 under "Project Setup" section.
 2. Clone the forked repository in the parent directory of the previously setup `supertokens-root`. That is, `supertokens-android` and `supertokens-root` should exist side by side within the same parent directory.
 3. `cd supertokens-android`
-4. Add git pre-commit hooks
-   ```
-   ./setup-pre-commit.sh
-   ```
 
 ## Modifying Code  
 1. Open the `supertokens-android` project in Android Studio.
@@ -43,11 +39,11 @@ We're so excited you're interested in helping with SuperTokens! We are happy to 
    npm i -d
    npm i git+https://github.com:supertokens/supertokens-node.git
    cd ../../
-   ./gradlew clean build -x test
+   ./testHelpers/startServer ../supertokens-root
    ```
 5. Run all tests
    ```
-   (cd Example && ./gradlew test)
+   (cd testHelpers/testapp && ./gradlew test)
    ```
 6. If all tests pass the output should be:
 

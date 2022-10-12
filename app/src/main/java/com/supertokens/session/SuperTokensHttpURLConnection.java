@@ -114,7 +114,7 @@ public class SuperTokensHttpURLConnection {
                     String antiCSRFToken = AntiCSRF.getToken(applicationContext, preRequestIdRefreshToken);
 
                     if (antiCSRFToken != null) {
-                        connection.setRequestProperty(applicationContext.getString(R.string.supertokensAntiCSRFHeaderKey), antiCSRFToken);
+                        connection.setRequestProperty(Constants.CSRF_HEADER_KEY, antiCSRFToken);
                     }
 
                     // Get the default cookie manager that is used, if null set a new one
@@ -138,12 +138,11 @@ public class SuperTokensHttpURLConnection {
 
                     connection.connect();
 
+                    responseCode = connection.getResponseCode();
                     manuallySetCookiesFromResponse(url, connection);
 
-                    responseCode = connection.getResponseCode();
-
                     // Get the cookies from the response and store the idRefreshToken to storage
-                    String idRefreshToken = connection.getHeaderField(applicationContext.getString(R.string.supertokensIdRefreshHeaderKey));
+                    String idRefreshToken = connection.getHeaderField(Constants.ID_TOKEN_HEADER_KEY);
                     if (idRefreshToken != null) {
                         IdRefreshToken.setToken(applicationContext, idRefreshToken, responseCode);
                     }
@@ -166,12 +165,12 @@ public class SuperTokensHttpURLConnection {
                     return connection;
                 } else {
                     // Store the anti-CSRF token from the response headers
-                    String responseAntiCSRFToken = connection.getHeaderField(applicationContext.getString(R.string.supertokensAntiCSRFHeaderKey));
+                    String responseAntiCSRFToken = connection.getHeaderField(Constants.CSRF_HEADER_KEY);
                     if ( responseAntiCSRFToken != null ) {
                         AntiCSRF.setToken(applicationContext, IdRefreshToken.getToken(applicationContext), responseAntiCSRFToken);
                     }
 
-                    String responseFrontToken = connection.getHeaderField(applicationContext.getString(R.string.supertokensFrontTokenHeaderKey));
+                    String responseFrontToken = connection.getHeaderField(Constants.FRONT_TOKEN_HEADER_KEY);
                     if (responseFrontToken != null) {
                         FrontToken.setToken(applicationContext, responseFrontToken);
                     }
@@ -209,7 +208,7 @@ public class SuperTokensHttpURLConnection {
             String antiCSRFToken = AntiCSRF.getToken(applicationContext, preRequestIdRefreshToken);
 
             if (antiCSRFToken != null) {
-                refreshTokenConnection.setRequestProperty(applicationContext.getString(R.string.supertokensAntiCSRFHeaderKey), antiCSRFToken);
+                refreshTokenConnection.setRequestProperty(Constants.CSRF_HEADER_KEY, antiCSRFToken);
             }
 
             refreshTokenConnection.setRequestProperty("rid", SuperTokens.rid);
@@ -235,7 +234,7 @@ public class SuperTokensHttpURLConnection {
             final int responseCode = refreshTokenConnection.getResponseCode();
 
             boolean removeIdRefreshToken = true;
-            String idRefreshToken = refreshTokenConnection.getHeaderField(applicationContext.getString(R.string.supertokensIdRefreshHeaderKey));
+            String idRefreshToken = refreshTokenConnection.getHeaderField(Constants.ID_TOKEN_HEADER_KEY);
             if (idRefreshToken != null) {
                 IdRefreshToken.setToken(applicationContext, idRefreshToken, responseCode);
                 removeIdRefreshToken = false;
@@ -255,12 +254,12 @@ public class SuperTokensHttpURLConnection {
                 return new Utils.Unauthorised(Utils.Unauthorised.UnauthorisedStatus.SESSION_EXPIRED);
             }
 
-            String responseAntiCSRFToken = refreshTokenConnection.getHeaderField(applicationContext.getString(R.string.supertokensAntiCSRFHeaderKey));
+            String responseAntiCSRFToken = refreshTokenConnection.getHeaderField(Constants.CSRF_HEADER_KEY);
             if (responseAntiCSRFToken != null) {
                 AntiCSRF.setToken(applicationContext, IdRefreshToken.getToken(applicationContext), responseAntiCSRFToken);
             }
 
-            String responseFrontToken = refreshTokenConnection.getHeaderField(applicationContext.getString(R.string.supertokensFrontTokenHeaderKey));
+            String responseFrontToken = refreshTokenConnection.getHeaderField(Constants.FRONT_TOKEN_HEADER_KEY);
             if (responseFrontToken != null) {
                 FrontToken.setToken(applicationContext, responseFrontToken);
             }

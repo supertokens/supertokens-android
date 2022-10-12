@@ -21,8 +21,6 @@ import static com.supertokens.session.Utils.shouldDoInterceptionBasedOnUrl;
 
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import org.mockito.runners.MockitoJUnitRunner;
-
 import java.net.MalformedURLException;
 
 import com.supertokens.session.NormalisedURLDomain;

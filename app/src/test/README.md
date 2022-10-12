@@ -1,1 +1,1 @@
-Tests are in the Example/ap/src/test folder.
+Tests are in the testHelpers/testapp/ap/src/test folder.
