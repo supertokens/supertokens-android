@@ -45,40 +45,7 @@ public class SuperTokens {
     static WeakReference<Context> contextWeakReference;
 
     @SuppressWarnings("unused")
-    public static void init(
-            Context applicationContext,
-            @NonNull String apiDomain
-    ) throws MalformedURLException {
-        SuperTokens.init(
-            applicationContext,
-            apiDomain,
-            null,
-            null,
-            null,
-            null,
-            null
-        );
-    }
-
-    @SuppressWarnings("unused")
-    public static void init(
-            Context applicationContext,
-            @NonNull String apiDomain,
-            @Nullable EventHandler eventHandler
-    ) throws MalformedURLException {
-        SuperTokens.init(
-                applicationContext,
-                apiDomain,
-                null,
-                null,
-                null,
-                null,
-                eventHandler
-        );
-    }
-
-    @SuppressWarnings("unused")
-    public static void init(
+    private static void init(
             Context applicationContext,
             @NonNull String apiDomain,
             @Nullable String apiBasePath,
@@ -288,8 +255,8 @@ public class SuperTokens {
             return this;
         }
 
-        public void init() throws MalformedURLException {
-            SuperTokens.init(applicationContext, apiDomain);
+        public void build() throws MalformedURLException {
+            SuperTokens.init(applicationContext, apiDomain, apiBasePath, sessionExpiredStatusCode, cookieDomain, customHeaderProvider, eventHandler);
         }
     }
 }

@@ -6,6 +6,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2022-10-12
+
+### Breaking changes
+
+- `SuperTokens.init` is no longer available. Use `SuperTokens.Builder` instead
+
 ## [0.1.3] - 2022-09-20
 
 ### Changes
