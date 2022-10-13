@@ -49,7 +49,9 @@ npm i -d --force
 npm i git+https://github.com:supertokens/supertokens-node.git#$2
 TEST_MODE=testing INSTALL_PATH=../../../supertokens-root node . &
 pid=$!
-cd ../testapp
+cd ../../
+./gradlew clean build # Creates the output of the SDK that the test app uses
+cd testHelpers/testapp
 ./gradlew test
 
 if [[ $? -ne 0 ]]
