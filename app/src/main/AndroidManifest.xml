@@ -18,6 +18,5 @@
           package="com.supertokens.session">
 
     <application android:allowBackup="true"
-                 android:label="SuperTokensAndroid(Unused)"
                  android:supportsRtl="true"/>
 </manifest>
