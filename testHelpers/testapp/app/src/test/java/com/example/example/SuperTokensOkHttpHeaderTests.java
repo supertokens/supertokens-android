@@ -45,6 +45,8 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.net.CookieManager;
+import java.net.CookiePolicy;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -57,6 +59,9 @@ import java.util.logging.Handler;
 import com.supertokens.session.CustomHeaderProvider;
 import com.supertokens.session.SuperTokens;
 import com.supertokens.session.SuperTokensInterceptor;
+import com.supertokens.session.SuperTokensPersistentCookieStore;
+
+import net.bytebuddy.implementation.bind.annotation.Super;
 
 import okhttp3.Interceptor;
 import okhttp3.MediaType;
@@ -118,7 +123,7 @@ public class SuperTokensOkHttpHeaderTests {
 
 
     @Test
-    public void okHttp_requestFailsIfInitNotCalled() throws Exception {
+    public void okHttpHeaders_requestFailsIfInitNotCalled() throws Exception {
         try {
             Request request = new Request.Builder()
                     .url(testBaseURL)
@@ -135,7 +140,7 @@ public class SuperTokensOkHttpHeaderTests {
     }
 
     @Test
-    public void okHttp_testApiWithoutParams() throws Exception {
+    public void okHttpHeaders_testApiWithoutParams() throws Exception {
         com.example.TestUtils.startST();
         new SuperTokens.Builder(context, Constants.apiDomain)
                 .build();
@@ -156,7 +161,7 @@ public class SuperTokensOkHttpHeaderTests {
     }
 
     @Test
-    public void okHttp_testApiWithParams() throws Exception {
+    public void okHttpHeaders_testApiWithParams() throws Exception {
         com.example.TestUtils.startST();
         new SuperTokens.Builder(context, Constants.apiDomain)
                 .build();
@@ -177,7 +182,7 @@ public class SuperTokensOkHttpHeaderTests {
     }
 
     @Test
-    public void okHttp_refreshIsCalledAfterAccessTokenExpiry() throws Exception {
+    public void okHttpHeaders_refreshIsCalledAfterAccessTokenExpiry() throws Exception {
         com.example.TestUtils.startST(3, true, 144000);
         new SuperTokens.Builder(context, Constants.apiDomain)
                 .build();
@@ -216,7 +221,7 @@ public class SuperTokensOkHttpHeaderTests {
 
     // - session should not exist when user calls log out - use doesSessionExist***
     @Test
-    public void okHttp_sessionShouldExistWhenUserCallsLogOut() throws Exception {
+    public void okHttpHeaders_sessionShouldExistWhenUserCallsLogOut() throws Exception {
         com.example.TestUtils.startST();
         new SuperTokens.Builder(context, Constants.apiDomain)
                 .build();
@@ -257,7 +262,7 @@ public class SuperTokensOkHttpHeaderTests {
 
     // - testing doesSessionExist works fine when user is logged in***
     @Test
-    public void okHttp_testDoesSessionExistWorkFineWhenUserIsLoggedIn() throws Exception {
+    public void okHttpHeaders_testDoesSessionExistWorkFineWhenUserIsLoggedIn() throws Exception {
         com.example.TestUtils.startST();
         new SuperTokens.Builder(context, Constants.apiDomain)
                 .build();
@@ -284,7 +289,7 @@ public class SuperTokensOkHttpHeaderTests {
 
     // - Calling SuperTokens.init more than once works!****
     @Test
-    public void okHttp_testThatCallingSuperTokensInitMoreThanOnceWorks() throws Exception {
+    public void okHttpHeaders_testThatCallingSuperTokensInitMoreThanOnceWorks() throws Exception {
         com.example.TestUtils.startST(10, true, 144000);
         new SuperTokens.Builder(context, Constants.apiDomain)
                 .build();
@@ -344,7 +349,7 @@ public class SuperTokensOkHttpHeaderTests {
 
     // - if multiple interceptors are there, they should all work***
     @Test
-    public void okHttp_testThatMultipleInterceptorsAreThereAndTheyShouldAllWork() throws Exception {
+    public void okHttpHeaders_testThatMultipleInterceptorsAreThereAndTheyShouldAllWork() throws Exception {
         com.example.TestUtils.startST();
         new SuperTokens.Builder(context, Constants.apiDomain)
                 .build();
@@ -369,7 +374,7 @@ public class SuperTokensOkHttpHeaderTests {
 
     // - if any API throws error, it gets propogated to the user properly (with and without interception)***
     @Test
-    public void okHttp_testThatAPIErrorsGetPropagatedToTheUserInterception() throws Exception {
+    public void okHttpHeaders_testThatAPIErrorsGetPropagatedToTheUserInterception() throws Exception {
         com.example.TestUtils.startST();
         new SuperTokens.Builder(context, Constants.apiDomain)
                 .build();
@@ -396,7 +401,7 @@ public class SuperTokensOkHttpHeaderTests {
     // - if any API throws error, it gets propogated to the user properly (with and without interception)***
 
     @Test
-    public void okHttp_testThatAPIErrorsGetPropagatedToTheUserWithoutInterception() throws Exception {
+    public void okHttpHeaders_testThatAPIErrorsGetPropagatedToTheUserWithoutInterception() throws Exception {
         com.example.TestUtils.startST();
 
         new SuperTokens.Builder(context, Constants.apiDomain)
@@ -420,7 +425,7 @@ public class SuperTokensOkHttpHeaderTests {
 
     // - User passed config should be sent as well****
     @Test
-    public void okHttp_testThatUserPassedConfigShouldBeSentAsWell() throws Exception {
+    public void okHttpHeaders_testThatUserPassedConfigShouldBeSentAsWell() throws Exception {
         com.example.TestUtils.startST();
         new SuperTokens.Builder(context, Constants.apiDomain)
                 .build();
@@ -451,7 +456,7 @@ public class SuperTokensOkHttpHeaderTests {
 
     // - Things should work if anti-csrf is disabled.****
     @Test
-    public void okHttp_testThatThingsShouldWorkIfAntiCsrfIsDisabled() throws Exception {
+    public void okHttpHeaders_testThatThingsShouldWorkIfAntiCsrfIsDisabled() throws Exception {
         com.example.TestUtils.startST(3, false, 144000);
         new SuperTokens.Builder(context, Constants.apiDomain)
                 .build();
@@ -508,7 +513,7 @@ public class SuperTokensOkHttpHeaderTests {
 
     // - multiple API calls in parallel when access token is expired (100 of them) and only 1 refresh should be called***
     @Test
-    public void okHttp_testThatMultipleAPICallsInParallelAndOnly1RefreshShouldBeCalled() throws Exception {
+    public void okHttpHeaders_testThatMultipleAPICallsInParallelAndOnly1RefreshShouldBeCalled() throws Exception {
         com.example.TestUtils.startST(3, true, 144000);
         new SuperTokens.Builder(context, Constants.apiDomain)
                 .build();
@@ -584,7 +589,7 @@ public class SuperTokensOkHttpHeaderTests {
     // TODO NEMI: Re add this test when front token is implemented
     // - session should not exist when user's session fully expires - use doesSessionExist***
 //    @Test
-//    public void okHttp_testThatSessionShouldNotExistWhenSessionFullyExpires() throws Exception {
+//    public void okHttpHeaders_testThatSessionShouldNotExistWhenSessionFullyExpires() throws Exception {
 //        com.example.TestUtils.startST(4, true, 0.08333);
 //        new SuperTokens.Builder(context, Constants.apiDomain).build();
 //
@@ -631,7 +636,7 @@ public class SuperTokensOkHttpHeaderTests {
 
     // - Custom refresh API headers are sent****
     @Test
-    public void okHttp_testThatCustomRefreshAPIHeadersAreSent() throws Exception {
+    public void okHttpHeaders_testThatCustomRefreshAPIHeadersAreSent() throws Exception {
         com.example.TestUtils.startST(3, true, 144000);
         new SuperTokens.Builder(context, Constants.apiDomain).customHeaderProvider(new CustomHeaderProvider() {
                     @Override
@@ -688,7 +693,7 @@ public class SuperTokensOkHttpHeaderTests {
 
     // - tests APIs that don't require authentication work, before, during and after logout - using our library.***
     @Test
-    public void okHttp_testThatAPIsThatDontNeedAuthenticationWorkProperly() throws Exception {
+    public void okHttpHeaders_testThatAPIsThatDontNeedAuthenticationWorkProperly() throws Exception {
         com.example.TestUtils.startST(5, true, 144000);
         new SuperTokens.Builder(context, Constants.apiDomain)
                 .build();
@@ -749,7 +754,7 @@ public class SuperTokensOkHttpHeaderTests {
 
     // - Check that eveyrthing works properly - login, access token expiry, refresh called once, userInfo result is proper, logout, check session does not exist.*****
     @Test
-    public void okHttp_testThatEverythingWorksProperly() throws Exception {
+    public void okHttpHeaders_testThatEverythingWorksProperly() throws Exception {
         com.example.TestUtils.startST(3, true, 144000);
         new SuperTokens.Builder(context, Constants.apiDomain)
                 .build();
@@ -802,6 +807,219 @@ public class SuperTokensOkHttpHeaderTests {
 
         if (SuperTokens.doesSessionExist(context)) {
             throw new Exception("Session exists when it should not");
+        }
+    }
+
+    @Test
+    public void okHttpHeaders_testThatGetAccessTokenWorksCorrectly() throws Exception {
+        com.example.TestUtils.startST();
+        new SuperTokens.Builder(context, Constants.apiDomain)
+                .build();
+
+        String accessToken = SuperTokens.getAccessToken(context);
+
+        assert accessToken == null;
+
+        JsonObject bodyJson = new JsonObject();
+        bodyJson.addProperty("userId", Constants.userId);
+        RequestBody body = RequestBody.create(MediaType.parse("application/json; charset=utf-8"), bodyJson.toString());
+        Request request = new Request.Builder()
+                .url(loginAPIURL)
+                .method("POST", body)
+                .addHeader("Accept", "application/json")
+                .addHeader("Content-Type", "application/json")
+                .build();
+        Response loginResponse = okHttpClient.newCall(request).execute();
+        if (loginResponse.code() != 200) {
+            throw new Exception("Error making login request");
+        }
+        loginResponse.close();
+
+        accessToken = SuperTokens.getAccessToken(context);
+        assert accessToken != null;
+
+        RequestBody logoutReqBody = RequestBody.create(MediaType.parse("application/json; charset=utf-8"), "{}");
+        request = new Request.Builder()
+                .url(logoutAPIURL)
+                .method("POST", logoutReqBody)
+                .build();
+        Response logoutResponse = okHttpClient.newCall(request).execute();
+
+        if (logoutResponse.code() != 200) {
+            throw new Exception("Error making logout request");
+        }
+        logoutResponse.close();
+
+        accessToken = SuperTokens.getAccessToken(context);
+        assert accessToken == null;
+    }
+
+    @Test
+    public void okhttpHeaders_testThatDifferentCasingForAuthorizationHeaderWorksFine() throws Exception {
+        com.example.TestUtils.startST();
+        new SuperTokens.Builder(context, Constants.apiDomain)
+                .build();
+
+        JsonObject bodyJson = new JsonObject();
+        bodyJson.addProperty("userId", Constants.userId);
+        RequestBody body = RequestBody.create(MediaType.parse("application/json; charset=utf-8"), bodyJson.toString());
+        Request request = new Request.Builder()
+                .url(loginAPIURL)
+                .method("POST", body)
+                .addHeader("Accept", "application/json")
+                .addHeader("Content-Type", "application/json")
+                .build();
+        Response loginResponse = okHttpClient.newCall(request).execute();
+        if (loginResponse.code() != 200) {
+            throw new Exception("Error making login request");
+        }
+        loginResponse.close();
+
+        String accessToken = SuperTokens.getAccessToken(context);
+
+        Request userInfoRequest = new Request.Builder()
+                .url(userInfoAPIURL)
+                .header("Authorization", "Bearer " + accessToken)
+                .build();
+
+        Response userInfoResponse = okHttpClient.newCall(userInfoRequest).execute();
+        if (userInfoResponse.code() != 200) {
+            throw new Exception("User info API failed");
+        }
+
+        Request userInfoRequestSmall = new Request.Builder()
+                .url(userInfoAPIURL)
+                .header("authorization", "Bearer " + accessToken)
+                .build();
+
+        Response userInfoResponseSmall = okHttpClient.newCall(userInfoRequest).execute();
+        if (userInfoResponseSmall.code() != 200) {
+            throw new Exception("User info API failed with lowercase");
+        }
+    }
+
+    @Test
+    public void okhttpHeaders_testThatManuallyAddingAnExpiredAccessTokenWorksNormally() throws Exception {
+        com.example.TestUtils.startST(3);
+        new SuperTokens.Builder(context, Constants.apiDomain)
+                .build();
+
+        JsonObject bodyJson = new JsonObject();
+        bodyJson.addProperty("userId", Constants.userId);
+        RequestBody body = RequestBody.create(MediaType.parse("application/json; charset=utf-8"), bodyJson.toString());
+        Request request = new Request.Builder()
+                .url(loginAPIURL)
+                .method("POST", body)
+                .addHeader("Accept", "application/json")
+                .addHeader("Content-Type", "application/json")
+                .build();
+        Response loginResponse = okHttpClient.newCall(request).execute();
+        if (loginResponse.code() != 200) {
+            throw new Exception("Error making login request");
+        }
+        loginResponse.close();
+
+        String accessToken = SuperTokens.getAccessToken(context);
+        Thread.sleep(5000);
+
+        Request userInfoRequest = new Request.Builder()
+                .url(userInfoAPIURL)
+                .header("Authorization", "Bearer " + accessToken)
+                .build();
+
+        Response userInfoResponse = okHttpClient.newCall(userInfoRequest).execute();
+        if (userInfoResponse.code() != 200) {
+            throw new Exception("User info API failed");
+        }
+
+        int refreshTokenCounter = com.example.TestUtils.getRefreshTokenCounter();
+        if (refreshTokenCounter != 1) {
+            throw new Exception("Refresh token counter value is not the same as the expected value");
+        }
+    }
+
+    @Test
+    public void okhttpHeaders_testThatGetAccessTokenCallsRefreshCorrectly() throws Exception {
+        com.example.TestUtils.startST(3);
+        new SuperTokens.Builder(context, Constants.apiDomain)
+                .build();
+
+        JsonObject bodyJson = new JsonObject();
+        bodyJson.addProperty("userId", Constants.userId);
+        RequestBody body = RequestBody.create(MediaType.parse("application/json; charset=utf-8"), bodyJson.toString());
+        Request request = new Request.Builder()
+                .url(loginAPIURL)
+                .method("POST", body)
+                .addHeader("Accept", "application/json")
+                .addHeader("Content-Type", "application/json")
+                .build();
+        Response loginResponse = okHttpClient.newCall(request).execute();
+        if (loginResponse.code() != 200) {
+            throw new Exception("Error making login request");
+        }
+        loginResponse.close();
+
+        String accessToken = SuperTokens.getAccessToken(context);
+
+        assert accessToken != null;
+
+        Thread.sleep(5000);
+
+        String newAccessToken = SuperTokens.getAccessToken(context);
+        assert newAccessToken != null;
+        assert  newAccessToken != accessToken;
+
+        int refreshTokenCounter = com.example.TestUtils.getRefreshTokenCounter();
+        if (refreshTokenCounter != 1) {
+            throw new Exception("Refresh token counter value is not the same as the expected value");
+        }
+    }
+
+    @Test
+    public void okhttpHeaders_testThatOldAccessTokenAfterSignOutWorksFine() throws Exception {
+        com.example.TestUtils.startST();
+        new SuperTokens.Builder(context, Constants.apiDomain)
+                .build();
+
+        JsonObject bodyJson = new JsonObject();
+        bodyJson.addProperty("userId", Constants.userId);
+        RequestBody body = RequestBody.create(MediaType.parse("application/json; charset=utf-8"), bodyJson.toString());
+        Request request = new Request.Builder()
+                .url(loginAPIURL)
+                .method("POST", body)
+                .addHeader("Accept", "application/json")
+                .addHeader("Content-Type", "application/json")
+                .build();
+        Response loginResponse = okHttpClient.newCall(request).execute();
+        if (loginResponse.code() != 200) {
+            throw new Exception("Error making login request");
+        }
+        loginResponse.close();
+
+        String accessToken = SuperTokens.getAccessToken(context);
+
+        assert accessToken != null;
+
+        RequestBody logoutReqBody = RequestBody.create(MediaType.parse("application/json; charset=utf-8"), "{}");
+        request = new Request.Builder()
+                .url(logoutAPIURL)
+                .method("POST", logoutReqBody)
+                .build();
+        Response logoutResponse = okHttpClient.newCall(request).execute();
+
+        if (logoutResponse.code() != 200) {
+            throw new Exception("Error making logout request");
+        }
+        logoutResponse.close();
+
+        Request userInfoRequest = new Request.Builder()
+                .url(userInfoAPIURL)
+                .header("Authorization", "Bearer " + accessToken)
+                .build();
+
+        Response userInfoResponse = okHttpClient.newCall(userInfoRequest).execute();
+        if (userInfoResponse.code() != 200) {
+            throw new Exception("User info API failed");
         }
     }
 

@@ -147,7 +147,7 @@ public class SuperTokensHttpURLConnection {
                     }
 
                     // Get the default cookie manager that is used, if null set a new one
-                    if (CookieManager.getDefault() == null) {
+                    if (CookieManager.getDefault() == null && SuperTokens.config.tokenTransferMethod.equals("cookie")) {
                         // Passing null for cookie policy to use default
                         throw new IllegalAccessException("Please initialise a CookieManager.\n" +
                                 "For example: new CookieManager(new SuperTokensPersistentCookieStore(context), null).\n" +
@@ -253,7 +253,7 @@ public class SuperTokensHttpURLConnection {
                 }
             }
 
-            if (CookieManager.getDefault() == null) {
+            if (CookieManager.getDefault() == null && SuperTokens.config.tokenTransferMethod.equals("cookie")) {
                 throw new IllegalAccessException("Please initialise a CookieManager.\n" +
                         "For example: new CookieManager(new SuperTokensPersistentCookieStore(context), null).\n" +
                         "SuperTokens provides a persistent cookie store called SuperTokensPersistentCookieStore.\n" +

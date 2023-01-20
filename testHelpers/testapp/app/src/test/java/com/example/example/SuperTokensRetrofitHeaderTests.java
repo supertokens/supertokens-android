@@ -54,8 +54,10 @@ import com.supertokens.session.SuperTokens;
 import com.supertokens.session.SuperTokensInterceptor;
 import com.supertokens.session.android.RetrofitTestAPIService;
 import okhttp3.Interceptor;
+import okhttp3.MediaType;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
+import okhttp3.RequestBody;
 import okhttp3.ResponseBody;
 import retrofit2.Response;
 import retrofit2.Retrofit;
@@ -117,7 +119,7 @@ public class SuperTokensRetrofitHeaderTests {
 
     // - testing doesSessionExist works fine when user is logged in***
     @Test
-    public void retrofit_testDoesSessionExistWorksFineWhenUserIsLoggedIn() throws Exception{
+    public void retrofitHeaders_testDoesSessionExistWorksFineWhenUserIsLoggedIn() throws Exception{
         com.example.TestUtils.startST();
         new SuperTokens.Builder(context, Constants.apiDomain)
                 .build();
@@ -137,7 +139,7 @@ public class SuperTokensRetrofitHeaderTests {
 
     // - session should not exist when user calls log out - use doesSessionExist***
     @Test
-    public void retrofit_testSessionShouldNotExitWhenUserCallsLogout() throws Exception{
+    public void retrofitHeaders_testSessionShouldNotExitWhenUserCallsLogout() throws Exception{
         com.example.TestUtils.startST();
         new SuperTokens.Builder(context, Constants.apiDomain)
                 .build();
@@ -165,7 +167,7 @@ public class SuperTokensRetrofitHeaderTests {
     // TODO NEMI: Re add this test when front token is implemented
     // - session should not exist when user's session fully expires - use doesSessionExist***
 //    @Test
-//    public void retrofit_testThatSessionShouldNotExistWhenSessionFullyExpires() throws Exception {
+//    public void retrofitHeaders_testThatSessionShouldNotExistWhenSessionFullyExpires() throws Exception {
 //
 //        //accessTokenValidity set to 4 seconds and refreshTokenValidity set to 5 seconds
 //        com.example.TestUtils.startST(4, true, 0.08333);
@@ -200,7 +202,7 @@ public class SuperTokensRetrofitHeaderTests {
 //    }
     // - tests APIs that don't require authentication work, before, during and after logout - using our library.***
     @Test
-    public void retrofit_testThatAPISThatDontRequireAuthenticationWorkCorrectly() throws Exception {
+    public void retrofitHeaders_testThatAPISThatDontRequireAuthenticationWorkCorrectly() throws Exception {
         com.example.TestUtils.startST();
         new SuperTokens.Builder(context, Constants.apiDomain)
                 .build();
@@ -259,7 +261,7 @@ public class SuperTokensRetrofitHeaderTests {
 
     // - if any API throws error, it gets propogated to the user properly (with and without interception)***
     @Test
-    public void retrofit_testThatAPIErrorsGetPropagatedToTheUserProperlyWithInterception() throws Exception {
+    public void retrofitHeaders_testThatAPIErrorsGetPropagatedToTheUserProperlyWithInterception() throws Exception {
         com.example.TestUtils.startST();
         new SuperTokens.Builder(context, Constants.apiDomain)
                 .build();
@@ -276,7 +278,7 @@ public class SuperTokensRetrofitHeaderTests {
 
     // - if any API throws error, it gets propogated to the user properly (with and without interception)***
     @Test
-    public void retrofit_testThatAPIErrorsGetPropagatedToTheUserProperlyWithoutInterception() throws Exception {
+    public void retrofitHeaders_testThatAPIErrorsGetPropagatedToTheUserProperlyWithoutInterception() throws Exception {
         com.example.TestUtils.startST();
         new SuperTokens.Builder(context, Constants.apiDomain)
                 .build();
@@ -301,7 +303,7 @@ public class SuperTokensRetrofitHeaderTests {
     }
     // - Calling SuperTokens.init more than once works!****
     @Test
-    public void retrofit_testThatCallingSuperTokensInitMoreThanOnceWorks() throws Exception {
+    public void retrofitHeaders_testThatCallingSuperTokensInitMoreThanOnceWorks() throws Exception {
         com.example.TestUtils.startST();
         new SuperTokens.Builder(context, Constants.apiDomain)
                 .build();
@@ -344,7 +346,7 @@ public class SuperTokensRetrofitHeaderTests {
 
     // - Things should work if anti-csrf is disabled.****
     @Test
-    public void retrofit_testThatThingsShouldWorkIfAntiCsrfIsDisabled() throws Exception {
+    public void retrofitHeaders_testThatThingsShouldWorkIfAntiCsrfIsDisabled() throws Exception {
         com.example.TestUtils.startST(3, false, 144000);
         new SuperTokens.Builder(context, Constants.apiDomain)
                 .build();
@@ -383,7 +385,7 @@ public class SuperTokensRetrofitHeaderTests {
 
     // - multiple API calls in parallel when access token is expired (100 of them) and only 1 refresh should be called***
     @Test
-    public void okHttp_testThatMultipleAPICallsInParallelAndOnly1RefreshShouldBeCalled() throws Exception {
+    public void retrofitHeaders_testThatMultipleAPICallsInParallelAndOnly1RefreshShouldBeCalled() throws Exception {
         com.example.TestUtils.startST(3, true, 144000);
         new SuperTokens.Builder(context, Constants.apiDomain)
                 .build();
@@ -444,7 +446,7 @@ public class SuperTokensRetrofitHeaderTests {
 
     // - Custom refresh API headers are sent****
     @Test
-    public void okHttp_testThatCustomRefreshAPIHeadersAreSent() throws Exception {
+    public void retrofitHeaders_testThatCustomRefreshAPIHeadersAreSent() throws Exception {
         com.example.TestUtils.startST(3, true, 144000);
         new SuperTokens.Builder(context, Constants.apiDomain).customHeaderProvider(new CustomHeaderProvider() {
                     @Override
@@ -493,7 +495,7 @@ public class SuperTokensRetrofitHeaderTests {
     }
 
     @Test
-    public void okHttp_testThatMultipleInterceptorsAreThereAndTheyShouldAllWork() throws Exception {
+    public void retrofitHeaders_testThatMultipleInterceptorsAreThereAndTheyShouldAllWork() throws Exception {
         com.example.TestUtils.startST();
         new SuperTokens.Builder(context, Constants.apiDomain)
                 .build();
@@ -516,7 +518,7 @@ public class SuperTokensRetrofitHeaderTests {
     }
     //- Check that eveyrthing works properly - login, access token expiry, refresh called once, userInfo result is proper, logout, check session does not exist.*****
     @Test
-    public void retrofit_testThatEverythingShouldWork() throws Exception {
+    public void retrofitHeaders_testThatEverythingShouldWork() throws Exception {
         com.example.TestUtils.startST(3, true, 144000);
         new SuperTokens.Builder(context, Constants.apiDomain)
                 .build();
@@ -550,6 +552,145 @@ public class SuperTokensRetrofitHeaderTests {
             throw new Exception("Session exists when it should not");
         }
 
+    }
+
+    @Test
+    public void retrofitHeaders_testThatGetAccessTokenWorksCorrectly() throws Exception {
+        com.example.TestUtils.startST();
+        new SuperTokens.Builder(context, Constants.apiDomain)
+                .build();
+
+        String accessToken = SuperTokens.getAccessToken(context);
+
+        assert accessToken == null;
+
+        JsonObject body = new JsonObject();
+        body.addProperty("userId", Constants.userId);
+        Response <Void> loginResponse = retrofitTestAPIService.login(body).execute();
+        if (loginResponse.code() != 200) {
+            throw new Exception("Error making login request");
+        }
+
+        accessToken = SuperTokens.getAccessToken(context);
+        assert accessToken != null;
+
+        Response<Void> logoutResponse = retrofitTestAPIService.logout().execute();
+        if (logoutResponse.code() != 200){
+            throw new Exception("logout failed");
+        }
+
+        accessToken = SuperTokens.getAccessToken(context);
+        assert accessToken == null;
+    }
+
+    @Test
+    public void retrofitHeaders_testThatDifferentCasingForAuthorizationHeaderWorksFine() throws Exception {
+        com.example.TestUtils.startST();
+        new SuperTokens.Builder(context, Constants.apiDomain)
+                .build();
+
+        JsonObject body = new JsonObject();
+        body.addProperty("userId", Constants.userId);
+        Response <Void> loginResponse = retrofitTestAPIService.login(body).execute();
+        if (loginResponse.code() != 200) {
+            throw new Exception("Error making login request");
+        }
+
+        String accessToken = SuperTokens.getAccessToken(context);
+
+        Response<ResponseBody> userInfoResponse = retrofitTestAPIService.userInfoCaps("Bearer " + accessToken).execute();
+        if (userInfoResponse.code() != 200) {
+            throw new Exception("User info API failed even after calling refresh");
+        }
+
+        Response<ResponseBody> userInfoResponseSmall = retrofitTestAPIService.userInfo("Bearer " + accessToken).execute();
+        if (userInfoResponseSmall.code() != 200) {
+            throw new Exception("User info API failed even after calling refresh");
+        }
+    }
+
+    @Test
+    public void retrofitHeaders_testThatManuallyAddingAnExpiredAccessTokenWorksNormally() throws Exception {
+        com.example.TestUtils.startST(3);
+        new SuperTokens.Builder(context, Constants.apiDomain)
+                .build();
+
+        JsonObject body = new JsonObject();
+        body.addProperty("userId", Constants.userId);
+        Response <Void> loginResponse = retrofitTestAPIService.login(body).execute();
+        if (loginResponse.code() != 200) {
+            throw new Exception("Error making login request");
+        }
+
+        String accessToken = SuperTokens.getAccessToken(context);
+        Thread.sleep(5000);
+
+        Response<ResponseBody> userInfoResponse = retrofitTestAPIService.userInfoCaps("Bearer " + accessToken).execute();
+        if (userInfoResponse.code() != 200) {
+            throw new Exception("User info API failed even after calling refresh");
+        }
+
+        int refreshTokenCounter = com.example.TestUtils.getRefreshTokenCounter();
+        if (refreshTokenCounter != 1) {
+            throw new Exception("Refresh token counter value is not the same as the expected value");
+        }
+    }
+
+    @Test
+    public void retrofitHeaders_testThatGetAccessTokenCallsRefreshCorrectly() throws Exception {
+        com.example.TestUtils.startST(3);
+        new SuperTokens.Builder(context, Constants.apiDomain)
+                .build();
+
+        JsonObject body = new JsonObject();
+        body.addProperty("userId", Constants.userId);
+        Response <Void> loginResponse = retrofitTestAPIService.login(body).execute();
+        if (loginResponse.code() != 200) {
+            throw new Exception("Error making login request");
+        }
+
+        String accessToken = SuperTokens.getAccessToken(context);
+
+        assert accessToken != null;
+
+        Thread.sleep(5000);
+
+        String newAccessToken = SuperTokens.getAccessToken(context);
+        assert newAccessToken != null;
+        assert  newAccessToken != accessToken;
+
+        int refreshTokenCounter = com.example.TestUtils.getRefreshTokenCounter();
+        if (refreshTokenCounter != 1) {
+            throw new Exception("Refresh token counter value is not the same as the expected value");
+        }
+    }
+
+    @Test
+    public void retrofitHeaders_testThatOldAccessTokenAfterSignOutWorksFine() throws Exception {
+        com.example.TestUtils.startST();
+        new SuperTokens.Builder(context, Constants.apiDomain)
+                .build();
+
+        JsonObject body = new JsonObject();
+        body.addProperty("userId", Constants.userId);
+        Response <Void> loginResponse = retrofitTestAPIService.login(body).execute();
+        if (loginResponse.code() != 200) {
+            throw new Exception("Error making login request");
+        }
+
+        String accessToken = SuperTokens.getAccessToken(context);
+
+        assert accessToken != null;
+
+        Response<Void> logoutResponse = retrofitTestAPIService.logout().execute();
+        if (logoutResponse.code() != 200){
+            throw new Exception("logout failed");
+        }
+
+        Response<ResponseBody> userInfoResponse = retrofitTestAPIService.userInfoCaps("Bearer " + accessToken).execute();
+        if (userInfoResponse.code() != 200) {
+            throw new Exception("User info API failed even after calling refresh");
+        }
     }
 
     class customInterceptors implements Interceptor {
