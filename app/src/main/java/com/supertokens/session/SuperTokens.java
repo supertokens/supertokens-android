@@ -50,7 +50,8 @@ public class SuperTokens {
             @NonNull String apiDomain,
             @Nullable String apiBasePath,
             @Nullable Integer sessionExpiredStatusCode,
-            @Nullable String cookieDomain,
+            @Nullable String sessionTokenBackendDomain,
+            @Nullable String tokenTransferMethod,
             @Nullable CustomHeaderProvider customHeaderProvider,
             @Nullable EventHandler eventHandler
     ) throws MalformedURLException {
@@ -62,7 +63,8 @@ public class SuperTokens {
                 apiDomain,
                 apiBasePath,
                 sessionExpiredStatusCode,
-                cookieDomain,
+                sessionTokenBackendDomain,
+                tokenTransferMethod,
                 customHeaderProvider,
                 eventHandler
         );
@@ -102,8 +104,27 @@ public class SuperTokens {
 
     @SuppressWarnings("unused")
     public static boolean doesSessionExist(Context context) {
-        String idRefreshToken = IdRefreshToken.getToken(context);
-        return idRefreshToken != null;
+        try {
+            JSONObject frontToken = FrontToken.getToken(context);
+
+            if (frontToken == null) {
+                return false;
+            }
+
+            long currentTimeInMillis = System.currentTimeMillis();
+
+            long accessTokenExpiry = frontToken.getLong("ate");
+
+            if (accessTokenExpiry < System.currentTimeMillis()) {
+                Utils.LocalSessionState localSessionState = Utils.getLocalSessionState(context);
+                Utils.Unauthorised response = SuperTokensHttpURLConnection.onUnauthorisedResponse(localSessionState, context);
+                return response.status == Utils.Unauthorised.UnauthorisedStatus.RETRY;
+            }
+        } catch (Exception e) {
+            return false;
+        }
+
+        return true;
     }
 
     @SuppressWarnings("unused")
@@ -169,9 +190,13 @@ public class SuperTokens {
         return;
     }
 
-    public static boolean attemptRefreshingSession(Context context) throws IOException {
-        String preRequestIdRefreshToken = IdRefreshToken.getToken(context);
-        Utils.Unauthorised unauthorisedResponse = SuperTokensHttpURLConnection.onUnauthorisedResponse(preRequestIdRefreshToken, context);
+    public static boolean attemptRefreshingSession(Context context) throws IOException, IllegalAccessException {
+        if (!SuperTokens.isInitCalled) {
+            throw new IllegalAccessException("SuperTokens.init function not called");
+        }
+
+        Utils.LocalSessionState localSessionState = Utils.getLocalSessionState(context);
+        Utils.Unauthorised unauthorisedResponse = SuperTokensHttpURLConnection.onUnauthorisedResponse(localSessionState, context);
 
         if (unauthorisedResponse.status == Utils.Unauthorised.UnauthorisedStatus.API_ERROR) {
             throw unauthorisedResponse.error;
@@ -212,9 +237,17 @@ public class SuperTokens {
             }
 
             return tokenInfo.getJSONObject("up");
-        } catch (JSONException e) {
+        } catch (JSONException | IllegalAccessException e) {
             throw new IllegalStateException(e);
         }
+    }
+
+    public static String getAccessToken(Context context) {
+        if (doesSessionExist(context)) {
+            return Utils.getTokenForHeaderAuth(Utils.TokenType.ACCESS, context);
+        }
+
+        return null;
     }
 
     public static class Builder {
@@ -222,9 +255,10 @@ public class SuperTokens {
         Context applicationContext;
         String apiBasePath;
         Integer sessionExpiredStatusCode;
-        String cookieDomain;
+        String sessionTokenBackendDomain;
         CustomHeaderProvider customHeaderProvider;
         EventHandler eventHandler;
+        String tokenTransferMethod;
 
         public Builder(Context applicationContext, String apiDomain) {
             this.apiDomain = apiDomain;
@@ -241,8 +275,8 @@ public class SuperTokens {
             return this;
         }
 
-        public Builder cookieDomain(String cookieDomain) {
-            this.cookieDomain = cookieDomain;
+        public Builder sessionTokenBackendDomain(String cookieDomain) {
+            this.sessionTokenBackendDomain = cookieDomain;
             return this;
         }
 
@@ -256,8 +290,13 @@ public class SuperTokens {
             return this;
         }
 
+        public Builder tokenTransferMethod(String tokenTransferMethod) {
+            this.tokenTransferMethod = tokenTransferMethod;
+            return this;
+        }
+
         public void build() throws MalformedURLException {
-            SuperTokens.init(applicationContext, apiDomain, apiBasePath, sessionExpiredStatusCode, cookieDomain, customHeaderProvider, eventHandler);
+            SuperTokens.init(applicationContext, apiDomain, apiBasePath, sessionExpiredStatusCode, sessionTokenBackendDomain, tokenTransferMethod, customHeaderProvider, eventHandler);
         }
     }
 }

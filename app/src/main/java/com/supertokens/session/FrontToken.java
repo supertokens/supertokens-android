@@ -32,7 +32,7 @@ public class FrontToken {
 
     private static String getFrontTokenFromStorage(Context context) {
         if (frontTokenInMemory == null) {
-            frontTokenInMemory = getSharedPreferences(context).getString(Constants.FRONT_TOKEN_PREFS_KEY, null);
+            frontTokenInMemory = Utils.getSharedPreferences(context).getString(Constants.FRONT_TOKEN_PREFS_KEY, null);
         }
 
         // If it is still null then there was no value in storage
@@ -44,7 +44,7 @@ public class FrontToken {
     }
 
     private static String getFrontToken(Context context) {
-        if (IdRefreshToken.getToken(context) == null) {
+        if (Utils.getLocalSessionState(context).status == Utils.LocalSessionStateStatus.NOT_EXISTS) {
             return null;
         }
 
@@ -65,8 +65,8 @@ public class FrontToken {
             while (true) {
                 String frontToken = getFrontToken(context);
                 if (frontToken == null) {
-                    String idRefresh = IdRefreshToken.getToken(context);
-                    if (idRefresh != null) {
+                    Utils.LocalSessionState localSessionState = Utils.getLocalSessionState(context);
+                    if (localSessionState.status == Utils.LocalSessionStateStatus.EXISTS) {
                         try {
                             tokenLock.wait();
                         } catch (InterruptedException ignored) {}
@@ -85,7 +85,7 @@ public class FrontToken {
     }
 
     private static void setFrontTokenToStorage(Context context, String frontToken) {
-        SharedPreferences.Editor editor = getSharedPreferences(context).edit();
+        SharedPreferences.Editor editor = Utils.getSharedPreferences(context).edit();
         editor.putString(Constants.FRONT_TOKEN_PREFS_KEY, frontToken);
         editor.apply();
         frontTokenInMemory = frontToken;
@@ -111,7 +111,7 @@ public class FrontToken {
     }
 
     private static void removeTokenFromStorage(Context context) {
-        SharedPreferences.Editor editor = getSharedPreferences(context).edit();
+        SharedPreferences.Editor editor = Utils.getSharedPreferences(context).edit();
         editor.remove(Constants.FRONT_TOKEN_PREFS_KEY);
         editor.apply();
         frontTokenInMemory = null;
@@ -131,7 +131,24 @@ public class FrontToken {
         }
     }
 
-    private static SharedPreferences getSharedPreferences(Context context) {
-        return context.getSharedPreferences(Constants.SHARED_PREFERENCES_KEY, Context.MODE_PRIVATE);
+    public static void setItem(Context context, String frontToken) {
+        // We update the refresh attempt info here as well, since this means that we've updated the session in some way
+        // This could be both by a refresh call or if the access token was updated in a custom endpoint
+        // By saving every time the access token has been updated, we cause an early retry if
+        // another request has failed with a 401 with the previous access token and the token still exists.
+        // Check the start and end of onUnauthorisedResponse
+        // As a side-effect we reload the anti-csrf token to check if it was changed by another tab.
+        Utils.saveLastAccessTokenUpdate(context);
+        if (frontToken.equalsIgnoreCase("remove")) {
+            FrontToken.removeToken(context);
+            return;
+        }
+
+        FrontToken.setFrontToken(context, frontToken);
+    }
+
+    public static boolean doesTokenExist(Context context) {
+        String frontToken = FrontToken.getFrontTokenFromStorage(context);
+        return frontToken != null;
     }
 }

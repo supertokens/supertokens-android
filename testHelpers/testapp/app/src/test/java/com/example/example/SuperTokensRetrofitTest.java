@@ -22,13 +22,12 @@ import android.os.Looper;
 import android.text.TextUtils;
 
 import com.example.example.Constants;
-import com.example.example.R;
 import com.franmontiel.persistentcookiejar.PersistentCookieJar;
 import com.franmontiel.persistentcookiejar.cache.SetCookieCache;
 import com.franmontiel.persistentcookiejar.persistence.SharedPrefsCookiePersistor;
+import com.github.ivanshafran.sharedpreferencesmock.SPMockBuilder;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
 
 import org.jetbrains.annotations.NotNull;
 import org.junit.AfterClass;
@@ -40,7 +39,6 @@ import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.junit.MockitoJUnitRunner;
 
-import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -54,7 +52,6 @@ import java.util.logging.Handler;
 import com.supertokens.session.CustomHeaderProvider;
 import com.supertokens.session.SuperTokens;
 import com.supertokens.session.SuperTokensInterceptor;
-import com.supertokens.session.android.MockSharedPrefs;
 import com.supertokens.session.android.RetrofitTestAPIService;
 import okhttp3.Interceptor;
 import okhttp3.OkHttpClient;
@@ -75,7 +72,6 @@ public class SuperTokensRetrofitTest {
     private final String testHeaderAPIURL = testBaseURL + "/header";
 
     private final int sessionExpiryCode = 401;
-    private static MockSharedPrefs mockSharedPrefs;
     private static OkHttpClient okHttpClient;
     private static Retrofit retrofitInstance;
     private static RetrofitTestAPIService retrofitTestAPIService;
@@ -83,11 +79,7 @@ public class SuperTokensRetrofitTest {
     @Mock
     Context context;
 
-    @Mock
-    SharedPreferences mockSharedPreferences;
-
-    @Mock
-    SharedPreferences.Editor sharedPreferencesEditor;
+    SharedPreferences mockedPrefs;
 
     @BeforeClass
     public static void beforeAll() throws Exception {
@@ -100,11 +92,10 @@ public class SuperTokensRetrofitTest {
         Mockito.mock(TextUtils.class);
         Mockito.mock(Looper.class);
         Mockito.mock(Handler.class);
+        mockedPrefs = new SPMockBuilder().createSharedPreferences();
         Mockito.when(context.getSharedPreferences(Mockito.anyString(), Mockito.anyInt())).thenAnswer(invocation -> {
-            return mockSharedPreferences;
+            return mockedPrefs;
         });
-        Mockito.when(mockSharedPreferences.edit()).thenReturn(sharedPreferencesEditor);
-        Mockito.when(sharedPreferencesEditor.putString(Mockito.anyString(), Mockito.anyString())).thenReturn(sharedPreferencesEditor);
         OkHttpClient.Builder clientBuilder = new OkHttpClient.Builder();
         clientBuilder.interceptors().add(new SuperTokensInterceptor());
         clientBuilder.cookieJar(new PersistentCookieJar(new SetCookieCache(), new SharedPrefsCookiePersistor(context)));
@@ -128,7 +119,9 @@ public class SuperTokensRetrofitTest {
     @Test
     public void retrofit_testDoesSessionExistWorksFineWhenUserIsLoggedIn() throws Exception{
         com.example.TestUtils.startST();
-        new SuperTokens.Builder(context, Constants.apiDomain).build();
+        new SuperTokens.Builder(context, Constants.apiDomain)
+                .tokenTransferMethod("cookie")
+                .build();
         JsonObject body = new JsonObject();
         body.addProperty("userId", Constants.userId);
         Response <Void> loginResponse = retrofitTestAPIService.login(body).execute();
@@ -147,7 +140,9 @@ public class SuperTokensRetrofitTest {
     @Test
     public void retrofit_testSessionShouldNotExitWhenUserCallsLogout() throws Exception{
         com.example.TestUtils.startST();
-        new SuperTokens.Builder(context, Constants.apiDomain).build();
+        new SuperTokens.Builder(context, Constants.apiDomain)
+                .tokenTransferMethod("cookie")
+                .build();
 
         //do login request
         JsonObject body = new JsonObject();
@@ -209,7 +204,9 @@ public class SuperTokensRetrofitTest {
     @Test
     public void retrofit_testThatAPISThatDontRequireAuthenticationWorkCorrectly() throws Exception {
         com.example.TestUtils.startST();
-        new SuperTokens.Builder(context, Constants.apiDomain).build();
+        new SuperTokens.Builder(context, Constants.apiDomain)
+                .tokenTransferMethod("cookie")
+                .build();
 
 
         //test testPing api before login
@@ -267,7 +264,9 @@ public class SuperTokensRetrofitTest {
     @Test
     public void retrofit_testThatAPIErrorsGetPropagatedToTheUserProperlyWithInterception() throws Exception {
         com.example.TestUtils.startST();
-        new SuperTokens.Builder(context, Constants.apiDomain).build();
+        new SuperTokens.Builder(context, Constants.apiDomain)
+                .tokenTransferMethod("cookie")
+                .build();
 
         Response<ResponseBody> testErrorResponse = retrofitTestAPIService.testError().execute();
         if (testErrorResponse.errorBody() == null){
@@ -283,7 +282,9 @@ public class SuperTokensRetrofitTest {
     @Test
     public void retrofit_testThatAPIErrorsGetPropagatedToTheUserProperlyWithoutInterception() throws Exception {
         com.example.TestUtils.startST();
-        new SuperTokens.Builder(context, Constants.apiDomain).build();
+        new SuperTokens.Builder(context, Constants.apiDomain)
+                .tokenTransferMethod("cookie")
+                .build();
 
         OkHttpClient client = okHttpClient.newBuilder().build();
 
@@ -307,8 +308,12 @@ public class SuperTokensRetrofitTest {
     @Test
     public void retrofit_testThatCallingSuperTokensInitMoreThanOnceWorks() throws Exception {
         com.example.TestUtils.startST();
-        new SuperTokens.Builder(context, Constants.apiDomain).build();
-        new SuperTokens.Builder(context, Constants.apiDomain).build();
+        new SuperTokens.Builder(context, Constants.apiDomain)
+                .tokenTransferMethod("cookie")
+                .build();
+        new SuperTokens.Builder(context, Constants.apiDomain)
+                .tokenTransferMethod("cookie")
+                .build();
 
         //login request
         JsonObject body = new JsonObject();
@@ -320,7 +325,9 @@ public class SuperTokensRetrofitTest {
         }
 
         //supertokensinit
-        new SuperTokens.Builder(context, Constants.apiDomain).build();
+        new SuperTokens.Builder(context, Constants.apiDomain)
+                .tokenTransferMethod("cookie")
+                .build();
 
         Response<ResponseBody> userInfoResponse = retrofitTestAPIService.userInfo().execute();
         if (userInfoResponse.code() != 200) {
@@ -347,7 +354,9 @@ public class SuperTokensRetrofitTest {
     @Test
     public void retrofit_testThatThingsShouldWorkIfAntiCsrfIsDisabled() throws Exception {
         com.example.TestUtils.startST(3, false, 144000);
-        new SuperTokens.Builder(context, Constants.apiDomain).build();
+        new SuperTokens.Builder(context, Constants.apiDomain)
+                .tokenTransferMethod("cookie")
+                .build();
 
         JsonObject body = new JsonObject();
         body.addProperty("userId", Constants.userId);
@@ -385,7 +394,9 @@ public class SuperTokensRetrofitTest {
     @Test
     public void okHttp_testThatMultipleAPICallsInParallelAndOnly1RefreshShouldBeCalled() throws Exception {
         com.example.TestUtils.startST(3, true, 144000);
-        new SuperTokens.Builder(context, Constants.apiDomain).build();
+        new SuperTokens.Builder(context, Constants.apiDomain)
+                .tokenTransferMethod("cookie")
+                .build();
 
         JsonObject body = new JsonObject();
         body.addProperty("userId", Constants.userId);
@@ -457,7 +468,9 @@ public class SuperTokensRetrofitTest {
 
                 return null;
             }
-        }).build();
+        })
+                .tokenTransferMethod("cookie")
+                .build();
 
         JsonObject body = new JsonObject();
         body.addProperty("userId", Constants.userId);
@@ -493,7 +506,9 @@ public class SuperTokensRetrofitTest {
     @Test
     public void okHttp_testThatMultipleInterceptorsAreThereAndTheyShouldAllWork() throws Exception {
         com.example.TestUtils.startST();
-        new SuperTokens.Builder(context, Constants.apiDomain).build();
+        new SuperTokens.Builder(context, Constants.apiDomain)
+                .tokenTransferMethod("cookie")
+                .build();
         OkHttpClient client = okHttpClient.newBuilder().addInterceptor(new customInterceptors()).build();
 
         Retrofit retrofit = new Retrofit.Builder()
@@ -515,7 +530,9 @@ public class SuperTokensRetrofitTest {
     @Test
     public void retrofit_testThatEverythingShouldWork() throws Exception {
         com.example.TestUtils.startST(3, true, 144000);
-        new SuperTokens.Builder(context, Constants.apiDomain).build();
+        new SuperTokens.Builder(context, Constants.apiDomain)
+                .tokenTransferMethod("cookie")
+                .build();
 
         JsonObject body = new JsonObject();
         body.addProperty("userId", Constants.userId);

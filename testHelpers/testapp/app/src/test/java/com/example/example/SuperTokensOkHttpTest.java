@@ -26,6 +26,7 @@ import com.example.example.R;
 import com.franmontiel.persistentcookiejar.PersistentCookieJar;
 import com.franmontiel.persistentcookiejar.cache.SetCookieCache;
 import com.franmontiel.persistentcookiejar.persistence.SharedPrefsCookiePersistor;
+import com.github.ivanshafran.sharedpreferencesmock.SPMockBuilder;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
@@ -56,7 +57,6 @@ import java.util.logging.Handler;
 import com.supertokens.session.CustomHeaderProvider;
 import com.supertokens.session.SuperTokens;
 import com.supertokens.session.SuperTokensInterceptor;
-import com.supertokens.session.android.MockSharedPrefs;
 import okhttp3.Interceptor;
 import okhttp3.MediaType;
 import okhttp3.OkHttpClient;
@@ -80,17 +80,12 @@ public class SuperTokensOkHttpTest {
     private final String testPingAPIURL = testBaseURL + "/ping";
 
     private final int sessionExpiryCode = 401;
-    private static MockSharedPrefs mockSharedPrefs;
     private static OkHttpClient okHttpClient;
 
     @Mock
     Context context;
 
-    @Mock
-    SharedPreferences mockSharedPreferences;
-
-    @Mock
-    SharedPreferences.Editor sharedPreferencesEditor;
+    SharedPreferences mockedPrefs;
 
     @BeforeClass
     public static void beforeAll() throws Exception {
@@ -103,11 +98,10 @@ public class SuperTokensOkHttpTest {
         Mockito.mock(TextUtils.class);
         Mockito.mock(Looper.class);
         Mockito.mock(Handler.class);
+        mockedPrefs = new SPMockBuilder().createSharedPreferences();
         Mockito.when(context.getSharedPreferences(Mockito.anyString(), Mockito.anyInt())).thenAnswer(invocation -> {
-            return mockSharedPreferences;
+            return mockedPrefs;
         });
-        Mockito.when(mockSharedPreferences.edit()).thenReturn(sharedPreferencesEditor);
-        Mockito.when(sharedPreferencesEditor.putString(Mockito.anyString(), Mockito.anyString())).thenReturn(sharedPreferencesEditor);
         OkHttpClient.Builder clientBuilder = new OkHttpClient.Builder();
         clientBuilder.interceptors().add(new SuperTokensInterceptor());
         clientBuilder.cookieJar(new PersistentCookieJar(new SetCookieCache(), new SharedPrefsCookiePersistor(context)));
@@ -142,7 +136,9 @@ public class SuperTokensOkHttpTest {
     @Test
     public void okHttp_testApiWithoutParams() throws Exception {
         com.example.TestUtils.startST();
-        new SuperTokens.Builder(context, Constants.apiDomain).build();
+        new SuperTokens.Builder(context, Constants.apiDomain)
+                .tokenTransferMethod("cookie")
+                .build();
         JsonObject bodyJson = new JsonObject();
         bodyJson.addProperty("userId", Constants.userId);
         RequestBody body = RequestBody.create(MediaType.parse("application/json; charset=utf-8"), bodyJson.toString());
@@ -162,7 +158,9 @@ public class SuperTokensOkHttpTest {
     @Test
     public void okHttp_testApiWithParams() throws Exception {
         com.example.TestUtils.startST();
-        new SuperTokens.Builder(context, Constants.apiDomain).build();
+        new SuperTokens.Builder(context, Constants.apiDomain)
+                .tokenTransferMethod("cookie")
+                .build();
         JsonObject bodyJson = new JsonObject();
         bodyJson.addProperty("userId", Constants.userId);
         RequestBody body = RequestBody.create(MediaType.parse("application/json; charset=utf-8"), bodyJson.toString());
@@ -182,7 +180,9 @@ public class SuperTokensOkHttpTest {
     @Test
     public void okHttp_refreshIsCalledAfterAccessTokenExpiry() throws Exception {
         com.example.TestUtils.startST(3, true, 144000);
-        new SuperTokens.Builder(context, Constants.apiDomain).build();
+        new SuperTokens.Builder(context, Constants.apiDomain)
+                .tokenTransferMethod("cookie")
+                .build();
         JsonObject bodyJson = new JsonObject();
         bodyJson.addProperty("userId", Constants.userId);
         RequestBody body = RequestBody.create(MediaType.parse("application/json; charset=utf-8"), bodyJson.toString());
@@ -220,7 +220,9 @@ public class SuperTokensOkHttpTest {
     @Test
     public void okHttp_sessionShouldExistWhenUserCallsLogOut() throws Exception {
         com.example.TestUtils.startST();
-        new SuperTokens.Builder(context, Constants.apiDomain).build();
+        new SuperTokens.Builder(context, Constants.apiDomain)
+                .tokenTransferMethod("cookie")
+                .build();
 
         JsonObject bodyJson = new JsonObject();
         bodyJson.addProperty("userId", Constants.userId);
@@ -260,7 +262,9 @@ public class SuperTokensOkHttpTest {
     @Test
     public void okHttp_testDoesSessionExistWorkFineWhenUserIsLoggedIn() throws Exception {
         com.example.TestUtils.startST();
-        new SuperTokens.Builder(context, Constants.apiDomain).build();
+        new SuperTokens.Builder(context, Constants.apiDomain)
+                .tokenTransferMethod("cookie")
+                .build();
 
         JsonObject bodyJson = new JsonObject();
         bodyJson.addProperty("userId", Constants.userId);
@@ -286,8 +290,12 @@ public class SuperTokensOkHttpTest {
     @Test
     public void okHttp_testThatCallingSuperTokensInitMoreThanOnceWorks() throws Exception {
         com.example.TestUtils.startST(10, true, 144000);
-        new SuperTokens.Builder(context, Constants.apiDomain).build();
-        new SuperTokens.Builder(context, Constants.apiDomain).build();
+        new SuperTokens.Builder(context, Constants.apiDomain)
+                .tokenTransferMethod("cookie")
+                .build();
+        new SuperTokens.Builder(context, Constants.apiDomain)
+                .tokenTransferMethod("cookie")
+                .build();
 
         JsonObject bodyJson = new JsonObject();
         bodyJson.addProperty("userId", Constants.userId);
@@ -304,7 +312,9 @@ public class SuperTokensOkHttpTest {
         }
 
         loginResponse.close();
-        new SuperTokens.Builder(context, Constants.apiDomain).build();
+        new SuperTokens.Builder(context, Constants.apiDomain)
+                .tokenTransferMethod("cookie")
+                .build();
 
         Request userInfoRequest = new Request.Builder()
                 .url(userInfoAPIURL)
@@ -343,7 +353,9 @@ public class SuperTokensOkHttpTest {
     @Test
     public void okHttp_testThatMultipleInterceptorsAreThereAndTheyShouldAllWork() throws Exception {
         com.example.TestUtils.startST();
-        new SuperTokens.Builder(context, Constants.apiDomain).build();
+        new SuperTokens.Builder(context, Constants.apiDomain)
+                .tokenTransferMethod("cookie")
+                .build();
         OkHttpClient client = okHttpClient.newBuilder().addInterceptor(new customInterceptors()).build();
 
         RequestBody logoutReqBody = RequestBody.create(MediaType.parse("application/json; charset=utf-8"), "{}");
@@ -367,7 +379,9 @@ public class SuperTokensOkHttpTest {
     @Test
     public void okHttp_testThatAPIErrorsGetPropagatedToTheUserInterception() throws Exception {
         com.example.TestUtils.startST();
-        new SuperTokens.Builder(context, Constants.apiDomain).build();
+        new SuperTokens.Builder(context, Constants.apiDomain)
+                .tokenTransferMethod("cookie")
+                .build();
 
         Request request = new Request.Builder()
                 .url(testErrorAPIURL)
@@ -394,7 +408,9 @@ public class SuperTokensOkHttpTest {
     public void okHttp_testThatAPIErrorsGetPropagatedToTheUserWithoutInterception() throws Exception {
         com.example.TestUtils.startST();
 
-        new SuperTokens.Builder(context, Constants.apiDomain).build();
+        new SuperTokens.Builder(context, Constants.apiDomain)
+                .tokenTransferMethod("cookie")
+                .build();
         OkHttpClient client = new OkHttpClient().newBuilder().build();
         Request request = new Request.Builder()
                 .url(testErrorAPIURL)
@@ -416,7 +432,9 @@ public class SuperTokensOkHttpTest {
     @Test
     public void okHttp_testThatUserPassedConfigShouldBeSentAsWell() throws Exception {
         com.example.TestUtils.startST();
-        new SuperTokens.Builder(context, Constants.apiDomain).build();
+        new SuperTokens.Builder(context, Constants.apiDomain)
+                .tokenTransferMethod("cookie")
+                .build();
 
         JsonObject bodyJson = new JsonObject();
         bodyJson.addProperty("userId", Constants.userId);
@@ -446,7 +464,9 @@ public class SuperTokensOkHttpTest {
     @Test
     public void okHttp_testThatThingsShouldWorkIfAntiCsrfIsDisabled() throws Exception {
         com.example.TestUtils.startST(3, false, 144000);
-        new SuperTokens.Builder(context, Constants.apiDomain).build();
+        new SuperTokens.Builder(context, Constants.apiDomain)
+                .tokenTransferMethod("cookie")
+                .build();
 
         JsonObject bodyJson = new JsonObject();
         bodyJson.addProperty("userId", Constants.userId);
@@ -502,7 +522,9 @@ public class SuperTokensOkHttpTest {
     @Test
     public void okHttp_testThatMultipleAPICallsInParallelAndOnly1RefreshShouldBeCalled() throws Exception {
         com.example.TestUtils.startST(3, true, 144000);
-        new SuperTokens.Builder(context, Constants.apiDomain).build();
+        new SuperTokens.Builder(context, Constants.apiDomain)
+                .tokenTransferMethod("cookie")
+                .build();
 
         JsonObject bodyJson = new JsonObject();
         bodyJson.addProperty("userId", Constants.userId);
@@ -636,7 +658,9 @@ public class SuperTokensOkHttpTest {
 
                 return null;
             }
-        }).build();
+        })
+            .tokenTransferMethod("cookie")
+            .build();
 
         JsonObject bodyJson = new JsonObject();
         bodyJson.addProperty("userId", Constants.userId);
@@ -680,7 +704,9 @@ public class SuperTokensOkHttpTest {
     @Test
     public void okHttp_testThatAPIsThatDontNeedAuthenticationWorkProperly() throws Exception{
         com.example.TestUtils.startST(5,true,144000);
-        new SuperTokens.Builder(context, Constants.apiDomain).build();
+        new SuperTokens.Builder(context, Constants.apiDomain)
+                .tokenTransferMethod("cookie")
+                .build();
 
         //api request which does not require authentication
         Request request = new Request.Builder()
@@ -739,7 +765,9 @@ public class SuperTokensOkHttpTest {
     @Test
     public void okHttp_testThatEverythingWorksProperly() throws Exception {
         com.example.TestUtils.startST(3, true, 144000);
-        new SuperTokens.Builder(context, Constants.apiDomain).build();
+        new SuperTokens.Builder(context, Constants.apiDomain)
+                .tokenTransferMethod("cookie")
+                .build();
 
         JsonObject bodyJson = new JsonObject();
         bodyJson.addProperty("userId", Constants.userId);
