@@ -16,6 +16,7 @@
 
 package com.supertokens.session;
 
+import android.content.Context;
 import android.os.Build;
 
 import androidx.annotation.RequiresApi;
@@ -33,10 +34,12 @@ import java.util.Map;
 public class SuperTokensCustomHttpURLConnection extends HttpURLConnection {
     HttpURLConnection original;
     String authorizationHeader = null;
+    Context applicationContext;
 
-    public SuperTokensCustomHttpURLConnection(HttpURLConnection original) {
+    public SuperTokensCustomHttpURLConnection(HttpURLConnection original, Context applicationContext) {
         super(original.getURL());
         this.original = original;
+        this.applicationContext = applicationContext;
     }
 
     @Override
@@ -199,7 +202,7 @@ public class SuperTokensCustomHttpURLConnection extends HttpURLConnection {
     }
 
     public void setDoInput(boolean doinput) {
-        original.setDoInput(doInput);
+        original.setDoInput(doinput);
     }
 
     public boolean getDoInput() {
@@ -207,7 +210,7 @@ public class SuperTokensCustomHttpURLConnection extends HttpURLConnection {
     }
 
     public void setDoOutput(boolean dooutput) {
-        original.setDoOutput(doOutput);
+        original.setDoOutput(dooutput);
     }
 
     public boolean getDoOutput() {
@@ -231,7 +234,7 @@ public class SuperTokensCustomHttpURLConnection extends HttpURLConnection {
     }
 
     public void setIfModifiedSince(long ifmodifiedsince) {
-        original.setIfModifiedSince(ifModifiedSince);
+        original.setIfModifiedSince(ifmodifiedsince);
     }
 
     public long getIfModifiedSince() {
@@ -246,11 +249,24 @@ public class SuperTokensCustomHttpURLConnection extends HttpURLConnection {
         original.setDefaultUseCaches(defaultusecaches);
     }
 
-    public void setRequestProperty(String key, String value) {
+    public void setRequestProperty(String key, String value, boolean force) {
         if (key.equalsIgnoreCase("authorization")) {
             this.authorizationHeader = value;
+
+            String accessToken = Utils.getTokenForHeaderAuth(Utils.TokenType.ACCESS, applicationContext);
+            // If force is false it means that we should ignore the attemp if it matches the
+            // existing access token
+            if (accessToken != null && value.equals("Bearer " + accessToken) && !force) {
+                // We ignore the attempt to set the header because it matches the existing access token
+                // which will get added by the SDK
+                return;
+            }
         }
         original.setRequestProperty(key, value);
+    }
+
+    public void setRequestProperty(String key, String value) {
+        setRequestProperty(key, value, false);
     }
 
     public void addRequestProperty(String key, String value) {

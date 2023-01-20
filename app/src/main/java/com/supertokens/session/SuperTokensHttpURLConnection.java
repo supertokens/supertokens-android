@@ -39,7 +39,7 @@ public class SuperTokensHttpURLConnection {
     private static void setAuthorizationHeaderIfRequired(SuperTokensCustomHttpURLConnection connection, Context context) {
         Map<String, String> headersToSet = Utils.getAuthorizationHeaderIfRequired(context);
         for (Map.Entry<String, String> entry: headersToSet.entrySet()) {
-            connection.setRequestProperty(entry.getKey(), entry.getValue());
+            connection.setRequestProperty(entry.getKey(), entry.getValue(), true);
         }
     }
 
@@ -136,7 +136,7 @@ public class SuperTokensHttpURLConnection {
                 refreshAPILock.readLock().lock();
                 try {
                     connection = (HttpURLConnection) url.openConnection();
-                    customConnection = new SuperTokensCustomHttpURLConnection(connection);
+                    customConnection = new SuperTokensCustomHttpURLConnection(connection, applicationContext);
 
                     // Add antiCSRF token, if present in storage, to the request headers
                     preRequestLocalSessionState = Utils.getLocalSessionState(applicationContext);
@@ -159,15 +159,14 @@ public class SuperTokensHttpURLConnection {
                         customConnection.setRequestProperty("rid", "anti-csrf");
                     }
 
+                    customConnection.setRequestProperty("st-auth-mode", SuperTokens.config.tokenTransferMethod);
+                    setAuthorizationHeaderIfRequired(customConnection, applicationContext);
+
                     // This will allow the user to set headers or modify request in anyway they want
                     // TODO NEMI: Replace this with pre api hook when implemented
                     if (preConnectCallback != null) {
                         preConnectCallback.doAction(customConnection);
                     }
-
-                    removeAuthHeadersFromConnection(customConnection, applicationContext);
-                    customConnection.setRequestProperty("st-auth-mode", SuperTokens.config.tokenTransferMethod);
-                    setAuthorizationHeaderIfRequired(customConnection, applicationContext);
 
                     customConnection.connect();
 
@@ -261,7 +260,7 @@ public class SuperTokensHttpURLConnection {
             }
             refreshTokenConnection.connect();
 
-            Utils.saveTokenFromHeaders(new SuperTokensCustomHttpURLConnection(refreshTokenConnection), applicationContext);
+            Utils.saveTokenFromHeaders(new SuperTokensCustomHttpURLConnection(refreshTokenConnection, applicationContext), applicationContext);
             manuallySetCookiesFromResponse(refreshTokenUrl, refreshTokenConnection);
 
             final int responseCode = refreshTokenConnection.getResponseCode();
