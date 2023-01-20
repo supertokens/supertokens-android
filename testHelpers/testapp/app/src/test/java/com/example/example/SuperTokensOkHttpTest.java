@@ -57,6 +57,10 @@ import java.util.logging.Handler;
 import com.supertokens.session.CustomHeaderProvider;
 import com.supertokens.session.SuperTokens;
 import com.supertokens.session.SuperTokensInterceptor;
+
+import okhttp3.Cookie;
+import okhttp3.CookieJar;
+import okhttp3.HttpUrl;
 import okhttp3.Interceptor;
 import okhttp3.MediaType;
 import okhttp3.OkHttpClient;
@@ -87,6 +91,8 @@ public class SuperTokensOkHttpTest {
 
     SharedPreferences mockedPrefs;
 
+    CookieJar cookieJar;
+
     @BeforeClass
     public static void beforeAll() throws Exception {
         com.example.TestUtils.beforeAll();
@@ -104,7 +110,8 @@ public class SuperTokensOkHttpTest {
         });
         OkHttpClient.Builder clientBuilder = new OkHttpClient.Builder();
         clientBuilder.interceptors().add(new SuperTokensInterceptor());
-        clientBuilder.cookieJar(new PersistentCookieJar(new SetCookieCache(), new SharedPrefsCookiePersistor(context)));
+        cookieJar = new PersistentCookieJar(new SetCookieCache(), new SharedPrefsCookiePersistor(context));
+        clientBuilder.cookieJar(cookieJar);
         okHttpClient = clientBuilder.build();
 
         com.example.TestUtils.beforeEach();
@@ -818,6 +825,133 @@ public class SuperTokensOkHttpTest {
         if (SuperTokens.doesSessionExist(context)){
             throw new Exception("Session exists when it should not");
         }
+    }
+
+    @Test
+    public void okhttp_testThatOldSessionsStillWorkAfterRefreshing() throws Exception {
+        com.example.TestUtils.startST(1);
+        new SuperTokens.Builder(context, Constants.apiDomain)
+                .tokenTransferMethod("cookie")
+                .build();
+
+        JsonObject bodyJson = new JsonObject();
+        bodyJson.addProperty("userId", Constants.userId);
+        RequestBody body = RequestBody.create(MediaType.parse("application/json; charset=utf-8"), bodyJson.toString());
+        Request request = new Request.Builder()
+                .url(loginAPIURL)
+                .method("POST", body)
+                .addHeader("Accept", "application/json")
+                .addHeader("Content-Type", "application/json")
+                .build();
+        Response loginResponse = okHttpClient.newCall(request).execute();
+        if (loginResponse.code() != 200) {
+            throw new Exception("Error making login request");
+        }
+        loginResponse.close();
+
+        Cookie idRefreshToken = new Cookie.Builder()
+                .name("sIdRefreshToken")
+                .value("asdf")
+                .path("/")
+                .hostOnlyDomain("127.0.0.1")
+                .build();
+
+        HttpUrl httpUrl = new HttpUrl.Builder()
+                .scheme("http")
+                .host("127.0.0.1")
+                .port(8080)
+                .build();
+        List<Cookie> cookies = new ArrayList<>();
+        cookies.add(idRefreshToken);
+        cookieJar.saveFromResponse(httpUrl, cookies);
+
+        Request userInfoRequest = new Request.Builder()
+                .url(userInfoAPIURL)
+                .build();
+
+        Response userInfoResponse = okHttpClient.newCall(userInfoRequest).execute();
+        if (userInfoResponse.code() != 200) {
+            throw new Exception("User info API failed even after calling refresh");
+        }
+
+        List<Cookie> newCookies = cookieJar.loadForRequest(httpUrl);
+        Cookie idRefreshTokenCookie = null;
+
+        for (Cookie _cookie : newCookies) {
+            if (_cookie.name().equals("sIdRefreshToken")) {
+                idRefreshTokenCookie = _cookie;
+            }
+        }
+
+        assert idRefreshTokenCookie == null;
+    }
+
+    @Test
+    public void okhttp_testThatRefreshingOldSessionsWorksFineWithExpiredAccessToken() throws Exception {
+        com.example.TestUtils.startST(1);
+        new SuperTokens.Builder(context, Constants.apiDomain)
+                .tokenTransferMethod("cookie")
+                .build();
+
+        JsonObject bodyJson = new JsonObject();
+        bodyJson.addProperty("userId", Constants.userId);
+        RequestBody body = RequestBody.create(MediaType.parse("application/json; charset=utf-8"), bodyJson.toString());
+        Request request = new Request.Builder()
+                .url(loginAPIURL)
+                .method("POST", body)
+                .addHeader("Accept", "application/json")
+                .addHeader("Content-Type", "application/json")
+                .build();
+        Response loginResponse = okHttpClient.newCall(request).execute();
+        if (loginResponse.code() != 200) {
+            throw new Exception("Error making login request");
+        }
+        loginResponse.close();
+
+        Cookie idRefreshToken = new Cookie.Builder()
+                .name("sIdRefreshToken")
+                .value("asdf")
+                .path("/")
+                .hostOnlyDomain("127.0.0.1")
+                .build();
+
+        Cookie accessToken = new Cookie.Builder()
+                .name("sAccessToken")
+                .value("")
+                .path("/")
+                .hostOnlyDomain("127.0.0.1")
+                .expiresAt(0)
+                .build();
+
+        HttpUrl httpUrl = new HttpUrl.Builder()
+                .scheme("http")
+                .host("127.0.0.1")
+                .port(8080)
+                .build();
+
+        List<Cookie> cookies = new ArrayList<>();
+        cookies.add(idRefreshToken);
+        cookies.add(accessToken);
+        cookieJar.saveFromResponse(httpUrl, cookies);
+
+        Request userInfoRequest = new Request.Builder()
+                .url(userInfoAPIURL)
+                .build();
+        Response userInfoResponse = okHttpClient.newCall(userInfoRequest).execute();
+        if (userInfoResponse.code() != 200) {
+            throw new Exception("User info API failed even after calling refresh");
+        }
+
+        List<Cookie> newCookies = cookieJar.loadForRequest(httpUrl);
+        Cookie idRefreshTokenCookie = null;
+
+        for (Cookie _cookie : newCookies) {
+            if (_cookie.name().equals("sIdRefreshToken")) {
+                idRefreshTokenCookie = _cookie;
+            }
+        }
+
+        assert idRefreshTokenCookie == null;
     }
 
     //custom interceptors
