@@ -53,8 +53,8 @@ public class SuperTokensInterceptor implements Interceptor {
         return builder.build();
     }
 
-    private Request setAuthorizationHeaderIfRequired(Request.Builder builder, Context context) {
-        Map<String, String> headersToSet = Utils.getAuthorizationHeaderIfRequired(context);
+    private static Request setAuthorizationHeaderIfRequired(Request.Builder builder, Context context, boolean addRefreshToken) {
+        Map<String, String> headersToSet = Utils.getAuthorizationHeaderIfRequired(addRefreshToken, context);
         for (Map.Entry<String, String> entry: headersToSet.entrySet()) {
             builder.header(entry.getKey(), entry.getValue());
         }
@@ -119,7 +119,7 @@ public class SuperTokensInterceptor implements Interceptor {
                     }
 
                     request = removeAuthHeaderIfMatchesLocalToken(request, request.newBuilder(), applicationContext);
-                    request = setAuthorizationHeaderIfRequired(request.newBuilder(), applicationContext);
+                    request = setAuthorizationHeaderIfRequired(request.newBuilder(), applicationContext, false);
 
                     response = makeRequest(chain, request);
                     Utils.saveTokenFromHeaders(response, applicationContext);
@@ -203,6 +203,8 @@ public class SuperTokensInterceptor implements Interceptor {
             refreshRequestBuilder.header("rid", SuperTokens.rid);
             refreshRequestBuilder.header("fdi-version", Utils.join(Version.supported_fdi, ","));
             refreshRequestBuilder.header("st-auth-mode", SuperTokens.config.tokenTransferMethod);
+
+            refreshRequestBuilder = setAuthorizationHeaderIfRequired(refreshRequestBuilder, applicationContext, true).newBuilder();
 
             Map<String, String> customRefreshHeaders = SuperTokens.config.customHeaderMapper.getRequestHeaders(CustomHeaderProvider.RequestType.REFRESH);
             if (customRefreshHeaders != null) {

@@ -43,6 +43,13 @@ public class SuperTokensHttpURLConnection {
         }
     }
 
+    private static void setAuthorizationHeaderIfRequiredForRefresh(HttpURLConnection connection, Context context) {
+        Map<String, String> headersToSet = Utils.getAuthorizationHeaderIfRequired(true, context);
+        for (Map.Entry<String, String> entry: headersToSet.entrySet()) {
+            connection.setRequestProperty(entry.getKey(), entry.getValue());
+        }
+    }
+
     private static void removeAuthHeadersFromConnection(SuperTokensCustomHttpURLConnection connection, Context context) {
         Map<String, List<String>> currentHeaders = connection.getRequestProperties();
         String originalHeader = connection.getAuthorizationHeader();
@@ -237,6 +244,7 @@ public class SuperTokensHttpURLConnection {
             refreshTokenConnection.setRequestProperty("rid", SuperTokens.rid);
             refreshTokenConnection.setRequestProperty("fdi-version", Utils.join(Version.supported_fdi, ","));
             refreshTokenConnection.setRequestProperty("st-auth-mode", SuperTokens.config.tokenTransferMethod);
+            setAuthorizationHeaderIfRequiredForRefresh(refreshTokenConnection, applicationContext);
 
             Map<String, String> customRefreshHeaders = SuperTokens.config.customHeaderMapper.getRequestHeaders(CustomHeaderProvider.RequestType.REFRESH);
             if (customRefreshHeaders != null) {
