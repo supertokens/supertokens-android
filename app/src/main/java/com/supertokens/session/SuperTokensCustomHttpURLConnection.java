@@ -33,7 +33,6 @@ import java.util.Map;
 
 public class SuperTokensCustomHttpURLConnection extends HttpURLConnection {
     HttpURLConnection original;
-    String authorizationHeader = null;
     Context applicationContext;
 
     public SuperTokensCustomHttpURLConnection(HttpURLConnection original, Context applicationContext) {
@@ -249,16 +248,26 @@ public class SuperTokensCustomHttpURLConnection extends HttpURLConnection {
         original.setDefaultUseCaches(defaultusecaches);
     }
 
-    public void setRequestProperty(String key, String value, boolean force) {
-        if (key.equalsIgnoreCase("authorization")) {
-            this.authorizationHeader = value;
+    private boolean shouldAllowSettingAuthHeader(String value) {
+        String accessToken = Utils.getTokenForHeaderAuth(Utils.TokenType.ACCESS, applicationContext);
+        if (accessToken != null && value.equals("Bearer " + accessToken)) {
+            // We ignore the attempt to set the header because it matches the existing access token
+            // which will get added by the SDK
+            return false;
+        }
 
-            String accessToken = Utils.getTokenForHeaderAuth(Utils.TokenType.ACCESS, applicationContext);
-            // If force is false it means that we should ignore the attemp if it matches the
+        return true;
+    }
+
+    public void setRequestProperty(String key, String value, boolean force) {
+        // Java considers some headers to be protected and trying to read the values in code
+        // always returns null for them. To handle the case where the user sets an authorization
+        // header that is the same as the access token in storage, we check for the key and value
+        // and only call super if the value is different.
+        if (key.equalsIgnoreCase("authorization")) {
+            // If force is false it means that we should ignore the attempt if it matches the
             // existing access token
-            if (accessToken != null && value.equals("Bearer " + accessToken) && !force) {
-                // We ignore the attempt to set the header because it matches the existing access token
-                // which will get added by the SDK
+            if (!shouldAllowSettingAuthHeader(value) && !force) {
                 return;
             }
         }
@@ -271,8 +280,8 @@ public class SuperTokensCustomHttpURLConnection extends HttpURLConnection {
 
     public void addRequestProperty(String key, String value) {
         // We check for this because addRequestProperty does not overwrite existing values
-        if (key.equalsIgnoreCase("authorization") && authorizationHeader != null) {
-            this.authorizationHeader = value;
+        if (key.equalsIgnoreCase("authorization") && !shouldAllowSettingAuthHeader(value)) {
+            return;
         }
 
         original.addRequestProperty(key, value);
@@ -284,9 +293,5 @@ public class SuperTokensCustomHttpURLConnection extends HttpURLConnection {
 
     public Map<String, List<String>> getRequestProperties() {
         return original.getRequestProperties();
-    }
-
-    public String getAuthorizationHeader() {
-        return authorizationHeader;
     }
 }

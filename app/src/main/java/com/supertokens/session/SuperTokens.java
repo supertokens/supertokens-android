@@ -120,7 +120,7 @@ public class SuperTokens {
                 Utils.Unauthorised response = SuperTokensHttpURLConnection.onUnauthorisedResponse(localSessionState, context);
                 return response.status == Utils.Unauthorised.UnauthorisedStatus.RETRY;
             }
-        } catch (Exception e) {
+        } catch (JSONException e) {
             return false;
         }
 

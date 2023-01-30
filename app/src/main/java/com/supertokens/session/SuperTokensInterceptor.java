@@ -252,7 +252,6 @@ public class SuperTokensInterceptor implements Interceptor {
             return new Utils.Unauthorised(Utils.Unauthorised.UnauthorisedStatus.RETRY);
 
         } catch (Exception e) {
-            e.printStackTrace();
             IOException ioe = new IOException(e);
             if (e instanceof IOException) {
                 ioe = (IOException) e;
