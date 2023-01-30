@@ -59,5 +59,6 @@ dependencies {
     testImplementation 'com.squareup.retrofit2:retrofit:2.3.0'
     testImplementation 'com.squareup.retrofit2:converter-gson:2.3.0'
     testImplementation 'org.json:json:20220320'
+    testImplementation 'io.github.ivanshafran:shared-preferences-mock:1.2.4'
     compile files('../../../app/build/outputs/aar/app-debug.aar')
 }

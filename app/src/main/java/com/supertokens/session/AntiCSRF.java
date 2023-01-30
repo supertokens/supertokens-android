@@ -26,8 +26,8 @@ import androidx.annotation.Nullable;
 class AntiCSRF {
     private static AntiCSRFTokenInfo antiCSRFTokenInfo;
 
-    static String getToken(Context context, @Nullable String associatedIdRefreshToken) {
-        if ( associatedIdRefreshToken == null ) {
+    static String getToken(Context context, @Nullable String associatedAccessTokenUpdate) {
+        if ( associatedAccessTokenUpdate == null ) {
             antiCSRFTokenInfo = null;
             return null;
         }
@@ -39,10 +39,10 @@ class AntiCSRF {
                 return null;
             }
 
-            antiCSRFTokenInfo = new AntiCSRFTokenInfo(antiCSRF, associatedIdRefreshToken);
-        } else if ( antiCSRFTokenInfo.idRefreshToken != null && !antiCSRFTokenInfo.idRefreshToken.equals(associatedIdRefreshToken) ) {
+            antiCSRFTokenInfo = new AntiCSRFTokenInfo(antiCSRF, associatedAccessTokenUpdate);
+        } else if ( antiCSRFTokenInfo.associatedAccessTokenUpdate != null && !antiCSRFTokenInfo.associatedAccessTokenUpdate.equals(associatedAccessTokenUpdate) ) {
             antiCSRFTokenInfo = null;
-            return getToken(context, associatedIdRefreshToken);
+            return getToken(context, associatedAccessTokenUpdate);
         }
 
         return antiCSRFTokenInfo.antiCSRF;
@@ -57,8 +57,8 @@ class AntiCSRF {
         antiCSRFTokenInfo = null;
     }
 
-    static void setToken(Context context, @Nullable String associatedRefreshToken, String antiCSRFToken) {
-        if ( associatedRefreshToken == null ) {
+    static void setToken(Context context, @Nullable String associatedAccessTokenUpdate, String antiCSRFToken) {
+        if ( associatedAccessTokenUpdate == null ) {
             antiCSRFTokenInfo = null;
             return;
         }
@@ -68,7 +68,7 @@ class AntiCSRF {
         editor.putString(getSharedPrefsAntiCSRFKey(context), antiCSRFToken);
         editor.apply();
 
-        antiCSRFTokenInfo = new AntiCSRFTokenInfo(antiCSRFToken, associatedRefreshToken);
+        antiCSRFTokenInfo = new AntiCSRFTokenInfo(antiCSRFToken, associatedAccessTokenUpdate);
     }
 
     private static SharedPreferences getSharedPreferences(Context context) {
@@ -81,11 +81,11 @@ class AntiCSRF {
 
     static class AntiCSRFTokenInfo {
         String antiCSRF;
-        String idRefreshToken;
+        String associatedAccessTokenUpdate;
 
-        AntiCSRFTokenInfo(String antiCSRF, String idRefreshToken) {
+        AntiCSRFTokenInfo(String antiCSRF, String associatedAccessTokenUpdate) {
             this.antiCSRF = antiCSRF;
-            this.idRefreshToken = idRefreshToken;
+            this.associatedAccessTokenUpdate = associatedAccessTokenUpdate;
         }
     }
 }
