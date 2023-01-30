@@ -65,18 +65,24 @@ public class SuperTokensHttpURLConnection {
          */
         List<String> cookies = connection.getHeaderFields().get("Set-Cookie");
 
+        // We check if one of the cookies is the access token and throw if the Cookie Manager has not
+        // been set.
+        for (int i = 0; i < cookies.size(); i++) {
+            HttpCookie currentCookie = HttpCookie.parse(cookies.get(i)).get(0);
+
+            // The backend may respond with cookies instead of headers even if auth mode is
+            // set to headers. In this case we should throw if a CookieManager is not set
+            if (currentCookie.getName().equals("sAccessToken") && CookieManager.getDefault() == null) {
+                throw new IllegalAccessException("Please initialise a CookieManager.\n" +
+                        "For example: new CookieManager(new SuperTokensPersistentCookieStore(context), null).\n" +
+                        "SuperTokens provides a persistent cookie store called SuperTokensPersistentCookieStore.\n" +
+                        "For more information visit our documentation.");
+            }
+        }
+
         if (cookies != null) {
             for (int i = 0; i < cookies.size(); i++) {
                 HttpCookie currentCookie = HttpCookie.parse(cookies.get(i)).get(0);
-
-                // The backend may respond with cookies instead of headers even if auth mode is
-                // set to headers. In this case we should throw if a CookieManager is not set
-                if (currentCookie.getName().equals("sAccessToken") && CookieManager.getDefault() == null) {
-                    throw new IllegalAccessException("Please initialise a CookieManager.\n" +
-                            "For example: new CookieManager(new SuperTokensPersistentCookieStore(context), null).\n" +
-                            "SuperTokens provides a persistent cookie store called SuperTokensPersistentCookieStore.\n" +
-                            "For more information visit our documentation.");
-                }
 
                 String pathToUse = "/";
 
@@ -246,12 +252,6 @@ public class SuperTokensHttpURLConnection {
                 }
             }
 
-            if (CookieManager.getDefault() == null && SuperTokens.config.tokenTransferMethod.equals("cookie")) {
-                throw new IllegalAccessException("Please initialise a CookieManager.\n" +
-                        "For example: new CookieManager(new SuperTokensPersistentCookieStore(context), null).\n" +
-                        "SuperTokens provides a persistent cookie store called SuperTokensPersistentCookieStore.\n" +
-                        "For more information visit our documentation.");
-            }
             refreshTokenConnection.connect();
 
             Utils.saveTokenFromHeaders(new SuperTokensCustomHttpURLConnection(refreshTokenConnection, applicationContext), applicationContext);
