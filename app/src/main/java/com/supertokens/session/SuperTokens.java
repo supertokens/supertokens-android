@@ -85,6 +85,11 @@ public class SuperTokens {
         SuperTokens.contextWeakReference = null;
     }
 
+    @TestOnly
+    public static void setTokenTransferMethod(String tokenTransferMethod) {
+        SuperTokens.config.tokenTransferMethod = tokenTransferMethod;
+    }
+
     static String getApiDomain(@NonNull String url) throws MalformedURLException {
         if ( url.startsWith("http://") || url.startsWith("https://") ) {
             String[] splitArray = url.split("/");

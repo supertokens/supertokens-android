@@ -954,6 +954,105 @@ public class SuperTokensOkHttpTest {
         assert idRefreshTokenCookie == null;
     }
 
+    @Test
+    public void okhttp_testThatOldSessionsStillWorkWhenUsingHeaders() throws Exception {
+        com.example.TestUtils.startST(1);
+        new SuperTokens.Builder(context, Constants.apiDomain)
+                .tokenTransferMethod("cookie")
+                .build();
+
+        JsonObject bodyJson = new JsonObject();
+        bodyJson.addProperty("userId", Constants.userId);
+        RequestBody body = RequestBody.create(MediaType.parse("application/json; charset=utf-8"), bodyJson.toString());
+        Request request = new Request.Builder()
+                .url(loginAPIURL)
+                .method("POST", body)
+                .addHeader("Accept", "application/json")
+                .addHeader("Content-Type", "application/json")
+                .build();
+        Response loginResponse = okHttpClient.newCall(request).execute();
+        if (loginResponse.code() != 200) {
+            throw new Exception("Error making login request");
+        }
+        loginResponse.close();
+
+        String accessToken = SuperTokens.getAccessToken(context);
+
+        assert accessToken == null;
+
+        Cookie idRefreshToken = new Cookie.Builder()
+                .name("sIdRefreshToken")
+                .value("asdf")
+                .path("/")
+                .hostOnlyDomain("127.0.0.1")
+                .build();
+        List<Cookie> cookies = new ArrayList<>();
+        cookies.add(idRefreshToken);
+
+        HttpUrl httpUrl = new HttpUrl.Builder()
+                .scheme("http")
+                .host("127.0.0.1")
+                .port(8080)
+                .build();
+        cookieJar.saveFromResponse(httpUrl, cookies);
+
+        SuperTokens.setTokenTransferMethod("header");
+
+        Request userInfoRequest = new Request.Builder()
+                .url(userInfoAPIURL)
+                .build();
+        Response userInfoResponse = okHttpClient.newCall(userInfoRequest).execute();
+        if (userInfoResponse.code() != 200) {
+            throw new Exception("User info API failed even after calling refresh");
+        }
+
+        List<Cookie> newCookies = cookieJar.loadForRequest(httpUrl);
+        Cookie idRefreshTokenCookie = null;
+
+        for (Cookie _cookie : newCookies) {
+            if (_cookie.name().equals("sIdRefreshToken")) {
+                idRefreshTokenCookie = _cookie;
+            }
+        }
+
+        assert idRefreshTokenCookie == null;
+
+        accessToken = SuperTokens.getAccessToken(context);
+
+        assert accessToken == null;
+
+        RequestBody logoutReqBody = RequestBody.create(MediaType.parse("application/json; charset=utf-8"), "{}");
+        request = new Request.Builder()
+                .url(logoutAPIURL)
+                .method("POST", logoutReqBody)
+                .build();
+        Response logoutResponse = okHttpClient.newCall(request).execute();
+
+        if (logoutResponse.code() != 200) {
+            throw new Exception("Error making logout request");
+        }
+        logoutResponse.close();
+
+        bodyJson = new JsonObject();
+        bodyJson.addProperty("userId", Constants.userId);
+        body = RequestBody.create(MediaType.parse("application/json; charset=utf-8"), bodyJson.toString());
+        request = new Request.Builder()
+                .url(loginAPIURL)
+                .method("POST", body)
+                .addHeader("Accept", "application/json")
+                .addHeader("Content-Type", "application/json")
+                .build();
+        loginResponse = okHttpClient.newCall(request).execute();
+        if (loginResponse.code() != 200) {
+            throw new Exception("Error making login request");
+        }
+        loginResponse.close();
+
+        accessToken = SuperTokens.getAccessToken(context);
+
+        assert accessToken != null;
+    }
+
     //custom interceptors
     class customInterceptors implements Interceptor {
         @NotNull
