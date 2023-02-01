@@ -53,10 +53,6 @@ import com.supertokens.session.CustomHeaderProvider;
 import com.supertokens.session.SuperTokens;
 import com.supertokens.session.SuperTokensInterceptor;
 import com.supertokens.session.android.RetrofitTestAPIService;
-
-import okhttp3.Cookie;
-import okhttp3.CookieJar;
-import okhttp3.HttpUrl;
 import okhttp3.Interceptor;
 import okhttp3.MediaType;
 import okhttp3.OkHttpClient;
@@ -69,7 +65,7 @@ import retrofit2.converter.gson.GsonConverterFactory;
 
 @SuppressWarnings({"CatchMayIgnoreException", "FieldCanBeLocal"})
 @RunWith(MockitoJUnitRunner.class)
-public class SuperTokensRetrofitTest {
+public class SuperTokensRetrofitHeaderTests {
     private final String testBaseURL = "http://127.0.0.1:8080/";
     private final String refreshTokenEndpoint = testBaseURL + "/refresh";
     private final String loginAPIURL = testBaseURL + "/login";
@@ -86,8 +82,6 @@ public class SuperTokensRetrofitTest {
     Context context;
 
     SharedPreferences mockedPrefs;
-
-    CookieJar cookieJar;
 
     @BeforeClass
     public static void beforeAll() throws Exception {
@@ -106,8 +100,7 @@ public class SuperTokensRetrofitTest {
         });
         OkHttpClient.Builder clientBuilder = new OkHttpClient.Builder();
         clientBuilder.interceptors().add(new SuperTokensInterceptor());
-        cookieJar = new PersistentCookieJar(new SetCookieCache(), new SharedPrefsCookiePersistor(context));
-        clientBuilder.cookieJar(cookieJar);
+        clientBuilder.cookieJar(new PersistentCookieJar(new SetCookieCache(), new SharedPrefsCookiePersistor(context)));
         okHttpClient = clientBuilder.build();
         retrofitInstance = new Retrofit.Builder()
                 .baseUrl(testBaseURL)
@@ -126,10 +119,9 @@ public class SuperTokensRetrofitTest {
 
     // - testing doesSessionExist works fine when user is logged in***
     @Test
-    public void retrofit_testDoesSessionExistWorksFineWhenUserIsLoggedIn() throws Exception{
+    public void retrofitHeaders_testDoesSessionExistWorksFineWhenUserIsLoggedIn() throws Exception{
         com.example.TestUtils.startST();
         new SuperTokens.Builder(context, Constants.apiDomain)
-                .tokenTransferMethod("cookie")
                 .build();
         JsonObject body = new JsonObject();
         body.addProperty("userId", Constants.userId);
@@ -147,10 +139,9 @@ public class SuperTokensRetrofitTest {
 
     // - session should not exist when user calls log out - use doesSessionExist***
     @Test
-    public void retrofit_testSessionShouldNotExitWhenUserCallsLogout() throws Exception{
+    public void retrofitHeaders_testSessionShouldNotExitWhenUserCallsLogout() throws Exception{
         com.example.TestUtils.startST();
         new SuperTokens.Builder(context, Constants.apiDomain)
-                .tokenTransferMethod("cookie")
                 .build();
 
         //do login request
@@ -176,7 +167,7 @@ public class SuperTokensRetrofitTest {
     // TODO NEMI: Re add this test when front token is implemented
     // - session should not exist when user's session fully expires - use doesSessionExist***
 //    @Test
-//    public void retrofit_testThatSessionShouldNotExistWhenSessionFullyExpires() throws Exception {
+//    public void retrofitHeaders_testThatSessionShouldNotExistWhenSessionFullyExpires() throws Exception {
 //
 //        //accessTokenValidity set to 4 seconds and refreshTokenValidity set to 5 seconds
 //        com.example.TestUtils.startST(4, true, 0.08333);
@@ -211,10 +202,9 @@ public class SuperTokensRetrofitTest {
 //    }
     // - tests APIs that don't require authentication work, before, during and after logout - using our library.***
     @Test
-    public void retrofit_testThatAPISThatDontRequireAuthenticationWorkCorrectly() throws Exception {
+    public void retrofitHeaders_testThatAPISThatDontRequireAuthenticationWorkCorrectly() throws Exception {
         com.example.TestUtils.startST();
         new SuperTokens.Builder(context, Constants.apiDomain)
-                .tokenTransferMethod("cookie")
                 .build();
 
 
@@ -271,10 +261,9 @@ public class SuperTokensRetrofitTest {
 
     // - if any API throws error, it gets propogated to the user properly (with and without interception)***
     @Test
-    public void retrofit_testThatAPIErrorsGetPropagatedToTheUserProperlyWithInterception() throws Exception {
+    public void retrofitHeaders_testThatAPIErrorsGetPropagatedToTheUserProperlyWithInterception() throws Exception {
         com.example.TestUtils.startST();
         new SuperTokens.Builder(context, Constants.apiDomain)
-                .tokenTransferMethod("cookie")
                 .build();
 
         Response<ResponseBody> testErrorResponse = retrofitTestAPIService.testError().execute();
@@ -289,10 +278,9 @@ public class SuperTokensRetrofitTest {
 
     // - if any API throws error, it gets propogated to the user properly (with and without interception)***
     @Test
-    public void retrofit_testThatAPIErrorsGetPropagatedToTheUserProperlyWithoutInterception() throws Exception {
+    public void retrofitHeaders_testThatAPIErrorsGetPropagatedToTheUserProperlyWithoutInterception() throws Exception {
         com.example.TestUtils.startST();
         new SuperTokens.Builder(context, Constants.apiDomain)
-                .tokenTransferMethod("cookie")
                 .build();
 
         OkHttpClient client = okHttpClient.newBuilder().build();
@@ -315,13 +303,11 @@ public class SuperTokensRetrofitTest {
     }
     // - Calling SuperTokens.init more than once works!****
     @Test
-    public void retrofit_testThatCallingSuperTokensInitMoreThanOnceWorks() throws Exception {
+    public void retrofitHeaders_testThatCallingSuperTokensInitMoreThanOnceWorks() throws Exception {
         com.example.TestUtils.startST();
         new SuperTokens.Builder(context, Constants.apiDomain)
-                .tokenTransferMethod("cookie")
                 .build();
         new SuperTokens.Builder(context, Constants.apiDomain)
-                .tokenTransferMethod("cookie")
                 .build();
 
         //login request
@@ -335,7 +321,6 @@ public class SuperTokensRetrofitTest {
 
         //supertokensinit
         new SuperTokens.Builder(context, Constants.apiDomain)
-                .tokenTransferMethod("cookie")
                 .build();
 
         Response<ResponseBody> userInfoResponse = retrofitTestAPIService.userInfo().execute();
@@ -361,10 +346,9 @@ public class SuperTokensRetrofitTest {
 
     // - Things should work if anti-csrf is disabled.****
     @Test
-    public void retrofit_testThatThingsShouldWorkIfAntiCsrfIsDisabled() throws Exception {
+    public void retrofitHeaders_testThatThingsShouldWorkIfAntiCsrfIsDisabled() throws Exception {
         com.example.TestUtils.startST(3, false, 144000);
         new SuperTokens.Builder(context, Constants.apiDomain)
-                .tokenTransferMethod("cookie")
                 .build();
 
         JsonObject body = new JsonObject();
@@ -401,10 +385,9 @@ public class SuperTokensRetrofitTest {
 
     // - multiple API calls in parallel when access token is expired (100 of them) and only 1 refresh should be called***
     @Test
-    public void okHttp_testThatMultipleAPICallsInParallelAndOnly1RefreshShouldBeCalled() throws Exception {
+    public void retrofitHeaders_testThatMultipleAPICallsInParallelAndOnly1RefreshShouldBeCalled() throws Exception {
         com.example.TestUtils.startST(3, true, 144000);
         new SuperTokens.Builder(context, Constants.apiDomain)
-                .tokenTransferMethod("cookie")
                 .build();
 
         JsonObject body = new JsonObject();
@@ -463,22 +446,21 @@ public class SuperTokensRetrofitTest {
 
     // - Custom refresh API headers are sent****
     @Test
-    public void okHttp_testThatCustomRefreshAPIHeadersAreSent() throws Exception {
+    public void retrofitHeaders_testThatCustomRefreshAPIHeadersAreSent() throws Exception {
         com.example.TestUtils.startST(3, true, 144000);
         new SuperTokens.Builder(context, Constants.apiDomain).customHeaderProvider(new CustomHeaderProvider() {
-            @Override
-            public Map<String, String> getRequestHeaders(RequestType requestType) {
-                if (requestType == RequestType.REFRESH) {
-                    Map<String, String> headers = new HashMap<>();
-                    headers.put("custom-header", "custom-value");
+                    @Override
+                    public Map<String, String> getRequestHeaders(RequestType requestType) {
+                        if (requestType == RequestType.REFRESH) {
+                            Map<String, String> headers = new HashMap<>();
+                            headers.put("custom-header", "custom-value");
 
-                    return headers;
-                }
+                            return headers;
+                        }
 
-                return null;
-            }
-        })
-                .tokenTransferMethod("cookie")
+                        return null;
+                    }
+                })
                 .build();
 
         JsonObject body = new JsonObject();
@@ -513,10 +495,9 @@ public class SuperTokensRetrofitTest {
     }
 
     @Test
-    public void okHttp_testThatMultipleInterceptorsAreThereAndTheyShouldAllWork() throws Exception {
+    public void retrofitHeaders_testThatMultipleInterceptorsAreThereAndTheyShouldAllWork() throws Exception {
         com.example.TestUtils.startST();
         new SuperTokens.Builder(context, Constants.apiDomain)
-                .tokenTransferMethod("cookie")
                 .build();
         OkHttpClient client = okHttpClient.newBuilder().addInterceptor(new customInterceptors()).build();
 
@@ -537,10 +518,9 @@ public class SuperTokensRetrofitTest {
     }
     //- Check that eveyrthing works properly - login, access token expiry, refresh called once, userInfo result is proper, logout, check session does not exist.*****
     @Test
-    public void retrofit_testThatEverythingShouldWork() throws Exception {
+    public void retrofitHeaders_testThatEverythingShouldWork() throws Exception {
         com.example.TestUtils.startST(3, true, 144000);
         new SuperTokens.Builder(context, Constants.apiDomain)
-                .tokenTransferMethod("cookie")
                 .build();
 
         JsonObject body = new JsonObject();
@@ -575,11 +555,14 @@ public class SuperTokensRetrofitTest {
     }
 
     @Test
-    public void retrofit_testThatOldSessionsStillWorkAfterRefreshing() throws Exception {
-        com.example.TestUtils.startST(1);
+    public void retrofitHeaders_testThatGetAccessTokenWorksCorrectly() throws Exception {
+        com.example.TestUtils.startST();
         new SuperTokens.Builder(context, Constants.apiDomain)
-                .tokenTransferMethod("cookie")
                 .build();
+
+        String accessToken = SuperTokens.getAccessToken(context);
+
+        assert accessToken == null;
 
         JsonObject body = new JsonObject();
         body.addProperty("userId", Constants.userId);
@@ -588,101 +571,22 @@ public class SuperTokensRetrofitTest {
             throw new Exception("Error making login request");
         }
 
-        Cookie idRefreshToken = new Cookie.Builder()
-                .name("sIdRefreshToken")
-                .value("asdf")
-                .path("/")
-                .hostOnlyDomain("127.0.0.1")
-                .build();
+        accessToken = SuperTokens.getAccessToken(context);
+        assert accessToken != null;
 
-        HttpUrl httpUrl = new HttpUrl.Builder()
-                .scheme("http")
-                .host("127.0.0.1")
-                .port(8080)
-                .build();
-        List<Cookie> cookies = new ArrayList<>();
-        cookies.add(idRefreshToken);
-        cookieJar.saveFromResponse(httpUrl, cookies);
-
-        Response<ResponseBody> userInfoResponse = retrofitTestAPIService.userInfo().execute();
-        if (userInfoResponse.code() != 200) {
-            throw new Exception("User info API failed even after calling refresh");
+        Response<Void> logoutResponse = retrofitTestAPIService.logout().execute();
+        if (logoutResponse.code() != 200){
+            throw new Exception("logout failed");
         }
 
-        List<Cookie> newCookies = cookieJar.loadForRequest(httpUrl);
-        Cookie idRefreshTokenCookie = null;
-
-        for (Cookie _cookie : newCookies) {
-            if (_cookie.name().equals("sIdRefreshToken")) {
-                idRefreshTokenCookie = _cookie;
-            }
-        }
-
-        assert idRefreshTokenCookie == null;
+        accessToken = SuperTokens.getAccessToken(context);
+        assert accessToken == null;
     }
 
     @Test
-    public void retrofit_testThatRefreshingOldSessionsWorksFineWithExpiredAccessToken() throws Exception {
-        com.example.TestUtils.startST(1);
+    public void retrofitHeaders_testThatDifferentCasingForAuthorizationHeaderWorksFine() throws Exception {
+        com.example.TestUtils.startST();
         new SuperTokens.Builder(context, Constants.apiDomain)
-                .tokenTransferMethod("cookie")
-                .build();
-
-        JsonObject body = new JsonObject();
-        body.addProperty("userId", Constants.userId);
-        Response <Void> loginResponse = retrofitTestAPIService.login(body).execute();
-        if (loginResponse.code() != 200) {
-            throw new Exception("Error making login request");
-        }
-
-        Cookie idRefreshToken = new Cookie.Builder()
-                .name("sIdRefreshToken")
-                .value("asdf")
-                .path("/")
-                .hostOnlyDomain("127.0.0.1")
-                .build();
-
-        Cookie accessToken = new Cookie.Builder()
-                .name("sAccessToken")
-                .value("")
-                .path("/")
-                .hostOnlyDomain("127.0.0.1")
-                .expiresAt(0)
-                .build();
-
-        HttpUrl httpUrl = new HttpUrl.Builder()
-                .scheme("http")
-                .host("127.0.0.1")
-                .port(8080)
-                .build();
-
-        List<Cookie> cookies = new ArrayList<>();
-        cookies.add(idRefreshToken);
-        cookies.add(accessToken);
-        cookieJar.saveFromResponse(httpUrl, cookies);
-
-        Response<ResponseBody> userInfoResponse = retrofitTestAPIService.userInfo().execute();
-        if (userInfoResponse.code() != 200) {
-            throw new Exception("User info API failed even after calling refresh");
-        }
-
-        List<Cookie> newCookies = cookieJar.loadForRequest(httpUrl);
-        Cookie idRefreshTokenCookie = null;
-
-        for (Cookie _cookie : newCookies) {
-            if (_cookie.name().equals("sIdRefreshToken")) {
-                idRefreshTokenCookie = _cookie;
-            }
-        }
-
-        assert idRefreshTokenCookie == null;
-    }
-
-    @Test
-    public void retrofit_testThatOldSessionsStillWorkWhenUsingHeaders() throws Exception {
-        com.example.TestUtils.startST(1);
-        new SuperTokens.Builder(context, Constants.apiDomain)
-                .tokenTransferMethod("cookie")
                 .build();
 
         JsonObject body = new JsonObject();
@@ -694,61 +598,99 @@ public class SuperTokensRetrofitTest {
 
         String accessToken = SuperTokens.getAccessToken(context);
 
-        assert accessToken == null;
-
-        Cookie idRefreshToken = new Cookie.Builder()
-                .name("sIdRefreshToken")
-                .value("asdf")
-                .path("/")
-                .hostOnlyDomain("127.0.0.1")
-                .build();
-        List<Cookie> cookies = new ArrayList<>();
-        cookies.add(idRefreshToken);
-
-        HttpUrl httpUrl = new HttpUrl.Builder()
-                .scheme("http")
-                .host("127.0.0.1")
-                .port(8080)
-                .build();
-        cookieJar.saveFromResponse(httpUrl, cookies);
-
-        SuperTokens.setTokenTransferMethod("header");
-
-        Response<ResponseBody> userInfoResponse = retrofitTestAPIService.userInfo().execute();
+        Response<ResponseBody> userInfoResponse = retrofitTestAPIService.userInfoCaps("Bearer " + accessToken).execute();
         if (userInfoResponse.code() != 200) {
             throw new Exception("User info API failed even after calling refresh");
         }
 
-        List<Cookie> newCookies = cookieJar.loadForRequest(httpUrl);
-        Cookie idRefreshTokenCookie = null;
+        Response<ResponseBody> userInfoResponseSmall = retrofitTestAPIService.userInfo("Bearer " + accessToken).execute();
+        if (userInfoResponseSmall.code() != 200) {
+            throw new Exception("User info API failed even after calling refresh");
+        }
+    }
 
-        for (Cookie _cookie : newCookies) {
-            if (_cookie.name().equals("sIdRefreshToken")) {
-                idRefreshTokenCookie = _cookie;
-            }
+    @Test
+    public void retrofitHeaders_testThatManuallyAddingAnExpiredAccessTokenWorksNormally() throws Exception {
+        com.example.TestUtils.startST(3);
+        new SuperTokens.Builder(context, Constants.apiDomain)
+                .build();
+
+        JsonObject body = new JsonObject();
+        body.addProperty("userId", Constants.userId);
+        Response <Void> loginResponse = retrofitTestAPIService.login(body).execute();
+        if (loginResponse.code() != 200) {
+            throw new Exception("Error making login request");
         }
 
-        assert idRefreshTokenCookie == null;
+        String accessToken = SuperTokens.getAccessToken(context);
+        Thread.sleep(5000);
 
-        accessToken = SuperTokens.getAccessToken(context);
+        Response<ResponseBody> userInfoResponse = retrofitTestAPIService.userInfoCaps("Bearer " + accessToken).execute();
+        if (userInfoResponse.code() != 200) {
+            throw new Exception("User info API failed even after calling refresh");
+        }
 
-        assert accessToken == null;
+        int refreshTokenCounter = com.example.TestUtils.getRefreshTokenCounter();
+        if (refreshTokenCounter != 1) {
+            throw new Exception("Refresh token counter value is not the same as the expected value");
+        }
+    }
+
+    @Test
+    public void retrofitHeaders_testThatGetAccessTokenCallsRefreshCorrectly() throws Exception {
+        com.example.TestUtils.startST(3);
+        new SuperTokens.Builder(context, Constants.apiDomain)
+                .build();
+
+        JsonObject body = new JsonObject();
+        body.addProperty("userId", Constants.userId);
+        Response <Void> loginResponse = retrofitTestAPIService.login(body).execute();
+        if (loginResponse.code() != 200) {
+            throw new Exception("Error making login request");
+        }
+
+        String accessToken = SuperTokens.getAccessToken(context);
+
+        assert accessToken != null;
+
+        Thread.sleep(5000);
+
+        String newAccessToken = SuperTokens.getAccessToken(context);
+        assert newAccessToken != null;
+        assert  newAccessToken != accessToken;
+
+        int refreshTokenCounter = com.example.TestUtils.getRefreshTokenCounter();
+        if (refreshTokenCounter != 1) {
+            throw new Exception("Refresh token counter value is not the same as the expected value");
+        }
+    }
+
+    @Test
+    public void retrofitHeaders_testThatOldAccessTokenAfterSignOutWorksFine() throws Exception {
+        com.example.TestUtils.startST();
+        new SuperTokens.Builder(context, Constants.apiDomain)
+                .build();
+
+        JsonObject body = new JsonObject();
+        body.addProperty("userId", Constants.userId);
+        Response <Void> loginResponse = retrofitTestAPIService.login(body).execute();
+        if (loginResponse.code() != 200) {
+            throw new Exception("Error making login request");
+        }
+
+        String accessToken = SuperTokens.getAccessToken(context);
+
+        assert accessToken != null;
 
         Response<Void> logoutResponse = retrofitTestAPIService.logout().execute();
         if (logoutResponse.code() != 200){
             throw new Exception("logout failed");
         }
 
-        body = new JsonObject();
-        body.addProperty("userId", Constants.userId);
-        loginResponse = retrofitTestAPIService.login(body).execute();
-        if (loginResponse.code() != 200) {
-            throw new Exception("Error making login request");
+        Response<ResponseBody> userInfoResponse = retrofitTestAPIService.userInfoCaps("Bearer " + accessToken).execute();
+        if (userInfoResponse.code() != 200) {
+            throw new Exception("User info API failed even after calling refresh");
         }
-
-        accessToken = SuperTokens.getAccessToken(context);
-
-        assert accessToken != null;
     }
 
     class customInterceptors implements Interceptor {

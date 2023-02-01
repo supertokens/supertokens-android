@@ -16,7 +16,7 @@
 - [ ] `frontendDriverInterfaceSupported.json` file has been updated (if needed)
    - Along with the associated array in `app/src/main/java/com/supertokens/session/Version.java`
 - [ ] Changes to the version if needed
-   - In `app/src/main/java/com/supertokens/session/Version.java`
+   - In `app/build.gradle`
 - [ ] Issue this PR against the latest non released version branch.
    - To know which one it is, run find the latest released tag (`git tag`) in the format `vX.Y.Z`, and then find the latest branch (`git branch --all`) whose `X.Y` is greater than the latest released tag.
    - If no such branch exists, then create one from the latest released branch.

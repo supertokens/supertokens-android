@@ -34,6 +34,12 @@ public interface RetrofitTestAPIService {
     @GET("/")
     Call<ResponseBody> userInfo();
 
+    @GET("/")
+    Call<ResponseBody> userInfo(@Header("authorization") String token);
+
+    @GET("/")
+    Call<ResponseBody> userInfoCaps(@Header("Authorization") String token);
+
     @POST("/logout")
     Call<Void> logout();
 

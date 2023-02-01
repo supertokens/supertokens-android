@@ -16,6 +16,9 @@
 
 package com.supertokens.session;
 
+import android.content.Context;
+import android.content.SharedPreferences;
+
 import androidx.annotation.Nullable;
 
 import org.jetbrains.annotations.TestOnly;
@@ -25,7 +28,12 @@ import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URL;
 import java.util.AbstractCollection;
+import java.util.Date;
+import java.util.HashMap;
 import java.util.Iterator;
+import java.util.Map;
+
+import okhttp3.Response;
 
 public class Utils {
     static final String PACKAGE_PLATFORM = "android";
@@ -49,29 +57,50 @@ public class Utils {
         }
     }
 
+    enum TokenType {
+        ACCESS, REFRESH
+    }
+
+    enum LocalSessionStateStatus {
+        NOT_EXISTS, EXISTS
+    }
+
+    static class LocalSessionState {
+        LocalSessionStateStatus status;
+        @Nullable  String lastAccessTokenUpdate;
+
+        LocalSessionState(LocalSessionStateStatus status, @Nullable String lastAccessTokenUpdate) {
+            this.status = status;
+            this.lastAccessTokenUpdate = lastAccessTokenUpdate;
+        }
+    }
+
     public static class NormalisedInputType {
         String apiDomain;
         String apiBasePath;
         int sessionExpiredStatusCode;
-        String cookieDomain;
+        String sessionTokenBackendDomain;
         CustomHeaderProvider customHeaderMapper;
         EventHandler eventHandler;
+        String tokenTransferMethod;
 
         // TODO NEMI: Handle pre API and on handle event
         public NormalisedInputType(
                 String apiDomain,
                 String apiBasePath,
                 int sessionExpiredStatusCode,
-                String cookieDomain,
+                String sessionTokenBackendDomain,
+                String tokenTransferMethod,
                 CustomHeaderProvider customHeaderMapper,
                 EventHandler eventHandler
         ) {
             this.apiDomain = apiDomain;
             this.apiBasePath = apiBasePath;
             this.sessionExpiredStatusCode = sessionExpiredStatusCode;
-            this.cookieDomain = cookieDomain;
+            this.sessionTokenBackendDomain = sessionTokenBackendDomain;
             this.customHeaderMapper = customHeaderMapper;
             this.eventHandler = eventHandler;
+            this.tokenTransferMethod = tokenTransferMethod;
         }
 
         static String sessionScopeHelper(String sessionScope) throws MalformedURLException {
@@ -124,7 +153,8 @@ public class Utils {
                 String apiDomain,
                 @Nullable  String apiBasePath,
                 @Nullable  Integer sessionExpiredStatusCode,
-                @Nullable  String cookieDomain,
+                @Nullable  String sessionTokenBackendDomain,
+                @Nullable String tokenTransferMethod,
                 @Nullable CustomHeaderProvider customHeaderProvider,
                 @Nullable EventHandler eventHandler
         ) throws MalformedURLException {
@@ -140,9 +170,9 @@ public class Utils {
                 _sessionExpiredStatusCode = sessionExpiredStatusCode;
             }
 
-            String _cookieDomain = null;
-            if (cookieDomain != null) {
-                _cookieDomain = normaliseSessionScopeOrThrowError(cookieDomain);
+            String _sessionTokenBackendDomain = null;
+            if (sessionTokenBackendDomain != null) {
+                _sessionTokenBackendDomain = normaliseSessionScopeOrThrowError(sessionTokenBackendDomain);
             }
 
             CustomHeaderProvider _customHeaderProvider = new CustomHeaderProvider.DefaultCustomHeaderMapper();
@@ -155,7 +185,188 @@ public class Utils {
                 _eventHandler = eventHandler;
             }
 
-            return new NormalisedInputType(_apiDomain, _apiBasePath, _sessionExpiredStatusCode, _cookieDomain, _customHeaderProvider, _eventHandler);
+            String _tokenTransferMethod = "header";
+
+            if (tokenTransferMethod != null && tokenTransferMethod.equalsIgnoreCase("cookie")) {
+                _tokenTransferMethod = tokenTransferMethod;
+            }
+
+            return new NormalisedInputType(_apiDomain, _apiBasePath, _sessionExpiredStatusCode, _sessionTokenBackendDomain, _tokenTransferMethod, _customHeaderProvider, _eventHandler);
+        }
+    }
+
+    public static void storeInStorage(String name, String value, Context context) {
+        String storageKey = "st-storage-item-" + name;
+        SharedPreferences sharedPreferences = getSharedPreferences(context);
+
+        if (value.isEmpty()) {
+            SharedPreferences.Editor editor = sharedPreferences.edit();
+            editor.remove(storageKey);
+            editor.apply();
+            return;
+        }
+
+        SharedPreferences.Editor editor = sharedPreferences.edit();
+        editor.putString(storageKey, value)
+                .apply();
+    }
+
+    public static void saveLastAccessTokenUpdate(Context context) {
+        String now = "" + System.currentTimeMillis();
+
+        storeInStorage(Constants.LAST_ACCESS_TOKEN_UPDATE_PREFS_KEY, now, context);
+        storeInStorage("sIRTFrontend", "", context);
+    }
+
+    public static String getFromStorage(String name, Context context) {
+        return getSharedPreferences(context).getString("st-storage-item-" + name, null);
+    }
+
+    public static LocalSessionState getLocalSessionState(Context context) {
+        String lastAccessTokenUpdate = getFromStorage(Constants.LAST_ACCESS_TOKEN_UPDATE_PREFS_KEY, context);
+        boolean frontTokenExists = FrontToken.doesTokenExist(context);
+
+        if (frontTokenExists && lastAccessTokenUpdate != null) {
+            return new LocalSessionState(LocalSessionStateStatus.EXISTS, lastAccessTokenUpdate);
+        }
+
+        return new LocalSessionState(LocalSessionStateStatus.NOT_EXISTS, null);
+    }
+
+    public static String getStorageName(TokenType tokenType) {
+        if (tokenType == TokenType.ACCESS) {
+            return Constants.ACCESS_TOKEN_PREFS_KEY;
+        }
+
+        return Constants.REFRESH_TOKEN_PREFS_KEY;
+    }
+
+    public static void setToken(TokenType tokenType, String value, Context context) {
+        String name = getStorageName(tokenType);
+        storeInStorage(name, value, context);
+    }
+
+    public static void saveTokenFromHeaders(SuperTokensCustomHttpURLConnection connection, Context context) {
+        String refreshToken = connection.getHeaderField(Constants.REFRESH_TOKEN_HEADER_KEY);
+
+        if (refreshToken != null) {
+            setToken(TokenType.REFRESH, refreshToken, context);
+        }
+
+        String accessToken = connection.getHeaderField(Constants.ACCESS_TOKEN_HEADER_KEY);
+
+        if (accessToken != null) {
+            setToken(TokenType.ACCESS, accessToken, context);
+        }
+
+        String frontToken = connection.getHeaderField(Constants.FRONT_TOKEN_HEADER_KEY);
+
+        if (frontToken != null) {
+            FrontToken.setItem(context, frontToken);
+        }
+
+        String antiCSRF = connection.getHeaderField(Constants.CSRF_HEADER_KEY);
+        if (antiCSRF != null) {
+            LocalSessionState localSessionState = getLocalSessionState(context);
+            AntiCSRF.setToken(context, localSessionState.lastAccessTokenUpdate, antiCSRF);
+        }
+    }
+
+    public static void saveTokenFromHeaders(Response response, Context context) {
+        String refreshToken = response.header(Constants.REFRESH_TOKEN_HEADER_KEY);
+
+        if (refreshToken != null) {
+            setToken(TokenType.REFRESH, refreshToken, context);
+        }
+
+        String accessToken = response.header(Constants.ACCESS_TOKEN_HEADER_KEY);
+
+        if (accessToken != null) {
+            setToken(TokenType.ACCESS, accessToken, context);
+        }
+
+        String frontToken = response.header(Constants.FRONT_TOKEN_HEADER_KEY);
+
+        if (frontToken != null) {
+            FrontToken.setItem(context, frontToken);
+        }
+
+        String antiCSRF = response.header(Constants.CSRF_HEADER_KEY);
+        if (antiCSRF != null) {
+            LocalSessionState localSessionState = getLocalSessionState(context);
+            AntiCSRF.setToken(context, localSessionState.lastAccessTokenUpdate, antiCSRF);
+        }
+    }
+
+    public static String getTokenForHeaderAuth(TokenType tokenType, Context context) {
+        String name = getStorageName(tokenType);
+        return getFromStorage(name, context);
+    }
+
+    public static Map<String, String> getAuthorizationHeaderIfRequired(Context context) {
+        return getAuthorizationHeaderIfRequired(false, context);
+    }
+
+    // Checks if a key exists in a map regardless of case
+    public static <T> T getIgnoreCase(Map<String, T> map, String key) {
+        for(Map.Entry<String, T> entry : map.entrySet()) {
+            if(entry.getKey().equalsIgnoreCase(key))
+                return entry.getValue();
+        }
+        return null;
+    }
+
+    public static Map<String, String> getAuthorizationHeaderIfRequired(boolean addRefreshToken, Context context) {
+        // We set the Authorization header even if the tokenTransferMethod preference set in the config is cookies
+        // since the active session may be using cookies. By default, we want to allow users to continue these sessions.
+        // The new session preference should be applied at the start of the next session, if the backend allows it.
+        Map<String, String> headers = new HashMap<>();
+        String accessToken = getTokenForHeaderAuth(TokenType.ACCESS, context);
+        String refreshToken = getTokenForHeaderAuth(TokenType.REFRESH, context);
+
+        // We don't always need the refresh token because that's only required by the refresh call
+        // Still, we only add the Authorization header if both are present, because we are planning to add an option to expose the
+        // access token to the frontend while using cookie based auth - so that users can get the access token to use
+        if (accessToken != null && refreshToken != null) {
+            if (getIgnoreCase(headers, "Authorization") != null) {
+                // no-op
+            } else {
+                String tokenToAdd = addRefreshToken ? refreshToken : accessToken;
+                headers.put("Authorization", "Bearer " + tokenToAdd);
+            }
+        }
+
+        return headers;
+    }
+
+    public static void fireSessionUpdateEventsIfNecessary(
+            boolean wasLoggedIn,
+            int status,
+            String frontTokenHeaderFromResponse
+    ) {
+        // In case we've received a 401 that didn't clear the session (e.g.: we've sent no session token, or we should try refreshing)
+        // then onUnauthorised will handle firing the UNAUTHORISED event if necessary
+        // In some rare cases (where we receive a 401 that also clears the session) this will fire the event twice.
+        // This may be considered a bug, but it is the existing behaviour before the rework
+        if (frontTokenHeaderFromResponse == null) {
+            return;
+        }
+
+        boolean frontTokenExistsAfter = !frontTokenHeaderFromResponse.equalsIgnoreCase("remove");
+
+        if (wasLoggedIn) {
+            // we check for wasLoggedIn cause we don't want to fire an event
+            // unnecessarily on first app load or if the user tried
+            // to query an API that returned 401 while the user was not logged in...
+            if (!frontTokenExistsAfter) {
+                if (status == SuperTokens.config.sessionExpiredStatusCode) {
+                    SuperTokens.config.eventHandler.handleEvent(EventHandler.EventType.UNAUTHORISED);
+                } else {
+                    SuperTokens.config.eventHandler.handleEvent(EventHandler.EventType.SIGN_OUT);
+                }
+            }
+        } else if (frontTokenExistsAfter) {
+            SuperTokens.config.eventHandler.handleEvent(EventHandler.EventType.SESSION_CREATED);
         }
     }
 
@@ -224,5 +435,9 @@ public class Utils {
                 return domain.equals(normalisedCookieDomain);
             }
         }
+    }
+
+    static SharedPreferences getSharedPreferences(Context context) {
+        return context.getSharedPreferences(Constants.SHARED_PREFERENCES_KEY, Context.MODE_PRIVATE);
     }
 }

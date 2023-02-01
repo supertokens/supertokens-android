@@ -104,6 +104,9 @@ public class TestUtils {
     public static void startST() {
         startST(1, true,144000);
     }
+    public static void startST(long validity) {
+        startST(validity, true,144000);
+    }
 
     public static void startST(long validity, boolean AntiCsrf, double refreshTokenValidity) {
         try {
