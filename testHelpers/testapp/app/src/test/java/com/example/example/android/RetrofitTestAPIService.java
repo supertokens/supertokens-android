@@ -31,6 +31,13 @@ public interface RetrofitTestAPIService {
     })
     Call<Void> login(@Body JsonObject body);
 
+    @POST("/login-2.18")
+    @Headers({
+            "Content-Type: application/json",
+            "Accept: application/json"
+    })
+    Call<Void> login218(@Body JsonObject body);
+
     @GET("/")
     Call<ResponseBody> userInfo();
 

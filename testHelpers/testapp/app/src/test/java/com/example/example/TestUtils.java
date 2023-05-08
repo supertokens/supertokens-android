@@ -28,6 +28,10 @@ import java.net.URL;
 
 import com.google.gson.JsonObject;
 import com.supertokens.session.SuperTokens;
+
+import org.json.JSONException;
+import org.json.JSONObject;
+
 import okhttp3.MediaType;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
@@ -42,6 +46,7 @@ public class TestUtils {
     private static final String startSTAPIURL = testBaseURL + "/startst";
     private static final String stopAPIURL = testBaseURL + "stop";
     private static final String refreshCounterAPIURL = testBaseURL + "/refreshAttemptedTime";
+    private static final String featureFlagURL = testBaseURL + "/featureFlags";
 
     public static final String VERSION_NAME = "1.2.1";
 
@@ -102,7 +107,7 @@ public class TestUtils {
     }
 
     public static void startST() {
-        startST(1, true,144000);
+        startST(3, true,144000);
     }
     public static void startST(long validity) {
         startST(validity, true,144000);
@@ -161,5 +166,31 @@ public class TestUtils {
 
     public static class HeaderTestResponse {
         boolean success;
+    }
+
+    public static JsonObject getFeatureFlags() throws IOException {
+        OkHttpClient refreshTokenCounterClient = new OkHttpClient.Builder().build();
+        Request request = new Request.Builder()
+                .url(new URL(featureFlagURL))
+                .build();
+
+        Response response = refreshTokenCounterClient.newCall(request).execute();
+        if ( response.code() != 200 ) {
+            throw new IOException("Could not connect to getRefreshCounter API");
+        }
+
+        if ( response.body() == null ) {
+            throw new IOException("getRefreshCounter responded with an invalid format");
+        }
+
+        String body = response.body().string();
+        response.close();
+        return (new Gson().fromJson(body, JsonObject.class));
+    }
+
+    public static boolean checkIfV3AccessTokenIsSupported() throws IOException {
+        JsonObject flags = getFeatureFlags();
+        boolean v3ATFlag = flags.get("v3AccessToken").getAsBoolean();
+        return v3ATFlag == true;
     }
 }
