@@ -71,6 +71,7 @@ import java.util.concurrent.Executors;
 
 import okhttp3.OkHttpClient;
 import com.example.example.Constants;
+import com.supertokens.session.Utils;
 
 /**
  * With HttpURLConnection we only test for header based auth because in the test framework
@@ -86,6 +87,7 @@ public class SuperTokensHttpURLConnectionTest {
     private final String loginAPIURL = testBaseURL + "/login";
     private final String userInfoAPIURL = testBaseURL + "/";
     private final String logoutAPIURL = testBaseURL + "/logout";
+    private final String logoutAltAPIURL = testBaseURL + "/logout-alt";
     private final String testHeaderAPIURL = testBaseURL + "/testHeader";
     private final String testCheckDeviceInfoAPIURL = testBaseURL + "/checkDeviceInfo";
     private final String testPingAPIURL = testBaseURL + "/ping";
@@ -839,5 +841,63 @@ public class SuperTokensHttpURLConnectionTest {
         if (SuperTokens.doesSessionExist(context)) {
             throw new Exception("Session exists when it  should not");
         }
+    }
+
+    @Test
+    public void  httpUrlConnection_testThatFrontTokenRemoveRemovesAccessAndRefreshAsWell() throws Exception{
+        com.example.TestUtils.startST();
+        new SuperTokens.Builder(context, Constants.apiDomain).build();
+
+        //login request
+        HttpURLConnection loginRequestConnection = SuperTokensHttpURLConnection.newRequest(new URL(loginAPIURL), new SuperTokensHttpURLConnection.PreConnectCallback() {
+            @Override
+            public void doAction(HttpURLConnection con) throws IOException {
+                con.setDoOutput(true);
+                con.setRequestMethod("POST");
+                con.setRequestProperty("Accept", "application/json");
+                con.setRequestProperty("Content-Type", "application/json");
+
+                JsonObject bodyJson = new JsonObject();
+                bodyJson.addProperty("userId", Constants.userId);
+
+                OutputStream outputStream = con.getOutputStream();
+                outputStream.write(bodyJson.toString().getBytes(StandardCharsets.UTF_8));
+                outputStream.close();
+            }
+        });
+
+        if (loginRequestConnection.getResponseCode() != 200) {
+            throw new Exception("Login request failed");
+        }
+
+        loginRequestConnection.disconnect();
+
+        String accessToken = Utils.getTokenForHeaderAuth(Utils.TokenType.ACCESS, context);
+        String refreshToken = Utils.getTokenForHeaderAuth(Utils.TokenType.REFRESH, context);
+        assert accessToken != null;
+        assert refreshToken != null;
+
+        // do logout request
+        HttpURLConnection logoutRequestConnection = SuperTokensHttpURLConnection.newRequest(new URL(logoutAltAPIURL), new SuperTokensHttpURLConnection.PreConnectCallback() {
+            @Override
+            public void doAction(HttpURLConnection con) throws IOException {
+                con.setRequestMethod("POST");
+            }
+        });
+
+        if (logoutRequestConnection.getResponseCode() != 200) {
+            throw new Exception("Logout request failed");
+        }
+
+        logoutRequestConnection.disconnect();
+
+        if (com.example.TestUtils.getRefreshTokenCounter() != 0) {
+            throw new Exception("refreshApi was called when it shouldnt have");
+        }
+
+        String accessTokenAfter = Utils.getTokenForHeaderAuth(Utils.TokenType.ACCESS, context);
+        String refreshTokenAfter = Utils.getTokenForHeaderAuth(Utils.TokenType.REFRESH, context);
+        assert accessTokenAfter == null;
+        assert refreshTokenAfter == null;
     }
 }

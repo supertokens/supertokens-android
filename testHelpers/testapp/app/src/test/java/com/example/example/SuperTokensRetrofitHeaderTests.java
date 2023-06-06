@@ -52,6 +52,7 @@ import java.util.logging.Handler;
 import com.supertokens.session.CustomHeaderProvider;
 import com.supertokens.session.SuperTokens;
 import com.supertokens.session.SuperTokensInterceptor;
+import com.supertokens.session.Utils;
 import com.supertokens.session.android.RetrofitTestAPIService;
 import okhttp3.Interceptor;
 import okhttp3.MediaType;
@@ -691,6 +692,35 @@ public class SuperTokensRetrofitHeaderTests {
         if (userInfoResponse.code() != 200) {
             throw new Exception("User info API failed even after calling refresh");
         }
+    }
+
+    @Test
+    public void retrofitHeaders_testThatFrontTokenRemoveRemovesAccessAndRefreshAsWell() throws Exception {
+        com.example.TestUtils.startST();
+        new SuperTokens.Builder(context, Constants.apiDomain)
+                .build();
+
+        JsonObject body = new JsonObject();
+        body.addProperty("userId", Constants.userId);
+        Response <Void> loginResponse = retrofitTestAPIService.login(body).execute();
+        if (loginResponse.code() != 200) {
+            throw new Exception("Error making login request");
+        }
+
+        String accessToken = Utils.getTokenForHeaderAuth(Utils.TokenType.ACCESS, context);
+        String refreshToken = Utils.getTokenForHeaderAuth(Utils.TokenType.REFRESH, context);
+        assert accessToken != null;
+        assert refreshToken != null;
+
+        Response<Void> logoutResponse = retrofitTestAPIService.logoutAlt().execute();
+        if (logoutResponse.code() != 200){
+            throw new Exception("logout failed");
+        }
+
+        String accessTokenAfter = Utils.getTokenForHeaderAuth(Utils.TokenType.ACCESS, context);
+        String refreshTokenAfter = Utils.getTokenForHeaderAuth(Utils.TokenType.REFRESH, context);
+        assert accessTokenAfter == null;
+        assert refreshTokenAfter == null;
     }
 
     class customInterceptors implements Interceptor {

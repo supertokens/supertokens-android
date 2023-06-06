@@ -57,7 +57,7 @@ public class Utils {
         }
     }
 
-    enum TokenType {
+    public enum TokenType {
         ACCESS, REFRESH
     }
 

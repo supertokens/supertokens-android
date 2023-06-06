@@ -50,6 +50,9 @@ public interface RetrofitTestAPIService {
     @POST("/logout")
     Call<Void> logout();
 
+    @POST("/logout-alt")
+    Call<Void> logoutAlt();
+
     @POST("/testReset")
     @Headers({
         "Content-Type: application/json",

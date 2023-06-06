@@ -60,6 +60,7 @@ import com.supertokens.session.CustomHeaderProvider;
 import com.supertokens.session.SuperTokens;
 import com.supertokens.session.SuperTokensInterceptor;
 import com.supertokens.session.SuperTokensPersistentCookieStore;
+import com.supertokens.session.Utils;
 
 import net.bytebuddy.implementation.bind.annotation.Super;
 
@@ -79,6 +80,7 @@ public class SuperTokensOkHttpHeaderTests {
     private final String loginAPIURL = testBaseURL + "/login";
     private final String userInfoAPIURL = testBaseURL + "/";
     private final String logoutAPIURL = testBaseURL + "/logout";
+    private final String logoutAltAPIURL = testBaseURL + "/logout-alt";
     private final String testHeaderAPIURL = testBaseURL + "/header";
     private final String testMultipleInterceptorsAPIURL = testBaseURL + "/multipleInterceptors";
     private final String testCheckDeviceInfoAPIURL = testBaseURL + "/checkDeviceInfo";
@@ -1021,6 +1023,50 @@ public class SuperTokensOkHttpHeaderTests {
         if (userInfoResponse.code() != 200) {
             throw new Exception("User info API failed");
         }
+    }
+
+    @Test
+    public void okhttpHeaders_testThatFrontTokenRemoveRemovesAccessAndRefreshAsWell() throws Exception {
+        com.example.TestUtils.startST();
+        new SuperTokens.Builder(context, Constants.apiDomain)
+                .build();
+
+        JsonObject bodyJson = new JsonObject();
+        bodyJson.addProperty("userId", Constants.userId);
+        RequestBody body = RequestBody.create(MediaType.parse("application/json; charset=utf-8"), bodyJson.toString());
+        Request request = new Request.Builder()
+                .url(loginAPIURL)
+                .method("POST", body)
+                .addHeader("Accept", "application/json")
+                .addHeader("Content-Type", "application/json")
+                .build();
+        Response loginResponse = okHttpClient.newCall(request).execute();
+        if (loginResponse.code() != 200) {
+            throw new Exception("Error making login request");
+        }
+        loginResponse.close();
+
+        String accessToken = Utils.getTokenForHeaderAuth(Utils.TokenType.ACCESS, context);
+        String refreshToken = Utils.getTokenForHeaderAuth(Utils.TokenType.REFRESH, context);
+        assert accessToken != null;
+        assert refreshToken != null;
+
+        RequestBody logoutReqBody = RequestBody.create(MediaType.parse("application/json; charset=utf-8"), "{}");
+        request = new Request.Builder()
+                .url(logoutAltAPIURL)
+                .method("POST", logoutReqBody)
+                .build();
+        Response logoutResponse = okHttpClient.newCall(request).execute();
+
+        if (logoutResponse.code() != 200) {
+            throw new Exception("Error making logout request");
+        }
+        logoutResponse.close();
+
+        String accessTokenAfter = Utils.getTokenForHeaderAuth(Utils.TokenType.ACCESS, context);
+        String refreshTokenAfter = Utils.getTokenForHeaderAuth(Utils.TokenType.REFRESH, context);
+        assert accessTokenAfter == null;
+        assert refreshTokenAfter == null;
     }
 
     //custom interceptors
