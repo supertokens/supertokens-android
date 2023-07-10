@@ -723,6 +723,28 @@ public class SuperTokensRetrofitHeaderTests {
         assert refreshTokenAfter == null;
     }
 
+    @Test
+    public void retrofitHeaders_testThatAuthHeaderIsNotIgnoredEvenIfItMatchesTheStoredAccessToken() throws Exception {
+        com.example.TestUtils.startST();
+        new SuperTokens.Builder(context, Constants.apiDomain)
+                .build();
+
+        JsonObject body = new JsonObject();
+        body.addProperty("userId", Constants.userId);
+        Response <Void> loginResponse = retrofitTestAPIService.login(body).execute();
+        if (loginResponse.code() != 200) {
+            throw new Exception("Error making login request");
+        }
+
+        Thread.sleep(5000);
+        Utils.setToken(Utils.TokenType.ACCESS, "myOwnHeHe", context);
+
+        Response <Void> response2 = retrofitTestAPIService.baseCustomAuth("Bearer myOwnHeHe").execute();
+        if (response2.code() != 200) {
+            throw new Exception("Error making api request");
+        }
+    }
+
     class customInterceptors implements Interceptor {
         @NotNull
         @Override

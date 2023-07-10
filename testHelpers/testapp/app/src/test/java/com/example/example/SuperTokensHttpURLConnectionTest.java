@@ -85,6 +85,7 @@ public class SuperTokensHttpURLConnectionTest {
     private final String testBaseURL = Constants.apiDomain;
     private final String refreshTokenEndpoint = testBaseURL + "/refresh";
     private final String loginAPIURL = testBaseURL + "/login";
+    private final String baseCustomAuthUrl = testBaseURL + "/base-custom-auth";
     private final String userInfoAPIURL = testBaseURL + "/";
     private final String logoutAPIURL = testBaseURL + "/logout";
     private final String logoutAltAPIURL = testBaseURL + "/logout-alt";
@@ -899,5 +900,52 @@ public class SuperTokensHttpURLConnectionTest {
         String refreshTokenAfter = Utils.getTokenForHeaderAuth(Utils.TokenType.REFRESH, context);
         assert accessTokenAfter == null;
         assert refreshTokenAfter == null;
+    }
+
+    @Test
+    public void httpUrlConnection_testThatAuthHeaderIsNotIgnoredEvenIfItMatchesTheStoredAccessToken() throws Exception {
+        com.example.TestUtils.startST();
+        new SuperTokens.Builder(context, Constants.apiDomain).build();
+
+        HttpURLConnection loginRequestConnection = SuperTokensHttpURLConnection.newRequest(new URL(loginAPIURL), new SuperTokensHttpURLConnection.PreConnectCallback() {
+            @Override
+            public void doAction(HttpURLConnection con) throws IOException {
+                con.setDoOutput(true);
+                con.setRequestMethod("POST");
+                con.setRequestProperty("Accept", "application/json");
+                con.setRequestProperty("Content-Type", "application/json");
+
+                JsonObject bodyJson = new JsonObject();
+                bodyJson.addProperty("userId", Constants.userId);
+
+                OutputStream outputStream = con.getOutputStream();
+                outputStream.write(bodyJson.toString().getBytes(StandardCharsets.UTF_8));
+                outputStream.close();
+            }
+        });
+
+        if (loginRequestConnection.getResponseCode() != 200) {
+            throw new Exception("Login request failed");
+        }
+
+        loginRequestConnection.disconnect();
+
+        Thread.sleep(5000);
+        Utils.setToken(Utils.TokenType.ACCESS, "myOwnHeHe", context);
+
+        HttpURLConnection connection = SuperTokensHttpURLConnection.newRequest(new URL(baseCustomAuthUrl), new SuperTokensHttpURLConnection.PreConnectCallback() {
+            @Override
+            public void doAction(HttpURLConnection con) throws IOException {
+                con.setDoOutput(true);
+                con.setRequestMethod("GET");
+                con.setRequestProperty("Accept", "application/json");
+                con.setRequestProperty("Content-Type", "application/json");
+                con.setRequestProperty("Authorization", "Bearer myOwnHeHe");
+            }
+        });
+
+        if (connection.getResponseCode() != 200) {
+            throw new Exception("Api request failed");
+        }
     }
 }
