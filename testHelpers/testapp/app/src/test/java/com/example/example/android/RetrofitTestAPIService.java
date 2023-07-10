@@ -31,6 +31,13 @@ public interface RetrofitTestAPIService {
     })
     Call<Void> login(@Body JsonObject body);
 
+    @GET("/base-custom-auth")
+    @Headers({
+            "Content-Type: application/json",
+            "Accept: application/json"
+    })
+    Call<Void> baseCustomAuth(@Header("authorization") String token);
+
     @POST("/login-2.18")
     @Headers({
             "Content-Type: application/json",

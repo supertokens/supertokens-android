@@ -43,8 +43,9 @@ public class SuperTokensInterceptor implements Interceptor {
 
         if (originalHeader != null) {
             String accessToken = Utils.getTokenForHeaderAuth(Utils.TokenType.ACCESS, context);
+            String refreshToken = Utils.getTokenForHeaderAuth(Utils.TokenType.REFRESH, context);
 
-            if (accessToken != null && originalHeader.equals("Bearer " + accessToken)) {
+            if (accessToken != null && refreshToken != null && originalHeader.equals("Bearer " + accessToken)) {
                 builder.removeHeader("Authorization");
                 builder.removeHeader("authorization");
             }

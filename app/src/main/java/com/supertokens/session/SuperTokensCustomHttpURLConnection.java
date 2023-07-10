@@ -250,7 +250,8 @@ public class SuperTokensCustomHttpURLConnection extends HttpURLConnection {
 
     private boolean shouldAllowSettingAuthHeader(String value) {
         String accessToken = Utils.getTokenForHeaderAuth(Utils.TokenType.ACCESS, applicationContext);
-        if (accessToken != null && value.equals("Bearer " + accessToken)) {
+        String refreshToken = Utils.getTokenForHeaderAuth(Utils.TokenType.REFRESH, applicationContext);
+        if (accessToken != null && refreshToken != null && value.equals("Bearer " + accessToken)) {
             // We ignore the attempt to set the header because it matches the existing access token
             // which will get added by the SDK
             return false;

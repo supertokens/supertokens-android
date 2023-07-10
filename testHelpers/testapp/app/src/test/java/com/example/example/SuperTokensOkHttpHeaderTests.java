@@ -78,6 +78,7 @@ public class SuperTokensOkHttpHeaderTests {
     private final String testBaseURL = Constants.apiDomain;
     private final String refreshTokenEndpoint = testBaseURL + "/refresh";
     private final String loginAPIURL = testBaseURL + "/login";
+    private final String baseCustomAuthUrl = testBaseURL + "/base-custom-auth";
     private final String userInfoAPIURL = testBaseURL + "/";
     private final String logoutAPIURL = testBaseURL + "/logout";
     private final String logoutAltAPIURL = testBaseURL + "/logout-alt";
@@ -1067,6 +1068,43 @@ public class SuperTokensOkHttpHeaderTests {
         String refreshTokenAfter = Utils.getTokenForHeaderAuth(Utils.TokenType.REFRESH, context);
         assert accessTokenAfter == null;
         assert refreshTokenAfter == null;
+    }
+
+    @Test
+    public void okhttpHeaders_testThatAuthHeaderIsNotIgnoredEvenIfItMatchesTheStoredAccessToken() throws Exception {
+        com.example.TestUtils.startST();
+        new SuperTokens.Builder(context, Constants.apiDomain)
+                .build();
+
+        JsonObject bodyJson = new JsonObject();
+        bodyJson.addProperty("userId", Constants.userId);
+        RequestBody body = RequestBody.create(MediaType.parse("application/json; charset=utf-8"), bodyJson.toString());
+        Request request = new Request.Builder()
+                .url(loginAPIURL)
+                .method("POST", body)
+                .addHeader("Accept", "application/json")
+                .addHeader("Content-Type", "application/json")
+                .build();
+        Response loginResponse = okHttpClient.newCall(request).execute();
+        if (loginResponse.code() != 200) {
+            throw new Exception("Error making login request");
+        }
+        loginResponse.close();
+
+        Thread.sleep(5000);
+        Utils.setToken(Utils.TokenType.ACCESS, "myOwnHeHe", context);
+
+        Request request2 = new Request.Builder()
+                .url(baseCustomAuthUrl)
+                .addHeader("Accept", "application/json")
+                .addHeader("Content-Type", "application/json")
+                .addHeader("Authorization", "Bearer myOwnHeHe")
+                .build();
+        Response response2 = okHttpClient.newCall(request).execute();
+        if (response2.code() != 200) {
+            throw new Exception("Error making api request");
+        }
+        response2.close();
     }
 
     //custom interceptors
