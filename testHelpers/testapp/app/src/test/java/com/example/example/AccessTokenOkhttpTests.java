@@ -120,9 +120,17 @@ public class AccessTokenOkhttpTests {
             };
 
             if (payload.has("tId")) {
-                List<String> keys = Arrays.asList(expectedKeys);
-                keys.add("tId");
-                expectedKeys = keys.toArray(new String[keys.size()]);
+                expectedKeys = new String[]{
+                        "sub",
+                        "exp",
+                        "iat",
+                        "sessionHandle",
+                        "refreshTokenHash1",
+                        "parentRefreshTokenHash1",
+                        "antiCsrfToken",
+                        "asdf",
+                        "tId"
+                };
             }
 
             assert payload.length() == expectedKeys.length;
@@ -181,9 +189,17 @@ public class AccessTokenOkhttpTests {
             };
 
             if (v3Payload.has("tId")) {
-                List<String> keys = Arrays.asList(expectedKeys);
-                keys.add("tId");
-                expectedKeys = keys.toArray(new String[keys.size()]);
+                expectedKeys = new String[]{
+                        "sub",
+                        "exp",
+                        "iat",
+                        "sessionHandle",
+                        "refreshTokenHash1",
+                        "parentRefreshTokenHash1",
+                        "antiCsrfToken",
+                        "asdf",
+                        "tId"
+                };
             }
 
             assert v3Payload.length() == expectedKeys.length;
