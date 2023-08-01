@@ -29,7 +29,9 @@ import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 
 @SuppressWarnings({"CatchMayIgnoreException", "FieldCanBeLocal", "SingleStatementInBlock"})
 @RunWith(MockitoJUnitRunner.class)
@@ -119,6 +121,12 @@ public class AccessTokenHttpURLConnectionTests {
                     "iss"
             };
 
+            if (payload.has("tId")) {
+                List<String> keys = Arrays.asList(expectedKeys);
+                keys.add("tId");
+                expectedKeys = keys.toArray(new String[keys.size()]);
+            }
+
             assert payload.length() == expectedKeys.length;
 
             for (int i = 0; i < payload.names().length(); i++) {
@@ -183,6 +191,12 @@ public class AccessTokenHttpURLConnectionTests {
                     "antiCsrfToken",
                     "asdf"
             };
+
+            if (v3Payload.has("tId")) {
+                List<String> keys = Arrays.asList(expectedKeys);
+                keys.add("tId");
+                expectedKeys = keys.toArray(new String[keys.size()]);
+            }
 
             assert v3Payload.length() == expectedKeys.length;
 
