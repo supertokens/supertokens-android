@@ -123,16 +123,16 @@ public class AccessTokenHttpURLConnectionTests {
 
             if (payload.has("tId")) {
                 expectedKeys = new String[]{
-                        "sub",
-                        "exp",
-                        "iat",
-                        "sessionHandle",
-                        "refreshTokenHash1",
-                        "parentRefreshTokenHash1",
-                        "antiCsrfToken",
-                        "asdf",
-                        "tId"
-                };
+                    "sub",
+                    "exp",
+                    "iat",
+                    "sessionHandle",
+                    "refreshTokenHash1",
+                    "parentRefreshTokenHash1",
+                    "antiCsrfToken",
+                    "iss",
+                    "tId"
+            };
             }
 
             assert payload.length() == expectedKeys.length;
