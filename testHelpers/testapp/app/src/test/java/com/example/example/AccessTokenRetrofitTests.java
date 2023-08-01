@@ -26,6 +26,7 @@ import org.mockito.junit.MockitoJUnitRunner;
 import com.supertokens.session.android.RetrofitTestAPIService;
 
 import java.util.Arrays;
+import java.util.List;
 import java.util.logging.Handler;
 
 import okhttp3.OkHttpClient;
@@ -116,6 +117,12 @@ public class AccessTokenRetrofitTests {
                     "iss"
             };
 
+            if (payload.has("tId")) {
+                List<String> keys = Arrays.asList(expectedKeys);
+                keys.add("tId");
+                expectedKeys = keys.toArray(new String[keys.size()]);
+            }
+
             assert payload.length() == expectedKeys.length;
 
             for (int i = 0; i < payload.names().length(); i++) {
@@ -165,6 +172,12 @@ public class AccessTokenRetrofitTests {
                     "antiCsrfToken",
                     "asdf"
             };
+
+            if (v3Payload.has("tId")) {
+                List<String> keys = Arrays.asList(expectedKeys);
+                keys.add("tId");
+                expectedKeys = keys.toArray(new String[keys.size()]);
+            }
 
             assert v3Payload.length() == expectedKeys.length;
 
