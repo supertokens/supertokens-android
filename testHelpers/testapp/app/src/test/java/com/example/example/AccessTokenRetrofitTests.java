@@ -128,7 +128,22 @@ public class AccessTokenRetrofitTests {
                     "antiCsrfToken",
                     "iss",
                     "tId"
-            };
+                };
+            }
+
+            if (payload.has("rsub")) {
+                expectedKeys = new String[]{
+                        "sub",
+                        "exp",
+                        "iat",
+                        "sessionHandle",
+                        "refreshTokenHash1",
+                        "parentRefreshTokenHash1",
+                        "antiCsrfToken",
+                        "iss",
+                        "tId",
+                        "rsub"
+                };
             }
 
             assert payload.length() == expectedKeys.length;
@@ -192,6 +207,21 @@ public class AccessTokenRetrofitTests {
                         "antiCsrfToken",
                         "asdf",
                         "tId"
+                };
+            }
+
+            if (v3Payload.has("rsub")) {
+                expectedKeys = new String[]{
+                        "sub",
+                        "exp",
+                        "iat",
+                        "sessionHandle",
+                        "refreshTokenHash1",
+                        "parentRefreshTokenHash1",
+                        "antiCsrfToken",
+                        "asdf",
+                        "tId",
+                        "rsub"
                 };
             }
 
