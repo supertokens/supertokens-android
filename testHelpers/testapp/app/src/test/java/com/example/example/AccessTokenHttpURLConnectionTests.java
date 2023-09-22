@@ -131,8 +131,23 @@ public class AccessTokenHttpURLConnectionTests {
                     "parentRefreshTokenHash1",
                     "antiCsrfToken",
                     "iss",
-                    "tId"
-            };
+                    "tId",
+                };
+            }
+
+            if (payload.has("rsub")) {
+                expectedKeys = new String[]{
+                        "sub",
+                        "exp",
+                        "iat",
+                        "sessionHandle",
+                        "refreshTokenHash1",
+                        "parentRefreshTokenHash1",
+                        "antiCsrfToken",
+                        "iss",
+                        "tId",
+                        "rsub"
+                };
             }
 
             assert payload.length() == expectedKeys.length;
@@ -210,7 +225,36 @@ public class AccessTokenHttpURLConnectionTests {
                         "parentRefreshTokenHash1",
                         "antiCsrfToken",
                         "asdf",
-                        "tId"
+                        "tId",
+                };
+            }
+
+            if (v3Payload.has("rsub")) {
+                expectedKeys = new String[]{
+                        "sub",
+                        "exp",
+                        "iat",
+                        "sessionHandle",
+                        "refreshTokenHash1",
+                        "parentRefreshTokenHash1",
+                        "antiCsrfToken",
+                        "asdf",
+                        "rsub",
+                };
+            }
+
+            if (v3Payload.has("rsub") && v3Payload.has("tId")) {
+                expectedKeys = new String[]{
+                        "sub",
+                        "exp",
+                        "iat",
+                        "sessionHandle",
+                        "refreshTokenHash1",
+                        "parentRefreshTokenHash1",
+                        "antiCsrfToken",
+                        "asdf",
+                        "tId",
+                        "rsub"
                 };
             }
 
