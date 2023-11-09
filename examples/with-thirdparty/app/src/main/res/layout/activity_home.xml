@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    tools:context=".HomeActivity"
+    android:background="#DDDDDD"
+    android:paddingHorizontal="32dp"
+    android:paddingTop="16dp">
+
+    <androidx.appcompat.widget.AppCompatButton
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintRight_toRightOf="parent"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Sign Out"
+        android:backgroundTint="#f93"
+        android:textColor="@color/white"
+        android:textSize="12sp"
+        android:id="@+id/btSignOut"/>
+
+    <androidx.appcompat.widget.LinearLayoutCompat
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@drawable/home_container_bg"
+        android:clipChildren="true"
+        android:clipToPadding="true"
+        android:clipToOutline="true"
+        android:orientation="vertical"
+        app:layout_constraintTop_toBottomOf="@+id/btSignOut"
+        app:layout_constraintLeft_toLeftOf="parent"
+        app:layout_constraintRight_toRightOf="parent"
+        android:id="@+id/llMainContainer"
+        android:layout_marginTop="24dp">
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Login successful"
+            android:textStyle="bold"
+            android:textAlignment="center"
+            android:padding="12dp"
+            android:background="#e7ffed"
+            android:textColor="#3eb655"/>
+
+        <androidx.appcompat.widget.LinearLayoutCompat
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:padding="24dp"
+            android:orientation="vertical"
+            android:gravity="center_horizontal">
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Your userId is:"
+                android:textAlignment="center"/>
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                tools:text="afbb9a0e-3e03-4787-a595-6573617bd0de"
+                android:textStyle="bold"
+                android:id="@+id/tvUserId"
+                android:textAlignment="center"
+                android:padding="4dp"
+                android:layout_marginTop="6dp"
+                android:background="@drawable/user_id_container"
+                />
+
+            <androidx.appcompat.widget.AppCompatButton
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:text="Call API"
+                android:backgroundTint="#f93"
+                android:textColor="@color/white"
+                android:textSize="12sp"
+                android:id="@+id/btCallApi"/>
+        </androidx.appcompat.widget.LinearLayoutCompat>
+    </androidx.appcompat.widget.LinearLayoutCompat>
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Press the call API Button to fetch session information"
+        android:layout_marginTop="24dp"
+        app:layout_constraintLeft_toLeftOf="parent"
+        app:layout_constraintRight_toRightOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/llMainContainer"
+        android:background="@drawable/home_container_bg"
+        android:padding="24dp"
+        android:id="@+id/tvSessionInfo"
+        android:textSize="16sp"/>
+
+</androidx.constraintlayout.widget.ConstraintLayout>
