@@ -45,6 +45,12 @@ implementation("net.openid:appauth:0.11.1")
 4. Replace all occurences of `GITHUB_CLIENT_SECRET` in the backend code
 5. If you are using `http://` or `https://` for the callback URL in your Github developer settings you also need to update the `AndroidManifest.xml` to update the scheme for `net.openid.appauth.RedirectUriReceiverActivity`
 
+### Running the app
+
+1. Replace the value of the API domain in `backend/config` and `app/src/main/java/com/supertokens/supertokenxexample/resources/Constants.kt` to match your machines local IP address
+2. Navigate to the `/backend` folder and run `npm run start`
+3. Run open the app in Android studio and run on a device or emulator
+
 ### How it works
 - On app launch we check if a session exists and redirect to login if it doesnt
 - We add the SuperTokens interceptor to the retrofit client so that the SuperTokens SDK can manage session tokens for us
