@@ -3,7 +3,7 @@ import cors from "cors";
 import supertokens from "supertokens-node";
 import { verifySession } from "supertokens-node/recipe/session/framework/express";
 import { middleware, errorHandler, SessionRequest } from "supertokens-node/framework/express";
-import { getWebsiteDomain, SuperTokensConfig } from "./config";
+import { SuperTokensConfig } from "./config";
 import Multitenancy from "supertokens-node/recipe/multitenancy";
 
 supertokens.init(SuperTokensConfig);
@@ -12,7 +12,7 @@ const app = express();
 
 app.use(
     cors({
-        origin: getWebsiteDomain(),
+        origin: "http://localhost:3000",
         allowedHeaders: ["content-type", ...supertokens.getAllCORSHeaders()],
         methods: ["GET", "PUT", "POST", "DELETE"],
         credentials: true,
