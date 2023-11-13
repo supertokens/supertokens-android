@@ -32,13 +32,6 @@ app.get("/sessioninfo", verifySession(), async (req: SessionRequest, res) => {
     });
 });
 
-// This API is used by the frontend to create the tenants drop down when the app loads.
-// Depending on your UX, you can remove this API.
-app.get("/tenants", async (req, res) => {
-    let tenants = await Multitenancy.listAllTenants();
-    res.send(tenants);
-});
-
 // In case of session related errors, this error handler
 // returns 401 to the client.
 app.use(errorHandler());

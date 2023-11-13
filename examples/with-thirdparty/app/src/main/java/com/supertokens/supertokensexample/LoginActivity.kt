@@ -118,12 +118,6 @@ class LoginActivity : AppCompatActivity() {
         val body = JSONObject()
         body.put("thirdPartyId", "github")
 
-        if (idToken != null) {
-            val oauthTokens = JSONObject()
-            oauthTokens.put("id_token", idToken)
-            body.put("oAuthTokens", oauthTokens)
-        }
-
         if (code != null && state != null) {
             val redirectURIInfo = JSONObject()
             redirectURIInfo.put("redirectURIOnProviderDashboard", "com.supertokens.supertokensexample://oauthredirect")
