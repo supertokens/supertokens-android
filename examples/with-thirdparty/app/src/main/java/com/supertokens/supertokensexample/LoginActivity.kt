@@ -61,7 +61,7 @@ class LoginActivity : AppCompatActivity() {
 
     private fun signInWithGoogle() {
         val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
-            .requestIdToken("GOOGLE_WEB_CLIENT_ID")
+            .requestServerAuthCode("GOOGLE_WEB_CLIENT_ID")
             .requestEmail()
             .build()
 
@@ -112,19 +112,16 @@ class LoginActivity : AppCompatActivity() {
         }
 
         val code = response.authorizationCode
-        val idToken = response.idToken
-        val state = response.state
 
         val body = JSONObject()
         body.put("thirdPartyId", "github")
 
-        if (code != null && state != null) {
+        if (code != null) {
             val redirectURIInfo = JSONObject()
             redirectURIInfo.put("redirectURIOnProviderDashboard", "com.supertokens.supertokensexample://oauthredirect")
 
             val redirectURIQueryParams = JSONObject()
             redirectURIQueryParams.put("code", code)
-            redirectURIQueryParams.put("state", state)
 
             redirectURIInfo.put("redirectURIQueryParams", redirectURIQueryParams)
             body.put("redirectURIInfo", redirectURIInfo)
@@ -155,14 +152,20 @@ class LoginActivity : AppCompatActivity() {
 
         try {
             val account = task.result
-            val idToken = account.idToken
 
             val body = JSONObject()
             body.put("thirdPartyId", "google")
 
-            val oauthTokens = JSONObject()
-            oauthTokens.put("id_token", idToken)
-            body.put("oAuthTokens", oauthTokens)
+            val redirectURIInfo = JSONObject()
+            // For the native flow we do not have a redirect uri
+            redirectURIInfo.put("redirectURIOnProviderDashboard", "")
+
+            val redirectURIQueryParams = JSONObject()
+            redirectURIQueryParams.put("code", account.serverAuthCode!!)
+
+            redirectURIInfo.put("redirectURIQueryParams", redirectURIQueryParams)
+            body.put("redirectURIInfo", redirectURIInfo)
+
             val requestBody = RequestBody.create(MediaType.parse("application/json; charset=utf-8"), body.toString())
             APIManager.getInstance().retrofitService.signInUp(requestBody).enqueue(object: Callback<ResponseBody> {
                 override fun onResponse(
