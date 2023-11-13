@@ -34,7 +34,7 @@ implementation("net.openid:appauth:0.11.1")
 #### Google Login
 
 1. Create OAuth credentials for Android on [Google cloud console](https://console.cloud.google.com/). You will need to add your keystore's SHA-1 fingerprint when creating the credential
-2. Create OAuth credentials for Web on [Google cloud console](https://console.cloud.google.com/). This is required because we need to get the id token in the Android app to be able to use SuperTokens. You need to provide all values (including domains and URLs) for Google login to work, you can use dummy values if you do not have a web application.
+2. Create OAuth credentials for Web on [Google cloud console](https://console.cloud.google.com/). This is required because we need to get the authorization code in the Android app to be able to use SuperTokens. You need to provide all values (including domains and URLs) for Google login to work, you can use dummy values if you do not have a web application.
 3. Replace all occurences of `GOOGLE_WEB_CLIENT_ID` with the client id for Web in both the Android code and the backend code
 4. Replace all occurences of `GOOGLE_WEB_CLIENT_SECRET` with the client secret in the backend code
 
