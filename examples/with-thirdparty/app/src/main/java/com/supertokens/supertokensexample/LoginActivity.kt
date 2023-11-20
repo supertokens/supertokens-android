@@ -118,7 +118,7 @@ class LoginActivity : AppCompatActivity() {
 
         if (code != null) {
             val redirectURIInfo = JSONObject()
-            redirectURIInfo.put("redirectURIOnProviderDashboard", "")
+            redirectURIInfo.put("redirectURIOnProviderDashboard", "com.supertokens.supertokensexample://oauthredirect")
 
             val redirectURIQueryParams = JSONObject()
             redirectURIQueryParams.put("code", code)
