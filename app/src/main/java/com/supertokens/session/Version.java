@@ -20,5 +20,5 @@ import java.util.ArrayList;
 import java.util.Arrays;
 
 public class Version {
-    public static ArrayList<String> supported_fdi= new ArrayList<>(Arrays.asList("1.16", "1.17", "1.18"));
+    public static ArrayList<String> supported_fdi = new ArrayList<>(Arrays.asList("1.16", "1.17", "1.18", "1.19"));
 }

@@ -41,7 +41,7 @@ dependencies {
     implementation("androidx.appcompat:appcompat:1.6.1")
     implementation("com.google.android.material:material:1.8.0")
     implementation("androidx.constraintlayout:constraintlayout:2.1.4")
-    implementation("com.github.supertokens:supertokens-android:0.3.5")
+    implementation("com.github.supertokens:supertokens-android:0.3.6")
     implementation ("com.google.android.gms:play-services-auth:20.7.0")
     implementation("com.squareup.retrofit2:retrofit:2.9.0")
     implementation("net.openid:appauth:0.11.1")
