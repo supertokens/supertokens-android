@@ -28,9 +28,11 @@ import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URL;
 import java.util.AbstractCollection;
+import java.util.Arrays;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.Locale;
 import java.util.Map;
 
 import okhttp3.Response;
@@ -119,11 +121,6 @@ public class Utils {
                 URI urlObj = new URI(trimmedSessionScope);
                 trimmedSessionScope = urlObj.getHost();
 
-                // remove leading dot
-                if (trimmedSessionScope.startsWith(".")) {
-                    trimmedSessionScope = trimmedSessionScope.substring(1);
-                }
-
                 return trimmedSessionScope;
             } catch (Exception e) {
                 throw new MalformedURLException("Please provide a valid sessionScope");
@@ -136,6 +133,7 @@ public class Utils {
         }
 
         private static String normaliseSessionScopeOrThrowError(String sessionScope) throws MalformedURLException {
+            sessionScope = sessionScope.trim().toLowerCase();
             String noDotNormalised = sessionScopeHelper(sessionScope);
 
             if (noDotNormalised.equals("localhost") || NormalisedURLDomain.isAnIpAddress(noDotNormalised)) {
@@ -412,29 +410,38 @@ public class Utils {
         URL url = new URL(_toCheckUrl);
         String domain = url.getHost();
 
-        if (cookieDomain == null) {
-            domain = url.getPort() == -1 ? domain : domain + ":" + url.getPort();
+        boolean apiDomainAndInputDomainMatch = false;
+        if (!apiDomain.equals("")) {
             String _apiDomain = new NormalisedURLDomain(apiDomain).getAsStringDangerous();
-            URL apiDomainUrl = new URL(_apiDomain);
-            return domain.equals((apiDomainUrl.getPort() == -1 ? apiDomainUrl.getHost() : apiDomainUrl.getHost() + ":" + apiDomainUrl.getPort()));
+            apiDomainAndInputDomainMatch = _apiDomain.equals(domain);
+        }
+
+        if (cookieDomain == null || apiDomainAndInputDomainMatch) {
+            return apiDomainAndInputDomainMatch;
         } else {
             String normalisedCookieDomain = NormalisedInputType.normaliseSessionScopeOrThrowError(cookieDomain);
 
-            if (cookieDomain.split(":").length > 1) {
-                // means port may be provided
-                String portString = cookieDomain.split((":"))[cookieDomain.split(":").length - 1];
-                if (isNumeric(portString)) {
-                    normalisedCookieDomain += ":" + portString;
-                    domain = url.getPort() == -1 ? domain : domain + ":" + url.getPort();
+            return matchesDomainOrSubdomain(domain, normalisedCookieDomain);
+        }
+    }
+
+    private static boolean matchesDomainOrSubdomain(String hostname, String str) {
+        String[] parts = hostname.split("\\.");
+
+        for (int i = 0; i < parts.length; i++) {
+            StringBuilder subdomainCandidate = new StringBuilder();
+            for (int j = i; j < parts.length; j++) {
+                subdomainCandidate.append(parts[j]);
+                if (j < parts.length - 1) {
+                    subdomainCandidate.append(".");
                 }
             }
-
-            if (cookieDomain.startsWith(".")) {
-                return ("." + domain).endsWith(normalisedCookieDomain);
-            } else {
-                return domain.equals(normalisedCookieDomain);
+            if (subdomainCandidate.toString().equals(str) || ("." + subdomainCandidate.toString()).equals(str)) {
+                return true;
             }
         }
+
+        return false;
     }
 
     static SharedPreferences getSharedPreferences(Context context) {
