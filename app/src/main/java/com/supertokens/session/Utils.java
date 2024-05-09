@@ -39,6 +39,7 @@ import okhttp3.Response;
 
 public class Utils {
     static final String PACKAGE_PLATFORM = "android";
+
     static class Unauthorised {
         UnauthorisedStatus status;
         IOException error;
@@ -69,7 +70,8 @@ public class Utils {
 
     static class LocalSessionState {
         LocalSessionStateStatus status;
-        @Nullable  String lastAccessTokenUpdate;
+        @Nullable
+        String lastAccessTokenUpdate;
 
         LocalSessionState(LocalSessionStateStatus status, @Nullable String lastAccessTokenUpdate) {
             this.status = status;
@@ -94,8 +96,7 @@ public class Utils {
                 String sessionTokenBackendDomain,
                 String tokenTransferMethod,
                 CustomHeaderProvider customHeaderMapper,
-                EventHandler eventHandler
-        ) {
+                EventHandler eventHandler) {
             this.apiDomain = apiDomain;
             this.apiBasePath = apiBasePath;
             this.sessionExpiredStatusCode = sessionExpiredStatusCode;
@@ -128,7 +129,8 @@ public class Utils {
         }
 
         @TestOnly
-        public static String normaliseSessionScopeOrThrowErrorForTests(String sessionScope) throws MalformedURLException {
+        public static String normaliseSessionScopeOrThrowErrorForTests(String sessionScope)
+                throws MalformedURLException {
             return normaliseSessionScopeOrThrowError(sessionScope);
         }
 
@@ -149,13 +151,12 @@ public class Utils {
 
         public static NormalisedInputType normaliseInputOrThrowError(
                 String apiDomain,
-                @Nullable  String apiBasePath,
-                @Nullable  Integer sessionExpiredStatusCode,
-                @Nullable  String sessionTokenBackendDomain,
+                @Nullable String apiBasePath,
+                @Nullable Integer sessionExpiredStatusCode,
+                @Nullable String sessionTokenBackendDomain,
                 @Nullable String tokenTransferMethod,
                 @Nullable CustomHeaderProvider customHeaderProvider,
-                @Nullable EventHandler eventHandler
-        ) throws MalformedURLException {
+                @Nullable EventHandler eventHandler) throws MalformedURLException {
             String _apiDomain = new NormalisedURLDomain(apiDomain).getAsStringDangerous();
             String _apiBasePath = new NormalisedURLPath("/auth").getAsStringDangerous();
 
@@ -189,7 +190,8 @@ public class Utils {
                 _tokenTransferMethod = tokenTransferMethod;
             }
 
-            return new NormalisedInputType(_apiDomain, _apiBasePath, _sessionExpiredStatusCode, _sessionTokenBackendDomain, _tokenTransferMethod, _customHeaderProvider, _eventHandler);
+            return new NormalisedInputType(_apiDomain, _apiBasePath, _sessionExpiredStatusCode,
+                    _sessionTokenBackendDomain, _tokenTransferMethod, _customHeaderProvider, _eventHandler);
         }
     }
 
@@ -307,24 +309,30 @@ public class Utils {
 
     // Checks if a key exists in a map regardless of case
     public static <T> T getIgnoreCase(Map<String, T> map, String key) {
-        for(Map.Entry<String, T> entry : map.entrySet()) {
-            if(entry.getKey().equalsIgnoreCase(key))
+        for (Map.Entry<String, T> entry : map.entrySet()) {
+            if (entry.getKey().equalsIgnoreCase(key))
                 return entry.getValue();
         }
         return null;
     }
 
     public static Map<String, String> getAuthorizationHeaderIfRequired(boolean addRefreshToken, Context context) {
-        // We set the Authorization header even if the tokenTransferMethod preference set in the config is cookies
-        // since the active session may be using cookies. By default, we want to allow users to continue these sessions.
-        // The new session preference should be applied at the start of the next session, if the backend allows it.
+        // We set the Authorization header even if the tokenTransferMethod preference
+        // set in the config is cookies
+        // since the active session may be using cookies. By default, we want to allow
+        // users to continue these sessions.
+        // The new session preference should be applied at the start of the next
+        // session, if the backend allows it.
         Map<String, String> headers = new HashMap<>();
         String accessToken = getTokenForHeaderAuth(TokenType.ACCESS, context);
         String refreshToken = getTokenForHeaderAuth(TokenType.REFRESH, context);
 
-        // We don't always need the refresh token because that's only required by the refresh call
-        // Still, we only add the Authorization header if both are present, because we are planning to add an option to expose the
-        // access token to the frontend while using cookie based auth - so that users can get the access token to use
+        // We don't always need the refresh token because that's only required by the
+        // refresh call
+        // Still, we only add the Authorization header if both are present, because we
+        // are planning to add an option to expose the
+        // access token to the frontend while using cookie based auth - so that users
+        // can get the access token to use
         if (accessToken != null && refreshToken != null) {
             if (getIgnoreCase(headers, "Authorization") != null) {
                 // no-op
@@ -340,12 +348,14 @@ public class Utils {
     public static void fireSessionUpdateEventsIfNecessary(
             boolean wasLoggedIn,
             int status,
-            String frontTokenHeaderFromResponse
-    ) {
-        // In case we've received a 401 that didn't clear the session (e.g.: we've sent no session token, or we should try refreshing)
+            String frontTokenHeaderFromResponse) {
+        // In case we've received a 401 that didn't clear the session (e.g.: we've sent
+        // no session token, or we should try refreshing)
         // then onUnauthorised will handle firing the UNAUTHORISED event if necessary
-        // In some rare cases (where we receive a 401 that also clears the session) this will fire the event twice.
-        // This may be considered a bug, but it is the existing behaviour before the rework
+        // In some rare cases (where we receive a 401 that also clears the session) this
+        // will fire the event twice.
+        // This may be considered a bug, but it is the existing behaviour before the
+        // rework
         if (frontTokenHeaderFromResponse == null) {
             return;
         }
@@ -369,11 +379,11 @@ public class Utils {
     }
 
     public static String join(AbstractCollection<String> s, String delimiter) {
-        if (s == null || s.isEmpty()) return "";
+        if (s == null || s.isEmpty())
+            return "";
         Iterator<String> iter = s.iterator();
         StringBuilder builder = new StringBuilder(iter.next());
-        while( iter.hasNext() )
-        {
+        while (iter.hasNext()) {
             builder.append(delimiter).append(iter.next());
         }
         return builder.toString();
@@ -395,17 +405,20 @@ public class Utils {
         try {
             Integer.parseInt(string);
             return true;
-        } catch (Exception ignored) {}
+        } catch (Exception ignored) {
+        }
 
         try {
             Float.parseFloat(string);
             return true;
-        } catch (Exception ignored) {}
+        } catch (Exception ignored) {
+        }
 
         return false;
     }
 
-    public static boolean shouldDoInterceptionBasedOnUrl(String toCheckUrl, String apiDomain, @Nullable String cookieDomain) throws MalformedURLException {
+    public static boolean shouldDoInterceptionBasedOnUrl(String toCheckUrl, String apiDomain,
+            @Nullable String cookieDomain) throws MalformedURLException {
         String _toCheckUrl = new NormalisedURLDomain(toCheckUrl).getAsStringDangerous();
         URL url = new URL(_toCheckUrl);
         String domain = url.getHost();
@@ -413,7 +426,8 @@ public class Utils {
         boolean apiDomainAndInputDomainMatch = false;
         if (!apiDomain.equals("")) {
             String _apiDomain = new NormalisedURLDomain(apiDomain).getAsStringDangerous();
-            apiDomainAndInputDomainMatch = _apiDomain.equals(domain);
+            URL apiDomainUrlObj = new URL(_apiDomain);
+            apiDomainAndInputDomainMatch = apiDomainUrlObj.getHost().equals(domain);
         }
 
         if (cookieDomain == null || apiDomainAndInputDomainMatch) {
