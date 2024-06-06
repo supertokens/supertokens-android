@@ -87,6 +87,7 @@ public class SuperTokensOkHttpHeaderTests {
     private final String testCheckDeviceInfoAPIURL = testBaseURL + "/checkDeviceInfo";
     private final String testErrorAPIURL = testBaseURL + "/testError";
     private final String testPingAPIURL = testBaseURL + "/ping";
+    private final String throw401APIURL = testBaseURL + "/throw-401";
 
     private final int sessionExpiryCode = 401;
     private static OkHttpClient okHttpClient;
@@ -1105,6 +1106,119 @@ public class SuperTokensOkHttpHeaderTests {
             throw new Exception("Error making api request");
         }
         response2.close();
+    }
+
+    @Test
+    public void okhttpHeaders_testBreakOutOfSessionRefreshLoopAfterDefaultMaxRetryAttempts() throws Exception {
+        com.example.TestUtils.startST();
+        new SuperTokens.Builder(context, Constants.apiDomain)
+                .build();
+
+        JsonObject bodyJson = new JsonObject();
+        bodyJson.addProperty("userId", Constants.userId);
+        RequestBody body = RequestBody.create(MediaType.parse("application/json; charset=utf-8"), bodyJson.toString());
+        Request request = new Request.Builder()
+                .url(loginAPIURL)
+                .method("POST", body)
+                .addHeader("Accept", "application/json")
+                .addHeader("Content-Type", "application/json")
+                .build();
+        Response loginResponse = okHttpClient.newCall(request).execute();
+        if (loginResponse.code() != 200) {
+            throw new Exception("Error making login request");
+        }
+        loginResponse.close();
+
+        try {
+            Request throw401Request = new Request.Builder()
+                    .url(throw401APIURL)
+                    .build();
+            okHttpClient.newCall(throw401Request).execute();
+            throw new Exception("Expected the request to throw an error");
+        } catch (IOException e) {
+            assert e.getMessage().equals("Received a 401 response from http://127.0.0.1:8080/throw-401. Attempted to refresh the session and retry the request with the updated session tokens 10 times, but each attempt resulted in a 401 error. The maximum session refresh limit has been reached. Please investigate your API. To increase the session refresh attempts, update maxRetryAttemptsForSessionRefresh in the config.");
+        }
+
+        int sessionRefreshCalledCount = com.example.TestUtils.getRefreshTokenCounter();
+        if (sessionRefreshCalledCount != 10) {
+            throw new Exception("Expected session refresh endpoint to be called 10 times but it was called " + sessionRefreshCalledCount + " times");
+        }
+    }
+
+    @Test
+    public void okhttpHeaders_testBreakOutOfSessionRefreshLoopAfterConfiguredMaxRetryAttempts() throws Exception {
+        com.example.TestUtils.startST();
+        new SuperTokens.Builder(context, Constants.apiDomain)
+                .maxRetryAttemptsForSessionRefresh(5)
+                .build();
+
+        JsonObject bodyJson = new JsonObject();
+        bodyJson.addProperty("userId", Constants.userId);
+        RequestBody body = RequestBody.create(MediaType.parse("application/json; charset=utf-8"), bodyJson.toString());
+        Request request = new Request.Builder()
+                .url(loginAPIURL)
+                .method("POST", body)
+                .addHeader("Accept", "application/json")
+                .addHeader("Content-Type", "application/json")
+                .build();
+        Response loginResponse = okHttpClient.newCall(request).execute();
+        if (loginResponse.code() != 200) {
+            throw new Exception("Error making login request");
+        }
+        loginResponse.close();
+
+        try {
+            Request throw401Request = new Request.Builder()
+                    .url(throw401APIURL)
+                    .build();
+            okHttpClient.newCall(throw401Request).execute();
+            throw new Exception("Expected the request to throw an error");
+        } catch (IOException e) {
+            assert e.getMessage().equals("Received a 401 response from http://127.0.0.1:8080/throw-401. Attempted to refresh the session and retry the request with the updated session tokens 5 times, but each attempt resulted in a 401 error. The maximum session refresh limit has been reached. Please investigate your API. To increase the session refresh attempts, update maxRetryAttemptsForSessionRefresh in the config.");
+        }
+
+        int sessionRefreshCalledCount = com.example.TestUtils.getRefreshTokenCounter();
+        if (sessionRefreshCalledCount != 5) {
+            throw new Exception("Expected session refresh endpoint to be called 5 times but it was called " + sessionRefreshCalledCount + " times");
+        }
+    }
+
+    @Test
+    public void okhttpHeaders_testShouldNotDoSessionRefreshIfMaxRetryAttemptsForSessionRefreshIsZero() throws Exception {
+        com.example.TestUtils.startST();
+        new SuperTokens.Builder(context, Constants.apiDomain)
+                .maxRetryAttemptsForSessionRefresh(0)
+                .build();
+
+        JsonObject bodyJson = new JsonObject();
+        bodyJson.addProperty("userId", Constants.userId);
+        RequestBody body = RequestBody.create(MediaType.parse("application/json; charset=utf-8"), bodyJson.toString());
+        Request request = new Request.Builder()
+                .url(loginAPIURL)
+                .method("POST", body)
+                .addHeader("Accept", "application/json")
+                .addHeader("Content-Type", "application/json")
+                .build();
+        Response loginResponse = okHttpClient.newCall(request).execute();
+        if (loginResponse.code() != 200) {
+            throw new Exception("Error making login request");
+        }
+        loginResponse.close();
+
+        try {
+            Request throw401Request = new Request.Builder()
+                    .url(throw401APIURL)
+                    .build();
+            okHttpClient.newCall(throw401Request).execute();
+            throw new Exception("Expected the request to throw an error");
+        } catch (IOException e) {
+            assert e.getMessage().equals("Received a 401 response from http://127.0.0.1:8080/throw-401. Attempted to refresh the session and retry the request with the updated session tokens 0 times, but each attempt resulted in a 401 error. The maximum session refresh limit has been reached. Please investigate your API. To increase the session refresh attempts, update maxRetryAttemptsForSessionRefresh in the config.");
+        }
+
+        int sessionRefreshCalledCount = com.example.TestUtils.getRefreshTokenCounter();
+        if (sessionRefreshCalledCount != 0) {
+            throw new Exception("Expected session refresh endpoint to be called 0 times but it was called " + sessionRefreshCalledCount + " times");
+        }
     }
 
     //custom interceptors

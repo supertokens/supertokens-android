@@ -129,6 +129,7 @@ public class SuperTokensHttpURLConnection {
         }
 
         try {
+            int sessionRefreshAttempts = 0;
             while (true) {
                 HttpURLConnection connection;
                 SuperTokensCustomHttpURLConnection customConnection;
@@ -184,8 +185,22 @@ public class SuperTokensHttpURLConnection {
                 }
 
                 if (responseCode == SuperTokens.config.sessionExpiredStatusCode) {
+                    /**
+                     * An API may return a 401 error response even with a valid session, causing a session refresh loop in the interceptor.
+                     * To prevent this infinite loop, we break out of the loop after retrying the original request a specified number of times.
+                     * The maximum number of retry attempts is defined by maxRetryAttemptsForSessionRefresh config variable.
+                     */
+                    if (sessionRefreshAttempts >= SuperTokens.config.maxRetryAttemptsForSessionRefresh) {
+                        String errorMsg = "Received a 401 response from " + url + ". Attempted to refresh the session and retry the request with the updated session tokens " + SuperTokens.config.maxRetryAttemptsForSessionRefresh + " times, but each attempt resulted in a 401 error. The maximum session refresh limit has been reached. Please investigate your API. To increase the session refresh attempts, update maxRetryAttemptsForSessionRefresh in the config.";
+                        System.err.println(errorMsg);
+                        throw new IllegalAccessException(errorMsg);
+                    }
+
                     // Network call threw UnauthorisedAccess, try to call the refresh token endpoint and retry original call
                     Utils.Unauthorised unauthorisedResponse = SuperTokensHttpURLConnection.onUnauthorisedResponse(preRequestLocalSessionState, applicationContext);
+
+                    sessionRefreshAttempts++;
+
                     if (unauthorisedResponse.status != Utils.Unauthorised.UnauthorisedStatus.RETRY) {
 
                         if (unauthorisedResponse.error != null) {

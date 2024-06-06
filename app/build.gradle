@@ -1,6 +1,6 @@
 apply plugin: 'com.android.library'
 apply plugin: 'maven-publish'
-def publishVersionID = "0.4.2"
+def publishVersionID = "0.5.0"
 
 android {
     compileSdkVersion 32

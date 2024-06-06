@@ -83,6 +83,14 @@ public class Utils {
         String apiDomain;
         String apiBasePath;
         int sessionExpiredStatusCode;
+
+        /**
+         * This specifies the maximum number of times the interceptor will attempt to refresh
+         * the session  when a 401 Unauthorized response is received. If the number of retries
+         * exceeds this limit, no further attempts will be made to refresh the session, and
+         * and an error will be thrown.
+         */
+        int maxRetryAttemptsForSessionRefresh;
         String sessionTokenBackendDomain;
         CustomHeaderProvider customHeaderMapper;
         EventHandler eventHandler;
@@ -93,6 +101,7 @@ public class Utils {
                 String apiDomain,
                 String apiBasePath,
                 int sessionExpiredStatusCode,
+                int maxRetryAttemptsForSessionRefresh,
                 String sessionTokenBackendDomain,
                 String tokenTransferMethod,
                 CustomHeaderProvider customHeaderMapper,
@@ -100,6 +109,7 @@ public class Utils {
             this.apiDomain = apiDomain;
             this.apiBasePath = apiBasePath;
             this.sessionExpiredStatusCode = sessionExpiredStatusCode;
+            this.maxRetryAttemptsForSessionRefresh = maxRetryAttemptsForSessionRefresh;
             this.sessionTokenBackendDomain = sessionTokenBackendDomain;
             this.customHeaderMapper = customHeaderMapper;
             this.eventHandler = eventHandler;
@@ -153,6 +163,7 @@ public class Utils {
                 String apiDomain,
                 @Nullable String apiBasePath,
                 @Nullable Integer sessionExpiredStatusCode,
+                @Nullable Integer maxRetryAttemptsForSessionRefresh,
                 @Nullable String sessionTokenBackendDomain,
                 @Nullable String tokenTransferMethod,
                 @Nullable CustomHeaderProvider customHeaderProvider,
@@ -167,6 +178,11 @@ public class Utils {
             int _sessionExpiredStatusCode = 401;
             if (sessionExpiredStatusCode != null) {
                 _sessionExpiredStatusCode = sessionExpiredStatusCode;
+            }
+
+            int _maxRetryAttemptsForSessionRefresh = 10;
+            if (maxRetryAttemptsForSessionRefresh != null) {
+                _maxRetryAttemptsForSessionRefresh = maxRetryAttemptsForSessionRefresh;
             }
 
             String _sessionTokenBackendDomain = null;
@@ -190,7 +206,7 @@ public class Utils {
                 _tokenTransferMethod = tokenTransferMethod;
             }
 
-            return new NormalisedInputType(_apiDomain, _apiBasePath, _sessionExpiredStatusCode,
+            return new NormalisedInputType(_apiDomain, _apiBasePath, _sessionExpiredStatusCode, _maxRetryAttemptsForSessionRefresh,
                     _sessionTokenBackendDomain, _tokenTransferMethod, _customHeaderProvider, _eventHandler);
         }
     }

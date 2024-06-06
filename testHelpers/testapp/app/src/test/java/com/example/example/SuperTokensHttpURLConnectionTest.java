@@ -94,6 +94,7 @@ public class SuperTokensHttpURLConnectionTest {
     private final String testPingAPIURL = testBaseURL + "/ping";
     private final String testErrorAPIURL = testBaseURL + "/testError";
     private final String testCheckCustomRefresh = testBaseURL + "/refreshHeader";
+    private final String throw401ErrorURL = testBaseURL + "/throw-401";
 
     private final int sessionExpiryCode = 401;
 
@@ -946,6 +947,161 @@ public class SuperTokensHttpURLConnectionTest {
 
         if (connection.getResponseCode() != 200) {
             throw new Exception("Api request failed");
+        }
+    }
+
+    @Test
+    public void  httpUrlConnection_testBreakOutOfSessionRefreshLoopAfterDefaultMaxRetryAttempts() throws Exception {
+        com.example.TestUtils.startST();
+        new SuperTokens.Builder(context, Constants.apiDomain).build();
+
+        //login request
+        HttpURLConnection loginRequestConnection = SuperTokensHttpURLConnection.newRequest(new URL(loginAPIURL), new SuperTokensHttpURLConnection.PreConnectCallback() {
+            @Override
+            public void doAction(HttpURLConnection con) throws IOException {
+                con.setDoOutput(true);
+                con.setRequestMethod("POST");
+                con.setRequestProperty("Accept", "application/json");
+                con.setRequestProperty("Content-Type", "application/json");
+
+                JsonObject bodyJson = new JsonObject();
+                bodyJson.addProperty("userId", Constants.userId);
+
+                OutputStream outputStream = con.getOutputStream();
+                outputStream.write(bodyJson.toString().getBytes(StandardCharsets.UTF_8));
+                outputStream.close();
+            }
+        });
+
+        if (loginRequestConnection.getResponseCode() != 200) {
+            throw new Exception("Login request failed");
+        }
+
+        loginRequestConnection.disconnect();
+
+        HttpURLConnection throw401Request = null;
+        try {
+             throw401Request = SuperTokensHttpURLConnection.newRequest(new URL(throw401ErrorURL), new SuperTokensHttpURLConnection.PreConnectCallback() {
+                @Override
+                public void doAction(HttpURLConnection con) throws IOException {
+                    con.setRequestMethod("GET");
+                }
+            });
+            throw new Exception("Expected the request to throw an error");
+        } catch (IllegalAccessException e) {
+            assert e.getMessage().equals("Received a 401 response from http://127.0.0.1:8080/throw-401. Attempted to refresh the session and retry the request with the updated session tokens 10 times, but each attempt resulted in a 401 error. The maximum session refresh limit has been reached. Please investigate your API. To increase the session refresh attempts, update maxRetryAttemptsForSessionRefresh in the config.");
+        } finally {
+            if (throw401Request != null) {
+                throw401Request.disconnect();
+            }
+        }
+
+        int sessionRefreshCalledCount = com.example.TestUtils.getRefreshTokenCounter();
+        if (sessionRefreshCalledCount != 10) {
+            throw new Exception("Expected session refresh endpoint to be called 10 times but it was called " + sessionRefreshCalledCount + " times");
+        }
+    }
+
+    @Test
+    public void  httpUrlConnection_testBreakOutOfSessionRefreshLoopAfterConfiguredMaxRetryAttempts() throws Exception {
+        com.example.TestUtils.startST();
+        new SuperTokens.Builder(context, Constants.apiDomain).maxRetryAttemptsForSessionRefresh(5).build();
+
+        //login request
+        HttpURLConnection loginRequestConnection = SuperTokensHttpURLConnection.newRequest(new URL(loginAPIURL), new SuperTokensHttpURLConnection.PreConnectCallback() {
+            @Override
+            public void doAction(HttpURLConnection con) throws IOException {
+                con.setDoOutput(true);
+                con.setRequestMethod("POST");
+                con.setRequestProperty("Accept", "application/json");
+                con.setRequestProperty("Content-Type", "application/json");
+
+                JsonObject bodyJson = new JsonObject();
+                bodyJson.addProperty("userId", Constants.userId);
+
+                OutputStream outputStream = con.getOutputStream();
+                outputStream.write(bodyJson.toString().getBytes(StandardCharsets.UTF_8));
+                outputStream.close();
+            }
+        });
+
+        if (loginRequestConnection.getResponseCode() != 200) {
+            throw new Exception("Login request failed");
+        }
+
+        loginRequestConnection.disconnect();
+
+        HttpURLConnection throw401Request = null;
+        try {
+             throw401Request = SuperTokensHttpURLConnection.newRequest(new URL(throw401ErrorURL), new SuperTokensHttpURLConnection.PreConnectCallback() {
+                @Override
+                public void doAction(HttpURLConnection con) throws IOException {
+                    con.setRequestMethod("GET");
+                }
+            });
+            throw new Exception("Expected the request to throw an error");
+        } catch (IllegalAccessException e) {
+            assert e.getMessage().equals("Received a 401 response from http://127.0.0.1:8080/throw-401. Attempted to refresh the session and retry the request with the updated session tokens 5 times, but each attempt resulted in a 401 error. The maximum session refresh limit has been reached. Please investigate your API. To increase the session refresh attempts, update maxRetryAttemptsForSessionRefresh in the config.");
+        } finally {
+            if (throw401Request != null) {
+                throw401Request.disconnect();
+            }
+        }
+
+        int sessionRefreshCalledCount = com.example.TestUtils.getRefreshTokenCounter();
+        if (sessionRefreshCalledCount != 5) {
+            throw new Exception("Expected session refresh endpoint to be called 5 times but it was called " + sessionRefreshCalledCount + " times");
+        }
+    }
+
+    @Test
+    public void  httpUrlConnection_testShouldNotDoSessionRefreshIfMaxRetryAttemptsForSessionRefreshIsZero() throws Exception {
+        com.example.TestUtils.startST();
+        new SuperTokens.Builder(context, Constants.apiDomain).maxRetryAttemptsForSessionRefresh(0).build();
+        //login request
+        HttpURLConnection loginRequestConnection = SuperTokensHttpURLConnection.newRequest(new URL(loginAPIURL), new SuperTokensHttpURLConnection.PreConnectCallback() {
+            @Override
+            public void doAction(HttpURLConnection con) throws IOException {
+                con.setDoOutput(true);
+                con.setRequestMethod("POST");
+                con.setRequestProperty("Accept", "application/json");
+                con.setRequestProperty("Content-Type", "application/json");
+
+                JsonObject bodyJson = new JsonObject();
+                bodyJson.addProperty("userId", Constants.userId);
+
+                OutputStream outputStream = con.getOutputStream();
+                outputStream.write(bodyJson.toString().getBytes(StandardCharsets.UTF_8));
+                outputStream.close();
+            }
+        });
+
+        if (loginRequestConnection.getResponseCode() != 200) {
+            throw new Exception("Login request failed");
+        }
+
+        loginRequestConnection.disconnect();
+
+        HttpURLConnection throw401Request = null;
+        try {
+             throw401Request = SuperTokensHttpURLConnection.newRequest(new URL(throw401ErrorURL), new SuperTokensHttpURLConnection.PreConnectCallback() {
+                @Override
+                public void doAction(HttpURLConnection con) throws IOException {
+                    con.setRequestMethod("GET");
+                }
+            });
+            throw new Exception("Expected the request to throw an error");
+        } catch (IllegalAccessException e) {
+            assert e.getMessage().equals("Received a 401 response from http://127.0.0.1:8080/throw-401. Attempted to refresh the session and retry the request with the updated session tokens 0 times, but each attempt resulted in a 401 error. The maximum session refresh limit has been reached. Please investigate your API. To increase the session refresh attempts, update maxRetryAttemptsForSessionRefresh in the config.");
+        } finally {
+            if (throw401Request != null) {
+                throw401Request.disconnect();
+            }
+        }
+
+        int sessionRefreshCalledCount = com.example.TestUtils.getRefreshTokenCounter();
+        if (sessionRefreshCalledCount != 0) {
+            throw new Exception("Expected session refresh endpoint to be called 0 times but it was called " + sessionRefreshCalledCount + " times");
         }
     }
 }
