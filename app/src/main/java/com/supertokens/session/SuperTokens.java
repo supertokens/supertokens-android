@@ -50,6 +50,7 @@ public class SuperTokens {
             @NonNull String apiDomain,
             @Nullable String apiBasePath,
             @Nullable Integer sessionExpiredStatusCode,
+            @Nullable Integer maxRetryAttemptsForSessionRefresh,
             @Nullable String sessionTokenBackendDomain,
             @Nullable String tokenTransferMethod,
             @Nullable CustomHeaderProvider customHeaderProvider,
@@ -63,6 +64,7 @@ public class SuperTokens {
                 apiDomain,
                 apiBasePath,
                 sessionExpiredStatusCode,
+                maxRetryAttemptsForSessionRefresh,
                 sessionTokenBackendDomain,
                 tokenTransferMethod,
                 customHeaderProvider,
@@ -260,6 +262,7 @@ public class SuperTokens {
         Context applicationContext;
         String apiBasePath;
         Integer sessionExpiredStatusCode;
+        Integer maxRetryAttemptsForSessionRefresh;
         String sessionTokenBackendDomain;
         CustomHeaderProvider customHeaderProvider;
         EventHandler eventHandler;
@@ -277,6 +280,11 @@ public class SuperTokens {
 
         public Builder sessionExpiredStatusCode(Integer sessionExpiredStatusCode) {
             this.sessionExpiredStatusCode = sessionExpiredStatusCode;
+            return this;
+        }
+
+        public Builder maxRetryAttemptsForSessionRefresh(Integer maxRetryAttemptsForSessionRefresh) {
+            this.maxRetryAttemptsForSessionRefresh = maxRetryAttemptsForSessionRefresh;
             return this;
         }
 
@@ -301,7 +309,7 @@ public class SuperTokens {
         }
 
         public void build() throws MalformedURLException {
-            SuperTokens.init(applicationContext, apiDomain, apiBasePath, sessionExpiredStatusCode, sessionTokenBackendDomain, tokenTransferMethod, customHeaderProvider, eventHandler);
+            SuperTokens.init(applicationContext, apiDomain, apiBasePath, sessionExpiredStatusCode, maxRetryAttemptsForSessionRefresh, sessionTokenBackendDomain, tokenTransferMethod, customHeaderProvider, eventHandler);
         }
     }
 }

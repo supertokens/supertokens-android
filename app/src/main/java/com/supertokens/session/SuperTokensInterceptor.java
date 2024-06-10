@@ -98,6 +98,7 @@ public class SuperTokensInterceptor implements Interceptor {
         }
 
         try {
+            int sessionRefreshAttempts = 0;
             while (true) {
                 Request.Builder requestBuilder = chain.request().newBuilder();
                 Utils.LocalSessionState preRequestLocalSessionState;
@@ -134,6 +135,17 @@ public class SuperTokensInterceptor implements Interceptor {
                 }
 
                 if (response.code() == SuperTokens.config.sessionExpiredStatusCode) {
+                    /**
+                     * An API may return a 401 error response even with a valid session, causing a session refresh loop in the interceptor.
+                     * To prevent this infinite loop, we break out of the loop after retrying the original request a specified number of times.
+                     * The maximum number of retry attempts is defined by maxRetryAttemptsForSessionRefresh config variable.
+                     */
+                    if (sessionRefreshAttempts >= SuperTokens.config.maxRetryAttemptsForSessionRefresh) {
+                        String errorMsg = "Received a 401 response from " + requestUrl + ". Attempted to refresh the session and retry the request with the updated session tokens " + SuperTokens.config.maxRetryAttemptsForSessionRefresh + " times, but each attempt resulted in a 401 error. The maximum session refresh limit has been reached. Please investigate your API. To increase the session refresh attempts, update maxRetryAttemptsForSessionRefresh in the config.";
+                        System.err.println(errorMsg);
+                        throw new IOException(errorMsg);
+                    }
+
                     // Cloning the response object, if retry is false then we return this
                     Response clonedResponse = new Response.Builder()
                             .body(response.peekBody(Long.MAX_VALUE))
@@ -152,6 +164,9 @@ public class SuperTokensInterceptor implements Interceptor {
                     response.close();
 
                     Utils.Unauthorised unauthorisedResponse = onUnauthorisedResponse(preRequestLocalSessionState, applicationContext, chain);
+
+                    sessionRefreshAttempts++;
+
                     if (unauthorisedResponse.status != Utils.Unauthorised.UnauthorisedStatus.RETRY) {
                         if (unauthorisedResponse.error != null) {
                             throw unauthorisedResponse.error;

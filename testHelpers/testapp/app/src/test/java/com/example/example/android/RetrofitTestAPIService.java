@@ -88,4 +88,6 @@ public interface RetrofitTestAPIService {
     @POST("/multipleInterceptors")
     Call<ResponseBody> multipleInterceptors();
 
+    @GET("/throw-401")
+    Call<ResponseBody> throw401();
 }

@@ -751,6 +751,86 @@ public class SuperTokensRetrofitTest {
         assert accessToken != null;
     }
 
+    @Test
+    public void retrofit_testBreakOutOfSessionRefreshLoopAfterDefaultMaxRetryAttempts() throws Exception {
+        com.example.TestUtils.startST();
+        new SuperTokens.Builder(context, Constants.apiDomain)
+                .tokenTransferMethod("cookie")
+                .build();
+
+        JsonObject body = new JsonObject();
+        body.addProperty("userId", Constants.userId);
+        Response <Void> loginResponse = retrofitTestAPIService.login(body).execute();
+        if (loginResponse.code() != 200) {
+            throw new Exception("Error making login request");
+        }
+
+        try {
+            Response<ResponseBody> userInfoResponse = retrofitTestAPIService.throw401().execute();
+        } catch (IOException e) {
+            assert e.getMessage().equals("Received a 401 response from http://127.0.0.1:8080/throw-401. Attempted to refresh the session and retry the request with the updated session tokens 10 times, but each attempt resulted in a 401 error. The maximum session refresh limit has been reached. Please investigate your API. To increase the session refresh attempts, update maxRetryAttemptsForSessionRefresh in the config.");
+        }
+
+        int sessionRefreshCalledCount = com.example.TestUtils.getRefreshTokenCounter();
+        if (sessionRefreshCalledCount != 10) {
+            throw new Exception("Expected session refresh endpoint to be called 10 times but it was called " + sessionRefreshCalledCount + " times");
+        }
+    }
+
+    @Test
+    public void retrofit_testBreakOutOfSessionRefreshLoopAfterConfiguredMaxRetryAttempts() throws Exception {
+        com.example.TestUtils.startST();
+        new SuperTokens.Builder(context, Constants.apiDomain)
+                .maxRetryAttemptsForSessionRefresh(5)
+                .tokenTransferMethod("cookie")
+                .build();
+
+        JsonObject body = new JsonObject();
+        body.addProperty("userId", Constants.userId);
+        Response <Void> loginResponse = retrofitTestAPIService.login(body).execute();
+        if (loginResponse.code() != 200) {
+            throw new Exception("Error making login request");
+        }
+
+        try {
+            Response<ResponseBody> userInfoResponse = retrofitTestAPIService.throw401().execute();
+        } catch (IOException e) {
+            assert e.getMessage().equals("Received a 401 response from http://127.0.0.1:8080/throw-401. Attempted to refresh the session and retry the request with the updated session tokens 5 times, but each attempt resulted in a 401 error. The maximum session refresh limit has been reached. Please investigate your API. To increase the session refresh attempts, update maxRetryAttemptsForSessionRefresh in the config.");
+        }
+
+        int sessionRefreshCalledCount = com.example.TestUtils.getRefreshTokenCounter();
+        if (sessionRefreshCalledCount != 5) {
+            throw new Exception("Expected session refresh endpoint to be called 5 times but it was called " + sessionRefreshCalledCount + " times");
+        }
+    }
+
+    @Test
+    public void retrofit_testShouldNotDoSessionRefreshIfMaxRetryAttemptsForSessionRefreshIsZero() throws Exception {
+        com.example.TestUtils.startST();
+        new SuperTokens.Builder(context, Constants.apiDomain)
+                .maxRetryAttemptsForSessionRefresh(0)
+                .tokenTransferMethod("cookie")
+                .build();
+
+        JsonObject body = new JsonObject();
+        body.addProperty("userId", Constants.userId);
+        Response <Void> loginResponse = retrofitTestAPIService.login(body).execute();
+        if (loginResponse.code() != 200) {
+            throw new Exception("Error making login request");
+        }
+
+        try {
+            Response<ResponseBody> userInfoResponse = retrofitTestAPIService.throw401().execute();
+        } catch (IOException e) {
+            assert e.getMessage().equals("Received a 401 response from http://127.0.0.1:8080/throw-401. Attempted to refresh the session and retry the request with the updated session tokens 0 times, but each attempt resulted in a 401 error. The maximum session refresh limit has been reached. Please investigate your API. To increase the session refresh attempts, update maxRetryAttemptsForSessionRefresh in the config.");
+        }
+
+        int sessionRefreshCalledCount = com.example.TestUtils.getRefreshTokenCounter();
+        if (sessionRefreshCalledCount != 0) {
+            throw new Exception("Expected session refresh endpoint to be called 0 times but it was called " + sessionRefreshCalledCount + " times");
+        }
+    }
+
     class customInterceptors implements Interceptor {
         @NotNull
         @Override
