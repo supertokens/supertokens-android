@@ -34,7 +34,10 @@ public class SuperTokensInterceptor implements Interceptor {
     private static final Object refreshTokenLock = new Object();
     private static final ReentrantReadWriteLock refreshAPILock = new ReentrantReadWriteLock();
 
-    private Request removeAuthHeaderIfMatchesLocalToken(Request request, Request.Builder builder, Context context) {
+
+    // Returns true authorization header in the provided request matches the current local access token.
+    // This is used to decide whether the authorization header should be removed before making the request.
+    private boolean shouldRemoveAuthHeader(Request request, Context context) {
         String originalHeader = request.header("Authorization");
 
         if (originalHeader == null) {
@@ -46,18 +49,20 @@ public class SuperTokensInterceptor implements Interceptor {
             String refreshToken = Utils.getTokenForHeaderAuth(Utils.TokenType.REFRESH, context);
 
             if (accessToken != null && refreshToken != null && originalHeader.equals("Bearer " + accessToken)) {
-                builder.removeHeader("Authorization");
-                builder.removeHeader("authorization");
+                return true;
             }
         }
 
-        return builder.build();
+        return false;
     }
 
-    private static Request setAuthorizationHeaderIfRequired(Request.Builder builder, Context context, boolean addRefreshToken) {
-        Map<String, String> headersToSet = Utils.getAuthorizationHeaderIfRequired(addRefreshToken, context);
-        for (Map.Entry<String, String> entry: headersToSet.entrySet()) {
-            builder.header(entry.getKey(), entry.getValue());
+
+    private static Request setAuthorizationHeaderIfRequired(Request request, Request.Builder builder, Context context, boolean addRefreshToken) {
+        String authHeader = Utils.getAuthorizationHeaderIfExists(addRefreshToken, context);
+        boolean hasExistingAuthHeader = request.header("Authorization") != null || request.header("authorization") != null;
+
+        if (authHeader != null && !hasExistingAuthHeader) {
+            builder.header("Authorization", authHeader);
         }
 
         return builder.build();
@@ -98,6 +103,7 @@ public class SuperTokensInterceptor implements Interceptor {
         }
 
         try {
+            boolean wasAuthHeaderRemovedInitially = false;
             int sessionRefreshAttempts = 0;
             while (true) {
                 Request.Builder requestBuilder = chain.request().newBuilder();
@@ -120,8 +126,19 @@ public class SuperTokensInterceptor implements Interceptor {
                         request = request.newBuilder().header("rid", "anti-csrf").build();
                     }
 
-                    request = removeAuthHeaderIfMatchesLocalToken(request, request.newBuilder(), applicationContext);
-                    request = setAuthorizationHeaderIfRequired(request.newBuilder(), applicationContext, false);
+                    // Check if the Authorization header should be removed
+                    // This is necessary to ensure that if the auth header was removed initially,
+                    // it remains removed in subsequent retries even if the token has changed.
+                    if (wasAuthHeaderRemovedInitially || shouldRemoveAuthHeader(request, applicationContext)) {
+                        Request.Builder builder = request.newBuilder();
+                        builder.removeHeader("Authorization");
+                        builder.removeHeader("authorization");
+                        request = builder.build();
+
+                        wasAuthHeaderRemovedInitially = true;
+                    }
+
+                    request = setAuthorizationHeaderIfRequired(request, request.newBuilder(), applicationContext, false);
 
                     response = makeRequest(chain, request);
                     Utils.saveTokenFromHeaders(response, applicationContext);
@@ -207,6 +224,8 @@ public class SuperTokensInterceptor implements Interceptor {
             Request.Builder refreshRequestBuilder = new Request.Builder();
             refreshRequestBuilder.url(SuperTokens.refreshTokenUrl);
             refreshRequestBuilder.method("POST", new FormBody.Builder().build());
+            
+            Request refreshRequest = refreshRequestBuilder.build();
 
             if (preRequestLocalSessionState.status == Utils.LocalSessionStateStatus.EXISTS) {
                 String antiCSRFToken = AntiCSRF.getToken(applicationContext, preRequestLocalSessionState.lastAccessTokenUpdate);
@@ -220,7 +239,7 @@ public class SuperTokensInterceptor implements Interceptor {
             refreshRequestBuilder.header("fdi-version", Utils.join(Version.supported_fdi, ","));
             refreshRequestBuilder.header("st-auth-mode", SuperTokens.config.tokenTransferMethod);
 
-            refreshRequestBuilder = setAuthorizationHeaderIfRequired(refreshRequestBuilder, applicationContext, true).newBuilder();
+            refreshRequestBuilder = setAuthorizationHeaderIfRequired(refreshRequest, refreshRequestBuilder, applicationContext, true).newBuilder();
 
             Map<String, String> customRefreshHeaders = SuperTokens.config.customHeaderMapper.getRequestHeaders(CustomHeaderProvider.RequestType.REFRESH);
             if (customRefreshHeaders != null) {
@@ -229,7 +248,7 @@ public class SuperTokensInterceptor implements Interceptor {
                 }
             }
 
-            Request refreshRequest = refreshRequestBuilder.build();
+            refreshRequest = refreshRequestBuilder.build();
             refreshResponse = makeRequest(chain, refreshRequest);
 
             Utils.saveTokenFromHeaders(refreshResponse, applicationContext);

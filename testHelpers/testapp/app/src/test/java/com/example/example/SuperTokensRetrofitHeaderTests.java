@@ -724,7 +724,7 @@ public class SuperTokensRetrofitHeaderTests {
     }
 
     @Test
-    public void retrofitHeaders_testThatAuthHeaderIsNotIgnoredEvenIfItMatchesTheStoredAccessToken() throws Exception {
+    public void retrofitHeaders_testThatAuthHeaderIsNotIgnoredIfItDoesntMatchTheStoredAccessToken() throws Exception {
         com.example.TestUtils.startST();
         new SuperTokens.Builder(context, Constants.apiDomain)
                 .build();
@@ -735,9 +735,6 @@ public class SuperTokensRetrofitHeaderTests {
         if (loginResponse.code() != 200) {
             throw new Exception("Error making login request");
         }
-
-        Thread.sleep(5000);
-        Utils.setToken(Utils.TokenType.ACCESS, "myOwnHeHe", context);
 
         Response <Void> response2 = retrofitTestAPIService.baseCustomAuth("Bearer myOwnHeHe").execute();
         if (response2.code() != 200) {
@@ -820,6 +817,39 @@ public class SuperTokensRetrofitHeaderTests {
         if (sessionRefreshCalledCount != 0) {
             throw new Exception("Expected session refresh endpoint to be called 0 times but it was called " + sessionRefreshCalledCount + " times");
         }
+    }
+
+    @Test
+    public void retrofitHeaders_shouldNotEndUpInRefreshLoopIfExpiredAccessTokenWasPassedInHeaders() throws Exception {
+        com.example.TestUtils.startST(1, true, 144000);
+        new SuperTokens.Builder(context, Constants.apiDomain)
+                .build();
+
+        JsonObject body = new JsonObject();
+        body.addProperty("userId", Constants.userId);
+        Response <Void> loginResponse = retrofitTestAPIService.login(body).execute();
+        if (loginResponse.code() != 200) {
+            throw new Exception("Error making login request");
+        }
+
+        // wait for the token to expire
+        Thread.sleep(2000);
+
+        int sessionRefreshCalledCount = com.example.TestUtils.getRefreshTokenCounter();
+        if (sessionRefreshCalledCount != 0) {
+            throw new Exception("Expected session refresh endpoint to be called 0 times but it was called " + sessionRefreshCalledCount + " times");
+        }
+
+        Response<ResponseBody> userInfoResponse = retrofitTestAPIService.userInfo().execute();
+        if (userInfoResponse.code() != 200) {
+            throw new Exception("User info API failed even after calling refresh");
+        }
+
+        sessionRefreshCalledCount = com.example.TestUtils.getRefreshTokenCounter();
+        if (sessionRefreshCalledCount != 1) {
+            throw new Exception("Expected session refresh endpoint to be called 1 time but it was called " + sessionRefreshCalledCount + " times");
+        }
+
     }
 
     class customInterceptors implements Interceptor {

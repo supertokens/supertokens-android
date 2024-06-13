@@ -904,7 +904,7 @@ public class SuperTokensHttpURLConnectionTest {
     }
 
     @Test
-    public void httpUrlConnection_testThatAuthHeaderIsNotIgnoredEvenIfItMatchesTheStoredAccessToken() throws Exception {
+    public void httpUrlConnection_testThatAuthHeaderIsNotIgnoredIfItDoesntMatchTheStoredAccessToken() throws Exception {
         com.example.TestUtils.startST();
         new SuperTokens.Builder(context, Constants.apiDomain).build();
 
@@ -930,9 +930,6 @@ public class SuperTokensHttpURLConnectionTest {
         }
 
         loginRequestConnection.disconnect();
-
-        Thread.sleep(5000);
-        Utils.setToken(Utils.TokenType.ACCESS, "myOwnHeHe", context);
 
         HttpURLConnection connection = SuperTokensHttpURLConnection.newRequest(new URL(baseCustomAuthUrl), new SuperTokensHttpURLConnection.PreConnectCallback() {
             @Override
@@ -1103,5 +1100,64 @@ public class SuperTokensHttpURLConnectionTest {
         if (sessionRefreshCalledCount != 0) {
             throw new Exception("Expected session refresh endpoint to be called 0 times but it was called " + sessionRefreshCalledCount + " times");
         }
+    }
+    
+    @Test
+    public void  httpUrlConnection_shouldNotEndUpInRefreshLoopIfExpiredAccessTokenWasPassedInHeaders() throws Exception{
+        com.example.TestUtils.startST(1, true, 144000);
+        new SuperTokens.Builder(context, Constants.apiDomain).build();
+
+        //login request
+        HttpURLConnection loginRequestConnection = SuperTokensHttpURLConnection.newRequest(new URL(loginAPIURL), new SuperTokensHttpURLConnection.PreConnectCallback() {
+            @Override
+            public void doAction(HttpURLConnection con) throws IOException {
+                con.setDoOutput(true);
+                con.setRequestMethod("POST");
+                con.setRequestProperty("Accept", "application/json");
+                con.setRequestProperty("Content-Type", "application/json");
+
+                JsonObject bodyJson = new JsonObject();
+                bodyJson.addProperty("userId", Constants.userId);
+
+                OutputStream outputStream = con.getOutputStream();
+                outputStream.write(bodyJson.toString().getBytes(StandardCharsets.UTF_8));
+                outputStream.close();
+            }
+        });
+
+        if (loginRequestConnection.getResponseCode() != 200) {
+            throw new Exception("Login request failed");
+        }
+
+        loginRequestConnection.disconnect();
+
+        String expiredAccessToken = Utils.getTokenForHeaderAuth(Utils.TokenType.ACCESS, context);
+
+        // wait for access token expiry
+        Thread.sleep(2000);
+
+        int sessionRefreshCalledCount = com.example.TestUtils.getRefreshTokenCounter();
+        if (sessionRefreshCalledCount != 0) {
+            throw new Exception("Expected session refresh endpoint to be called 0 times but it was called " + sessionRefreshCalledCount + " times");
+        }
+
+        HttpURLConnection userInfoRequestConnection = SuperTokensHttpURLConnection.newRequest(new URL(userInfoAPIURL), new SuperTokensHttpURLConnection.PreConnectCallback() {
+            @Override
+            public void doAction(HttpURLConnection con) throws IOException {
+                con.setRequestMethod("GET");
+                con.setRequestProperty("Authorization", "Bearer " +  expiredAccessToken);
+            }
+        });
+
+        if (userInfoRequestConnection.getResponseCode() != 200) {
+            throw new Exception("userInfo api failed");
+        }
+
+        sessionRefreshCalledCount = com.example.TestUtils.getRefreshTokenCounter();
+        if (sessionRefreshCalledCount != 1) {
+            throw new Exception("Expected session refresh endpoint to be called 1 time but it was called " + sessionRefreshCalledCount + " times");
+        }
+
+        userInfoRequestConnection.disconnect();
     }
 }

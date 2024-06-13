@@ -6,6 +6,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.1] - 2024-06-13
+
+### Changes
+
+- Fixed session refresh loop caused by passing an expired access token in the Authorization header.
+
 ## [0.5.0] - 2024-06-06
 
 ### Changes
