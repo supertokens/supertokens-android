@@ -319,10 +319,6 @@ public class Utils {
         return getFromStorage(name, context);
     }
 
-    public static Map<String, String> getAuthorizationHeaderIfRequired(Context context) {
-        return getAuthorizationHeaderIfRequired(false, context);
-    }
-
     // Checks if a key exists in a map regardless of case
     public static <T> T getIgnoreCase(Map<String, T> map, String key) {
         for (Map.Entry<String, T> entry : map.entrySet()) {
@@ -332,33 +328,28 @@ public class Utils {
         return null;
     }
 
-    public static Map<String, String> getAuthorizationHeaderIfRequired(boolean addRefreshToken, Context context) {
-        // We set the Authorization header even if the tokenTransferMethod preference
+    public static String getAuthorizationHeaderIfExists(boolean addRefreshToken, Context context) {
+        // We return the Authorization header even if the tokenTransferMethod preference
         // set in the config is cookies
         // since the active session may be using cookies. By default, we want to allow
         // users to continue these sessions.
         // The new session preference should be applied at the start of the next
         // session, if the backend allows it.
-        Map<String, String> headers = new HashMap<>();
         String accessToken = getTokenForHeaderAuth(TokenType.ACCESS, context);
         String refreshToken = getTokenForHeaderAuth(TokenType.REFRESH, context);
 
         // We don't always need the refresh token because that's only required by the
         // refresh call
-        // Still, we only add the Authorization header if both are present, because we
+        // Still, we only return the Authorization header if both are present, because we
         // are planning to add an option to expose the
         // access token to the frontend while using cookie based auth - so that users
         // can get the access token to use
         if (accessToken != null && refreshToken != null) {
-            if (getIgnoreCase(headers, "Authorization") != null) {
-                // no-op
-            } else {
-                String tokenToAdd = addRefreshToken ? refreshToken : accessToken;
-                headers.put("Authorization", "Bearer " + tokenToAdd);
-            }
+            String tokenToAdd = addRefreshToken ? refreshToken : accessToken;
+            return "Bearer " + tokenToAdd;
         }
 
-        return headers;
+        return null;
     }
 
     public static void fireSessionUpdateEventsIfNecessary(

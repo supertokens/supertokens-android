@@ -1072,7 +1072,7 @@ public class SuperTokensOkHttpHeaderTests {
     }
 
     @Test
-    public void okhttpHeaders_testThatAuthHeaderIsNotIgnoredEvenIfItMatchesTheStoredAccessToken() throws Exception {
+    public void okhttpHeaders_testThatAuthHeaderIsNotIgnoredIfItDoesntMatchTheStoredAccessToken() throws Exception {
         com.example.TestUtils.startST();
         new SuperTokens.Builder(context, Constants.apiDomain)
                 .build();
@@ -1091,9 +1091,6 @@ public class SuperTokensOkHttpHeaderTests {
             throw new Exception("Error making login request");
         }
         loginResponse.close();
-
-        Thread.sleep(5000);
-        Utils.setToken(Utils.TokenType.ACCESS, "myOwnHeHe", context);
 
         Request request2 = new Request.Builder()
                 .url(baseCustomAuthUrl)
@@ -1218,6 +1215,54 @@ public class SuperTokensOkHttpHeaderTests {
         int sessionRefreshCalledCount = com.example.TestUtils.getRefreshTokenCounter();
         if (sessionRefreshCalledCount != 0) {
             throw new Exception("Expected session refresh endpoint to be called 0 times but it was called " + sessionRefreshCalledCount + " times");
+        }
+    }
+
+    @Test
+    public void okHttpHeaders_shouldNotEndUpInRefreshLoopIfExpiredAccessTokenWasPassedInHeaders() throws Exception {
+        com.example.TestUtils.startST(1, true, 144000);
+        new SuperTokens.Builder(context, Constants.apiDomain)
+                .build();
+        JsonObject bodyJson = new JsonObject();
+        bodyJson.addProperty("userId", Constants.userId);
+        RequestBody body = RequestBody.create(MediaType.parse("application/json; charset=utf-8"), bodyJson.toString());
+        Request request = new Request.Builder()
+                .url(loginAPIURL)
+                .method("POST", body)
+                .addHeader("Accept", "application/json")
+                .addHeader("Content-Type", "application/json")
+                .build();
+        Response loginResponse = okHttpClient.newCall(request).execute();
+        if (loginResponse.code() != 200) {
+            throw new Exception("Error making login request");
+        }
+        loginResponse.close();
+
+        // wait for the token to expire
+        Thread.sleep(2000);
+
+        int sessionRefreshCalledCount = com.example.TestUtils.getRefreshTokenCounter();
+        if (sessionRefreshCalledCount != 0) {
+            throw new Exception("Expected session refresh endpoint to be called 0 times but it was called " + sessionRefreshCalledCount + " times");
+        }
+
+        String accessToken = Utils.getTokenForHeaderAuth(Utils.TokenType.ACCESS, context);
+
+        Request userInfoRequest = new Request.Builder()
+                .url(userInfoAPIURL)
+                .addHeader("Authorization",  "Bearer " + accessToken)
+                .build();
+
+        Response userInfoResponse = okHttpClient.newCall(userInfoRequest).execute();
+        if (userInfoResponse.code() != 200) {
+            throw new Exception("User info API failed even after calling refresh");
+        }
+
+        userInfoResponse.close();
+
+        sessionRefreshCalledCount = com.example.TestUtils.getRefreshTokenCounter();
+        if (sessionRefreshCalledCount != 1) {
+            throw new Exception("Expected session refresh endpoint to be called 1 time but it was called " + sessionRefreshCalledCount + " times");
         }
     }
 

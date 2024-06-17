@@ -23,7 +23,7 @@ dependencyResolutionManagement {
 Add the following to your app level `build.gradle`
 
 ```gradle
-implementation("com.github.supertokens:supertokens-android:0.5.0")
+implementation("com.github.supertokens:supertokens-android:0.5.1")
 implementation ("com.google.android.gms:play-services-auth:20.7.0")
 implementation("com.squareup.retrofit2:retrofit:2.9.0")
 implementation("net.openid:appauth:0.11.1")

@@ -34,11 +34,23 @@ import java.util.Map;
 public class SuperTokensCustomHttpURLConnection extends HttpURLConnection {
     HttpURLConnection original;
     Context applicationContext;
+    private boolean wasAuthHeaderRemovedInitially = false;
 
     public SuperTokensCustomHttpURLConnection(HttpURLConnection original, Context applicationContext) {
         super(original.getURL());
         this.original = original;
         this.applicationContext = applicationContext;
+    }
+
+    public SuperTokensCustomHttpURLConnection(HttpURLConnection original, Context applicationContext, boolean wasAuthHeaderRemovedInitially) {
+        super(original.getURL());
+        this.original = original;
+        this.applicationContext = applicationContext;
+        this.wasAuthHeaderRemovedInitially = wasAuthHeaderRemovedInitially;
+    }
+
+    public boolean getWasAuthHeaderRemovedInitially() {
+        return wasAuthHeaderRemovedInitially;
     }
 
     @Override
@@ -249,9 +261,18 @@ public class SuperTokensCustomHttpURLConnection extends HttpURLConnection {
     }
 
     private boolean shouldAllowSettingAuthHeader(String value) {
+        // This check ensures that if the authorization header was removed initially (because it matched the local access token),
+        // it remains removed in subsequent retries even after the session is refreshed.
+        // This prevents the use of an expired access token which would no longer match the updated local access token.
+        if (wasAuthHeaderRemovedInitially) {
+            return false;
+        }
+
+
         String accessToken = Utils.getTokenForHeaderAuth(Utils.TokenType.ACCESS, applicationContext);
         String refreshToken = Utils.getTokenForHeaderAuth(Utils.TokenType.REFRESH, applicationContext);
-        if (accessToken != null && refreshToken != null && value.equals("Bearer " + accessToken)) {
+        if (accessToken != null && refreshToken != null && (value.equals("Bearer " + accessToken) || value.equals("bearer " + accessToken))) {
+            wasAuthHeaderRemovedInitially = true;
             // We ignore the attempt to set the header because it matches the existing access token
             // which will get added by the SDK
             return false;
@@ -272,6 +293,14 @@ public class SuperTokensCustomHttpURLConnection extends HttpURLConnection {
                 return;
             }
         }
+        original.setRequestProperty(key, value);
+    }
+
+    // Sets the authorization header without performing the "shouldAllowSettingAuthHeader" check.
+    // This bypass is necessary because the "shouldAllowSettingAuthHeader" function tracks whether
+    // setting the auth header was disallowed, which is only intended for custom headers set by the user,
+    // not for headers set by our library code.
+    public void setRequestPropertyIgnoringOverride(String key, String value) {
         original.setRequestProperty(key, value);
     }
 

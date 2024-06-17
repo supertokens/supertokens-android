@@ -24,7 +24,6 @@ import java.net.HttpCookie;
 import java.net.HttpURLConnection;
 import java.net.URISyntaxException;
 import java.net.URL;
-import java.net.URLConnection;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -37,16 +36,21 @@ public class SuperTokensHttpURLConnection {
     private static final ReentrantReadWriteLock refreshAPILock = new ReentrantReadWriteLock();
 
     private static void setAuthorizationHeaderIfRequired(SuperTokensCustomHttpURLConnection connection, Context context) {
-        Map<String, String> headersToSet = Utils.getAuthorizationHeaderIfRequired(context);
-        for (Map.Entry<String, String> entry: headersToSet.entrySet()) {
-            connection.setRequestProperty(entry.getKey(), entry.getValue(), true);
+        String authHeader = Utils.getAuthorizationHeaderIfExists(false, context);
+
+        // NOTE: We do not check for existing Auth headers here because they are added after this function runs.
+        // The `setRequestProperty` method in SuperTokensCustomHttpURLConnection is overridden to prevent users from adding
+        // an auth header that matches the locally stored access token.
+        if (authHeader != null) {
+            connection.setRequestPropertyIgnoringOverride("Authorization", authHeader);
         }
     }
 
     private static void setAuthorizationHeaderIfRequiredForRefresh(HttpURLConnection connection, Context context) {
-        Map<String, String> headersToSet = Utils.getAuthorizationHeaderIfRequired(true, context);
-        for (Map.Entry<String, String> entry: headersToSet.entrySet()) {
-            connection.setRequestProperty(entry.getKey(), entry.getValue());
+        String authHeader = Utils.getAuthorizationHeaderIfExists(true, context);
+        // NOTE: Checking for an existing auth header is not necessary for a refresh API call.
+        if (authHeader != null) {
+            connection.setRequestProperty("Authorization", authHeader);
         }
     }
 
@@ -130,16 +134,17 @@ public class SuperTokensHttpURLConnection {
 
         try {
             int sessionRefreshAttempts = 0;
+            HttpURLConnection connection;
+            SuperTokensCustomHttpURLConnection customConnection = null;
             while (true) {
-                HttpURLConnection connection;
-                SuperTokensCustomHttpURLConnection customConnection;
                 Utils.LocalSessionState preRequestLocalSessionState;
                 int responseCode;
                 // TODO: write comment as to why we have this lock here. Do we also have this lock for iOS and website package?
                 refreshAPILock.readLock().lock();
                 try {
+                    boolean wasAuthHeaderRemovedInitially = customConnection != null && customConnection.getWasAuthHeaderRemovedInitially();
                     connection = (HttpURLConnection) url.openConnection();
-                    customConnection = new SuperTokensCustomHttpURLConnection(connection, applicationContext);
+                    customConnection = new SuperTokensCustomHttpURLConnection(connection, applicationContext, wasAuthHeaderRemovedInitially);
 
                     // Add antiCSRF token, if present in storage, to the request headers
                     preRequestLocalSessionState = Utils.getLocalSessionState(applicationContext);
