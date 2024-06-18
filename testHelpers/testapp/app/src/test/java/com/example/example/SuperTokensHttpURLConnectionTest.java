@@ -1104,7 +1104,7 @@ public class SuperTokensHttpURLConnectionTest {
     
     @Test
     public void httpUrlConnection_shouldNotRefreshLoopWhenExpiredTokenPassedInHeadersBeforeDoAction() throws Exception{
-        com.example.TestUtils.startST(1, true, 144000);
+        com.example.TestUtils.startST(3, true, 144000);
         new SuperTokens.Builder(context, Constants.apiDomain).build();
 
         //login request
@@ -1132,7 +1132,7 @@ public class SuperTokensHttpURLConnectionTest {
         loginRequestConnection.disconnect();
 
         // wait for access token expiry
-        Thread.sleep(2000);
+        Thread.sleep(4000);
 
         String expiredAccessToken = Utils.getTokenForHeaderAuth(Utils.TokenType.ACCESS, context);
 
@@ -1163,7 +1163,7 @@ public class SuperTokensHttpURLConnectionTest {
 
     @Test
     public void httpUrlConnection_shouldNotRefreshLoopWhenExpiredTokenRetrievedInsideDoAction() throws Exception{
-        com.example.TestUtils.startST(1, true, 144000);
+        com.example.TestUtils.startST(3, true, 144000);
         new SuperTokens.Builder(context, Constants.apiDomain).build();
 
         //login request
@@ -1191,7 +1191,7 @@ public class SuperTokensHttpURLConnectionTest {
         loginRequestConnection.disconnect();
 
         // wait for access token expiry
-        Thread.sleep(2000);
+        Thread.sleep(4000);
 
         int sessionRefreshCalledCount = com.example.TestUtils.getRefreshTokenCounter();
         if (sessionRefreshCalledCount != 0) {

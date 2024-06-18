@@ -821,7 +821,7 @@ public class SuperTokensRetrofitHeaderTests {
 
     @Test
     public void retrofitHeaders_shouldNotEndUpInRefreshLoopIfExpiredAccessTokenWasPassedInHeaders() throws Exception {
-        com.example.TestUtils.startST(1, true, 144000);
+        com.example.TestUtils.startST(3, true, 144000);
         new SuperTokens.Builder(context, Constants.apiDomain)
                 .build();
 
@@ -833,7 +833,7 @@ public class SuperTokensRetrofitHeaderTests {
         }
 
         // wait for the token to expire
-        Thread.sleep(2000);
+        Thread.sleep(4000);
 
         int sessionRefreshCalledCount = com.example.TestUtils.getRefreshTokenCounter();
         if (sessionRefreshCalledCount != 0) {
