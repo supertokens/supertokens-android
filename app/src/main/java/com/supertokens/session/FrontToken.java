@@ -118,6 +118,7 @@ public class FrontToken {
     }
 
     public static void removeToken(Context context) {
+        AntiCSRF.removeToken(applicationContext);
         synchronized (tokenLock) {
             removeTokenFromStorage(context);
             // We are clearing all stored tokens here, because:
