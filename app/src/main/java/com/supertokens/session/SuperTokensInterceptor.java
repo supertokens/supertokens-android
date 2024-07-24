@@ -102,103 +102,96 @@ public class SuperTokensInterceptor implements Interceptor {
             return chain.proceed(chain.request());
         }
 
-        try {
-            boolean wasAuthHeaderRemovedInitially = false;
-            int sessionRefreshAttempts = 0;
-            while (true) {
-                Request.Builder requestBuilder = chain.request().newBuilder();
-                Utils.LocalSessionState preRequestLocalSessionState;
-                Response response;
-                refreshAPILock.readLock().lock();
-                try {
-                    preRequestLocalSessionState = Utils.getLocalSessionState(applicationContext);
-                    String antiCSRFToken = AntiCSRF.getToken(applicationContext, preRequestLocalSessionState.lastAccessTokenUpdate);
+        boolean wasAuthHeaderRemovedInitially = false;
+        int sessionRefreshAttempts = 0;
+        while (true) {
+            Request.Builder requestBuilder = chain.request().newBuilder();
+            Utils.LocalSessionState preRequestLocalSessionState;
+            Response response;
+            refreshAPILock.readLock().lock();
+            try {
+                preRequestLocalSessionState = Utils.getLocalSessionState(applicationContext);
+                String antiCSRFToken = AntiCSRF.getToken(applicationContext, preRequestLocalSessionState.lastAccessTokenUpdate);
 
-                    if (antiCSRFToken != null) {
-                        requestBuilder.header(Constants.CSRF_HEADER_KEY, antiCSRFToken);
-                    }
-
-                    requestBuilder.header("st-auth-mode", SuperTokens.config.tokenTransferMethod);
-
-                    Request request = requestBuilder.build();
-
-                    if (request.header("rid") == null) {
-                        request = request.newBuilder().header("rid", "anti-csrf").build();
-                    }
-
-                    // Check if the Authorization header should be removed
-                    // This is necessary to ensure that if the auth header was removed initially,
-                    // it remains removed in subsequent retries even if the token has changed.
-                    if (wasAuthHeaderRemovedInitially || shouldRemoveAuthHeader(request, applicationContext)) {
-                        Request.Builder builder = request.newBuilder();
-                        builder.removeHeader("Authorization");
-                        builder.removeHeader("authorization");
-                        request = builder.build();
-
-                        wasAuthHeaderRemovedInitially = true;
-                    }
-
-                    request = setAuthorizationHeaderIfRequired(request, request.newBuilder(), applicationContext, false);
-
-                    response = makeRequest(chain, request);
-                    Utils.saveTokenFromHeaders(response, applicationContext);
-                    Utils.fireSessionUpdateEventsIfNecessary(
-                            preRequestLocalSessionState.status == Utils.LocalSessionStateStatus.EXISTS,
-                            response.code(),
-                            response.header(Constants.FRONT_TOKEN_HEADER_KEY)
-                    );
-                } finally {
-                    refreshAPILock.readLock().unlock();
+                if (antiCSRFToken != null) {
+                    requestBuilder.header(Constants.CSRF_HEADER_KEY, antiCSRFToken);
                 }
 
-                if (response.code() == SuperTokens.config.sessionExpiredStatusCode) {
-                    /**
-                     * An API may return a 401 error response even with a valid session, causing a session refresh loop in the interceptor.
-                     * To prevent this infinite loop, we break out of the loop after retrying the original request a specified number of times.
-                     * The maximum number of retry attempts is defined by maxRetryAttemptsForSessionRefresh config variable.
-                     */
-                    if (sessionRefreshAttempts >= SuperTokens.config.maxRetryAttemptsForSessionRefresh) {
-                        String errorMsg = "Received a 401 response from " + requestUrl + ". Attempted to refresh the session and retry the request with the updated session tokens " + SuperTokens.config.maxRetryAttemptsForSessionRefresh + " times, but each attempt resulted in a 401 error. The maximum session refresh limit has been reached. Please investigate your API. To increase the session refresh attempts, update maxRetryAttemptsForSessionRefresh in the config.";
-                        System.err.println(errorMsg);
-                        throw new IOException(errorMsg);
-                    }
+                requestBuilder.header("st-auth-mode", SuperTokens.config.tokenTransferMethod);
 
-                    // Cloning the response object, if retry is false then we return this
-                    Response clonedResponse = new Response.Builder()
-                            .body(response.peekBody(Long.MAX_VALUE))
-                            .cacheResponse(response.cacheResponse())
-                            .code(response.code())
-                            .handshake(response.handshake())
-                            .headers(response.headers())
-                            .message(response.message())
-                            .networkResponse(response.networkResponse())
-                            .priorResponse(response.priorResponse())
-                            .protocol(response.protocol())
-                            .receivedResponseAtMillis(response.receivedResponseAtMillis())
-                            .request(response.request())
-                            .sentRequestAtMillis(response.sentRequestAtMillis())
-                            .build();
-                    response.close();
+                Request request = requestBuilder.build();
 
-                    Utils.Unauthorised unauthorisedResponse = onUnauthorisedResponse(preRequestLocalSessionState, applicationContext, chain);
-
-                    sessionRefreshAttempts++;
-
-                    if (unauthorisedResponse.status != Utils.Unauthorised.UnauthorisedStatus.RETRY) {
-                        if (unauthorisedResponse.error != null) {
-                            throw unauthorisedResponse.error;
-                        }
-
-                        return clonedResponse;
-                    }
-                } else {
-                    return response;
+                if (request.header("rid") == null) {
+                    request = request.newBuilder().header("rid", "anti-csrf").build();
                 }
+
+                // Check if the Authorization header should be removed
+                // This is necessary to ensure that if the auth header was removed initially,
+                // it remains removed in subsequent retries even if the token has changed.
+                if (wasAuthHeaderRemovedInitially || shouldRemoveAuthHeader(request, applicationContext)) {
+                    Request.Builder builder = request.newBuilder();
+                    builder.removeHeader("Authorization");
+                    builder.removeHeader("authorization");
+                    request = builder.build();
+
+                    wasAuthHeaderRemovedInitially = true;
+                }
+
+                request = setAuthorizationHeaderIfRequired(request, request.newBuilder(), applicationContext, false);
+
+                response = makeRequest(chain, request);
+                Utils.saveTokenFromHeaders(response, applicationContext);
+                Utils.fireSessionUpdateEventsIfNecessary(
+                        preRequestLocalSessionState.status == Utils.LocalSessionStateStatus.EXISTS,
+                        response.code(),
+                        response.header(Constants.FRONT_TOKEN_HEADER_KEY)
+                );
+            } finally {
+                refreshAPILock.readLock().unlock();
             }
-        } finally {
-            if (Utils.getLocalSessionState(applicationContext).status == Utils.LocalSessionStateStatus.NOT_EXISTS) {
-                AntiCSRF.removeToken(applicationContext);
-                FrontToken.removeToken(applicationContext);
+
+            if (response.code() == SuperTokens.config.sessionExpiredStatusCode) {
+                /**
+                 * An API may return a 401 error response even with a valid session, causing a session refresh loop in the interceptor.
+                 * To prevent this infinite loop, we break out of the loop after retrying the original request a specified number of times.
+                 * The maximum number of retry attempts is defined by maxRetryAttemptsForSessionRefresh config variable.
+                 */
+                if (sessionRefreshAttempts >= SuperTokens.config.maxRetryAttemptsForSessionRefresh) {
+                    String errorMsg = "Received a 401 response from " + requestUrl + ". Attempted to refresh the session and retry the request with the updated session tokens " + SuperTokens.config.maxRetryAttemptsForSessionRefresh + " times, but each attempt resulted in a 401 error. The maximum session refresh limit has been reached. Please investigate your API. To increase the session refresh attempts, update maxRetryAttemptsForSessionRefresh in the config.";
+                    System.err.println(errorMsg);
+                    throw new IOException(errorMsg);
+                }
+
+                // Cloning the response object, if retry is false then we return this
+                Response clonedResponse = new Response.Builder()
+                        .body(response.peekBody(Long.MAX_VALUE))
+                        .cacheResponse(response.cacheResponse())
+                        .code(response.code())
+                        .handshake(response.handshake())
+                        .headers(response.headers())
+                        .message(response.message())
+                        .networkResponse(response.networkResponse())
+                        .priorResponse(response.priorResponse())
+                        .protocol(response.protocol())
+                        .receivedResponseAtMillis(response.receivedResponseAtMillis())
+                        .request(response.request())
+                        .sentRequestAtMillis(response.sentRequestAtMillis())
+                        .build();
+                response.close();
+
+                Utils.Unauthorised unauthorisedResponse = onUnauthorisedResponse(preRequestLocalSessionState, applicationContext, chain);
+
+                sessionRefreshAttempts++;
+
+                if (unauthorisedResponse.status != Utils.Unauthorised.UnauthorisedStatus.RETRY) {
+                    if (unauthorisedResponse.error != null) {
+                        throw unauthorisedResponse.error;
+                    }
+
+                    return clonedResponse;
+                }
+            } else {
+                return response;
             }
         }
     }
@@ -301,11 +294,6 @@ public class SuperTokensInterceptor implements Interceptor {
             refreshAPILock.writeLock().unlock();
             if (refreshResponse != null) {
                 refreshResponse.close();
-            }
-
-            if (Utils.getLocalSessionState(applicationContext).status == Utils.LocalSessionStateStatus.NOT_EXISTS) {
-                AntiCSRF.removeToken(applicationContext);
-                FrontToken.removeToken(applicationContext);
             }
         }
     }
