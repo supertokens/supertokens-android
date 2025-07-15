@@ -20,7 +20,7 @@ jobs:
             - checkout
             - run: (cd .circleci/ && ./markDevTagAsTestNotPassed.sh)
   test-unit:
-    docker: 
+    docker:
       - image: rishabhpoddar/supertokens_android_sdk_testing
     environment:
       JVM_OPTS: -Xmx3200m
@@ -75,22 +75,24 @@ workflows:
   version: 2
   tagged-build:
     jobs:
-      - test-dev-tag-as-not-passed:
-          filters:
-            tags:
-              only: /dev-v[0-9]+(\.[0-9]+)*/
-            branches:
-              only: /test-cicd\/.*/
+      # - test-dev-tag-as-not-passed:
+      #     filters:
+      #       tags:
+      #         only: /dev-v[0-9]+(\.[0-9]+)*/
+      #       branches:
+      #         # only: /test-cicd\/.*/
+      #         only: /fix\/.*/
       - test-unit:
-          requires:
-            - test-dev-tag-as-not-passed
-          context:
-            - slack-notification
+          # requires:
+          #   - test-dev-tag-as-not-passed
+          # context:
+          #   - slack-notification
           filters:
             tags:
               only: /dev-v[0-9]+(\.[0-9]+)*/
             branches:
-              only: /test-cicd\/.*/
+              # only: /test-cicd\/.*/
+              only: /fix\/.*/
           matrix:
             parameters:
               fdi-version: placeholder
@@ -104,3 +106,4 @@ workflows:
               only: /dev-v[0-9]+(\.[0-9]+)*/
             branches:
               ignore: /.*/
+
