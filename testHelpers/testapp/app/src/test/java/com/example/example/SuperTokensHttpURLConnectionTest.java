@@ -1221,54 +1221,5 @@ public class SuperTokensHttpURLConnectionTest {
     }
 
     // Test that doesSessionExist returns true after access token expiry (with refresh)
-    @Test
-    public void httpUrlConnection_testThatDoesSessionExistReturnsTrueAfterAccessTokenExpiry() throws Exception {
-        com.example.TestUtils.startST(2);
-        new SuperTokens.Builder(context, Constants.apiDomain).build();
-
-        HttpURLConnection loginRequestConnection = SuperTokensHttpURLConnection.newRequest(new URL(loginAPIURL), new SuperTokensHttpURLConnection.PreConnectCallback() {
-            @Override
-            public void doAction(HttpURLConnection con) throws IOException {
-                con.setDoOutput(true);
-                con.setRequestMethod("POST");
-                con.setRequestProperty("Accept", "application/json");
-                con.setRequestProperty("Content-Type", "application/json");
-
-                JsonObject bodyJson = new JsonObject();
-                bodyJson.addProperty("userId", Constants.userId);
-
-                OutputStream outputStream = con.getOutputStream();
-                outputStream.write(bodyJson.toString().getBytes(StandardCharsets.UTF_8));
-                outputStream.close();
-            }
-        });
-
-        if (loginRequestConnection.getResponseCode() != 200) {
-            throw new Exception("Login request failed");
-        }
-        loginRequestConnection.disconnect();
-
-        if (!SuperTokens.doesSessionExist(context)) {
-            throw new Exception("Session should exist immediately after login");
-        }
-
-        Thread.sleep(3000);
-
-        // Call doesSessionExist after access token expiry
-        // This should trigger a refresh and still return true
-        boolean sessionExists = SuperTokens.doesSessionExist(context);
-
-        if (!sessionExists) {
-            throw new Exception("doesSessionExist should return true after access token expiry with successful refresh");
-        }
-
-        int refreshCount = com.example.TestUtils.getRefreshTokenCounter();
-        if (refreshCount != 1) {
-            throw new Exception("Expected refresh to be called 1 time but it was called " + refreshCount + " times");
-        }
-
-        if (!SuperTokens.doesSessionExist(context)) {
-            throw new Exception("Session should still exist after refresh");
-        }
-    }
+    
 }

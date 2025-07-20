@@ -126,12 +126,6 @@ public class SuperTokens {
                 Utils.LocalSessionState preRequestLocalSessionState = Utils.getLocalSessionState(context);
                 Utils.Unauthorised response = SuperTokensHttpURLConnection.onUnauthorisedResponse(preRequestLocalSessionState, context);
                 
-                // Here we dont throw the error and instead return false, because
-                // otherwise users would have to use a try catch just to call doesSessionExist
-                if (response.status == Utils.Unauthorised.UnauthorisedStatus.API_ERROR) {
-                    return false;
-                }
-                
                 return response.status == Utils.Unauthorised.UnauthorisedStatus.RETRY;
             }
         } catch (JSONException e) {
