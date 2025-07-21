@@ -123,8 +123,9 @@ public class SuperTokens {
             long accessTokenExpiry = frontToken.getLong("ate");
 
             if (accessTokenExpiry < System.currentTimeMillis()) {
-                Utils.LocalSessionState localSessionState = Utils.getLocalSessionState(context);
-                Utils.Unauthorised response = SuperTokensHttpURLConnection.onUnauthorisedResponse(localSessionState, context);
+                Utils.LocalSessionState preRequestLocalSessionState = Utils.getLocalSessionState(context);
+                Utils.Unauthorised response = SuperTokensHttpURLConnection.onUnauthorisedResponse(preRequestLocalSessionState, context);
+                
                 return response.status == Utils.Unauthorised.UnauthorisedStatus.RETRY;
             }
         } catch (JSONException e) {

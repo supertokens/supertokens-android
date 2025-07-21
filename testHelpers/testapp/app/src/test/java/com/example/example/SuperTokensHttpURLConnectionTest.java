@@ -1219,4 +1219,7 @@ public class SuperTokensHttpURLConnectionTest {
 
         userInfoRequestConnection.disconnect();
     }
+
+    // Test that doesSessionExist returns true after access token expiry (with refresh)
+    
 }
