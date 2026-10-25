@@ -35,6 +35,11 @@ public class SuperTokensCustomHttpURLConnection extends HttpURLConnection {
     HttpURLConnection original;
     Context applicationContext;
     private boolean wasAuthHeaderRemovedInitially = false;
+    private SessionRequestTag logical;
+    private SessionRequestTag wire;
+    private boolean tagged;
+    private boolean dispatched;
+    private String authorization;
 
     public SuperTokensCustomHttpURLConnection(HttpURLConnection original, Context applicationContext) {
         super(original.getURL());
@@ -53,6 +58,38 @@ public class SuperTokensCustomHttpURLConnection extends HttpURLConnection {
         return wasAuthHeaderRemovedInitially;
     }
 
+    SuperTokensCustomHttpURLConnection(HttpURLConnection original, Context context,
+                                       SessionRequestTag logical, SessionRequestTag wire,
+                                       boolean tagged) {
+        this(original, context);
+        this.logical = logical;
+        this.wire = wire;
+        this.tagged = tagged;
+    }
+
+    boolean isManagedAuthorization() {
+        return wire == null || SessionTransport.matches(authorization,
+                SessionTransport.authorization(wire.getSnapshot(), false));
+    }
+
+    private void beforeDispatch() throws IOException {
+        if (dispatched || logical == null) return;
+        SessionTransport.requireCurrent(logical);
+        if (tagged && !isManagedAuthorization()) {
+            throw new IOException("Authorization does not match the captured session");
+        }
+        dispatched = true;
+    }
+
+    private void beforeRead() {
+        try {
+            beforeDispatch();
+        } catch (IOException e) {
+            // URLConnection header getters cannot declare checked exceptions.
+            throw new IllegalStateException(e);
+        }
+    }
+
     @Override
     public void disconnect() {
         original.disconnect();
@@ -65,10 +102,12 @@ public class SuperTokensCustomHttpURLConnection extends HttpURLConnection {
 
     @Override
     public void connect() throws IOException {
+        beforeDispatch();
         original.connect();
     }
 
     public String getHeaderFieldKey(int n) {
+        beforeRead();
         return original.getHeaderFieldKey(n);
     }
 
@@ -86,6 +125,7 @@ public class SuperTokensCustomHttpURLConnection extends HttpURLConnection {
     }
 
     public String getHeaderField(int n) {
+        beforeRead();
         return original.getHeaderField(n);
     }
 
@@ -106,15 +146,18 @@ public class SuperTokensCustomHttpURLConnection extends HttpURLConnection {
     }
 
     public int getResponseCode() throws IOException {
+        beforeDispatch();
         return original.getResponseCode();
     }
 
     public String getResponseMessage() throws IOException {
+        beforeDispatch();
         return original.getResponseMessage();
     }
 
     @SuppressWarnings("deprecation")
     public long getHeaderFieldDate(String name, long Default) {
+        beforeRead();
         return original.getHeaderFieldDate(name, Default);
     }
 
@@ -123,6 +166,7 @@ public class SuperTokensCustomHttpURLConnection extends HttpURLConnection {
     }
 
     public InputStream getErrorStream() {
+        beforeRead();
         return original.getErrorStream();
     }
 
@@ -147,64 +191,79 @@ public class SuperTokensCustomHttpURLConnection extends HttpURLConnection {
     }
 
     public int getContentLength() {
+        beforeRead();
         return original.getContentLength();
     }
 
     @RequiresApi(api = Build.VERSION_CODES.N)
     public long getContentLengthLong() {
+        beforeRead();
         return original.getContentLengthLong();
     }
 
     public String getContentType() {
+        beforeRead();
         return original.getContentType();
     }
 
     public String getContentEncoding() {
+        beforeRead();
         return original.getContentEncoding();
     }
 
     public long getExpiration() {
+        beforeRead();
         return original.getExpiration();
     }
 
     public long getDate() {
+        beforeRead();
         return original.getDate();
     }
 
     public long getLastModified() {
+        beforeRead();
         return original.getLastModified();
     }
 
     public String getHeaderField(String name) {
+        beforeRead();
         return original.getHeaderField(name);
     }
 
     public Map<String, List<String>> getHeaderFields() {
+        beforeRead();
         return original.getHeaderFields();
     }
 
     public int getHeaderFieldInt(String name, int Default) {
+        beforeRead();
         return original.getHeaderFieldInt(name, Default);
     }
 
     @RequiresApi(api = Build.VERSION_CODES.N)
     public long getHeaderFieldLong(String name, long Default) {
+        beforeRead();
         return original.getHeaderFieldLong(name, Default);
     }
 
     public Object getContent() throws IOException {
+        beforeDispatch();
         return original.getContent();
     }
 
     public Object getContent(Class[] classes) throws IOException {
+        beforeDispatch();
         return original.getContent(classes);
     }
 
     public InputStream getInputStream() throws IOException {
+        beforeDispatch();
         return original.getInputStream();
     }
 
     public OutputStream getOutputStream() throws IOException {
+        beforeDispatch();
         return original.getOutputStream();
     }
 
@@ -261,6 +320,14 @@ public class SuperTokensCustomHttpURLConnection extends HttpURLConnection {
     }
 
     private boolean shouldAllowSettingAuthHeader(String value) {
+        if (logical != null) {
+            if (SessionTransport.matches(value, SessionTransport.authorization(logical.getSnapshot(), false))
+                    && value != null) {
+                wasAuthHeaderRemovedInitially = true;
+                return false;
+            }
+            return true;
+        }
         // This check ensures that if the authorization header was removed initially (because it matched the local access token),
         // it remains removed in subsequent retries even after the session is refreshed.
         // This prevents the use of an expired access token which would no longer match the updated local access token.
@@ -294,6 +361,7 @@ public class SuperTokensCustomHttpURLConnection extends HttpURLConnection {
             }
         }
         original.setRequestProperty(key, value);
+        if (key.equalsIgnoreCase("authorization")) authorization = value;
     }
 
     // Sets the authorization header without performing the "shouldAllowSettingAuthHeader" check.
@@ -302,6 +370,7 @@ public class SuperTokensCustomHttpURLConnection extends HttpURLConnection {
     // not for headers set by our library code.
     public void setRequestPropertyIgnoringOverride(String key, String value) {
         original.setRequestProperty(key, value);
+        if (key.equalsIgnoreCase("authorization")) authorization = value;
     }
 
     public void setRequestProperty(String key, String value) {
@@ -314,7 +383,13 @@ public class SuperTokensCustomHttpURLConnection extends HttpURLConnection {
             return;
         }
 
-        original.addRequestProperty(key, value);
+        if (logical != null && key.equalsIgnoreCase("authorization")) {
+            // A custom bearer replaces SDK authorization rather than creating ambiguous duplicates.
+            original.setRequestProperty(key, value);
+            authorization = value;
+        } else {
+            original.addRequestProperty(key, value);
+        }
     }
 
     public String getRequestProperty(String key) {

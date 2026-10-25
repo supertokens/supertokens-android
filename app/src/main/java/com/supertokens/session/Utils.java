@@ -28,12 +28,9 @@ import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URL;
 import java.util.AbstractCollection;
-import java.util.Arrays;
-import java.util.Date;
-import java.util.HashMap;
 import java.util.Iterator;
-import java.util.Locale;
 import java.util.Map;
+import java.util.Locale;
 
 import okhttp3.Response;
 
@@ -117,7 +114,7 @@ public class Utils {
         }
 
         static String sessionScopeHelper(String sessionScope) throws MalformedURLException {
-            String trimmedSessionScope = sessionScope.trim().toLowerCase();
+            String trimmedSessionScope = sessionScope.trim().toLowerCase(Locale.US);
 
             // first we convert it to a URL so that we can use the URL class
             if (trimmedSessionScope.startsWith(".")) {
@@ -145,7 +142,7 @@ public class Utils {
         }
 
         private static String normaliseSessionScopeOrThrowError(String sessionScope) throws MalformedURLException {
-            sessionScope = sessionScope.trim().toLowerCase();
+            sessionScope = sessionScope.trim().toLowerCase(Locale.US);
             String noDotNormalised = sessionScopeHelper(sessionScope);
 
             if (noDotNormalised.equals("localhost") || NormalisedURLDomain.isAnIpAddress(noDotNormalised)) {
@@ -169,6 +166,19 @@ public class Utils {
                 @Nullable CustomHeaderProvider customHeaderProvider,
                 @Nullable EventHandler eventHandler) throws MalformedURLException {
             String _apiDomain = new NormalisedURLDomain(apiDomain).getAsStringDangerous();
+            URL origin = new URL(_apiDomain);
+            int port = origin.getPort();
+            if (port == origin.getDefaultPort()) port = -1;
+            _apiDomain = origin.getProtocol().toLowerCase(Locale.US) + "://"
+                    + origin.getHost().toLowerCase(Locale.US) + (port < 0 ? "" : ":" + port);
+            URL supplied = new URL(apiDomain.trim().contains("://") ? apiDomain.trim()
+                    : origin.getProtocol() + "://" + apiDomain.trim());
+            if (supplied.getUserInfo() != null || supplied.getQuery() != null || supplied.getRef() != null) {
+                throw new MalformedURLException("API domain cannot contain credentials, query or fragment");
+            }
+            String domainPath = supplied.getPath();
+            while (domainPath.endsWith("/")) domainPath = domainPath.substring(0, domainPath.length() - 1);
+            _apiDomain += domainPath;
             String _apiBasePath = new NormalisedURLPath("/auth").getAsStringDangerous();
 
             if (apiBasePath != null) {
@@ -183,6 +193,9 @@ public class Utils {
             int _maxRetryAttemptsForSessionRefresh = 10;
             if (maxRetryAttemptsForSessionRefresh != null) {
                 _maxRetryAttemptsForSessionRefresh = maxRetryAttemptsForSessionRefresh;
+            }
+            if (_maxRetryAttemptsForSessionRefresh < 0) {
+                throw new IllegalArgumentException("Refresh retry limit cannot be negative");
             }
 
             String _sessionTokenBackendDomain = null;
@@ -203,7 +216,7 @@ public class Utils {
             String _tokenTransferMethod = "header";
 
             if (tokenTransferMethod != null && tokenTransferMethod.equalsIgnoreCase("cookie")) {
-                _tokenTransferMethod = tokenTransferMethod;
+                _tokenTransferMethod = "cookie";
             }
 
             return new NormalisedInputType(_apiDomain, _apiBasePath, _sessionExpiredStatusCode, _maxRetryAttemptsForSessionRefresh,
@@ -211,6 +224,8 @@ public class Utils {
         }
     }
 
+    /** @deprecated Raw writes are not atomic session transitions. */
+    @Deprecated
     public static void storeInStorage(String name, String value, Context context) {
         String storageKey = "st-storage-item-" + name;
         SharedPreferences sharedPreferences = getSharedPreferences(context);
@@ -219,14 +234,19 @@ public class Utils {
             SharedPreferences.Editor editor = sharedPreferences.edit();
             editor.remove(storageKey);
             editor.apply();
+            SessionState.legacyStorageChanged(context);
+            SessionState.dispatch();
             return;
         }
 
         SharedPreferences.Editor editor = sharedPreferences.edit();
         editor.putString(storageKey, value)
                 .apply();
+        SessionState.legacyStorageChanged(context);
+        SessionState.dispatch();
     }
 
+    @Deprecated
     public static void saveLastAccessTokenUpdate(Context context) {
         String now = "" + System.currentTimeMillis();
 
@@ -239,10 +259,10 @@ public class Utils {
     }
 
     public static LocalSessionState getLocalSessionState(Context context) {
-        String lastAccessTokenUpdate = getFromStorage(Constants.LAST_ACCESS_TOKEN_UPDATE_PREFS_KEY, context);
-        boolean frontTokenExists = FrontToken.doesTokenExist(context);
-
-        if (frontTokenExists && lastAccessTokenUpdate != null) {
+        if (!SuperTokens.isInitCalled) return new LocalSessionState(LocalSessionStateStatus.NOT_EXISTS, null);
+        SessionSnapshot snapshot = SessionState.snapshot();
+        String lastAccessTokenUpdate = SessionState.lastAccessTokenUpdate(snapshot.getOwner());
+        if (snapshot.getStatus() == SessionSnapshot.Status.AVAILABLE && lastAccessTokenUpdate != null) {
             return new LocalSessionState(LocalSessionStateStatus.EXISTS, lastAccessTokenUpdate);
         }
 
@@ -257,11 +277,13 @@ public class Utils {
         return Constants.REFRESH_TOKEN_PREFS_KEY;
     }
 
+    @Deprecated
     public static void setToken(TokenType tokenType, String value, Context context) {
         String name = getStorageName(tokenType);
         storeInStorage(name, value, context);
     }
 
+    @Deprecated
     public static void saveTokenFromHeaders(SuperTokensCustomHttpURLConnection connection, Context context) {
         String refreshToken = connection.getHeaderField(Constants.REFRESH_TOKEN_HEADER_KEY);
 
@@ -283,11 +305,11 @@ public class Utils {
 
         String antiCSRF = connection.getHeaderField(Constants.CSRF_HEADER_KEY);
         if (antiCSRF != null) {
-            LocalSessionState localSessionState = getLocalSessionState(context);
-            AntiCSRF.setToken(context, localSessionState.lastAccessTokenUpdate, antiCSRF);
+            AntiCSRF.setToken(context, getFromStorage(Constants.LAST_ACCESS_TOKEN_UPDATE_PREFS_KEY, context), antiCSRF);
         }
     }
 
+    @Deprecated
     public static void saveTokenFromHeaders(Response response, Context context) {
         String refreshToken = response.header(Constants.REFRESH_TOKEN_HEADER_KEY);
 
@@ -309,14 +331,15 @@ public class Utils {
 
         String antiCSRF = response.header(Constants.CSRF_HEADER_KEY);
         if (antiCSRF != null) {
-            LocalSessionState localSessionState = getLocalSessionState(context);
-            AntiCSRF.setToken(context, localSessionState.lastAccessTokenUpdate, antiCSRF);
+            AntiCSRF.setToken(context, getFromStorage(Constants.LAST_ACCESS_TOKEN_UPDATE_PREFS_KEY, context), antiCSRF);
         }
     }
 
     public static String getTokenForHeaderAuth(TokenType tokenType, Context context) {
-        String name = getStorageName(tokenType);
-        return getFromStorage(name, context);
+        if (!SuperTokens.isInitCalled) return null;
+        SessionTokens tokens = SessionState.snapshot().getTokens();
+        if (tokens == null) return null;
+        return tokenType == TokenType.ACCESS ? tokens.getAccessToken() : tokens.getRefreshToken();
     }
 
     // Checks if a key exists in a map regardless of case
@@ -335,8 +358,10 @@ public class Utils {
         // users to continue these sessions.
         // The new session preference should be applied at the start of the next
         // session, if the backend allows it.
-        String accessToken = getTokenForHeaderAuth(TokenType.ACCESS, context);
-        String refreshToken = getTokenForHeaderAuth(TokenType.REFRESH, context);
+        if (!SuperTokens.isInitCalled) return null;
+        SessionTokens tokens = SessionState.snapshot().getTokens();
+        String accessToken = tokens == null ? null : tokens.getAccessToken();
+        String refreshToken = tokens == null ? null : tokens.getRefreshToken();
 
         // We don't always need the refresh token because that's only required by the
         // refresh call
@@ -352,6 +377,7 @@ public class Utils {
         return null;
     }
 
+    @Deprecated
     public static void fireSessionUpdateEventsIfNecessary(
             boolean wasLoggedIn,
             int status,
@@ -434,7 +460,16 @@ public class Utils {
         if (!apiDomain.equals("")) {
             String _apiDomain = new NormalisedURLDomain(apiDomain).getAsStringDangerous();
             URL apiDomainUrlObj = new URL(_apiDomain);
-            apiDomainAndInputDomainMatch = apiDomainUrlObj.getHost().equals(domain);
+            int expectedPort = apiDomainUrlObj.getPort() < 0 ? apiDomainUrlObj.getDefaultPort() : apiDomainUrlObj.getPort();
+            int actualPort = url.getPort() < 0 ? url.getDefaultPort() : url.getPort();
+            if (!apiDomainUrlObj.getProtocol().equalsIgnoreCase(url.getProtocol()) || expectedPort != actualPort) {
+                return false;
+            }
+            String configuredPath = new URL(apiDomain).getPath();
+            String requestPath = new URL(toCheckUrl).getPath();
+            if (!configuredPath.isEmpty() && !requestPath.equals(configuredPath)
+                    && !requestPath.startsWith(configuredPath + "/")) return false;
+            apiDomainAndInputDomainMatch = apiDomainUrlObj.getHost().equalsIgnoreCase(domain);
         }
 
         if (cookieDomain == null || apiDomainAndInputDomainMatch) {
