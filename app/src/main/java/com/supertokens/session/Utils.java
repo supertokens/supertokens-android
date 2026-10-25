@@ -465,8 +465,8 @@ public class Utils {
             if (!apiDomainUrlObj.getProtocol().equalsIgnoreCase(url.getProtocol()) || expectedPort != actualPort) {
                 return false;
             }
-            String configuredPath = new URL(apiDomain).getPath();
-            String requestPath = new URL(toCheckUrl).getPath();
+            String configuredPath = new NormalisedURLPath(apiDomain).getAsStringDangerous();
+            String requestPath = new NormalisedURLPath(toCheckUrl).getAsStringDangerous();
             if (!configuredPath.isEmpty() && !requestPath.equals(configuredPath)
                     && !requestPath.startsWith(configuredPath + "/")) return false;
             apiDomainAndInputDomainMatch = apiDomainUrlObj.getHost().equalsIgnoreCase(domain);

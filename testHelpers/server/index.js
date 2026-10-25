@@ -557,7 +557,7 @@ app.post("/login-2.18", async (req, res) => {
             Buffer.from(
                 JSON.stringify({
                     uid: userId,
-                    ate: Date.now() + 3600000,
+                    ate: legacySessionResp.accessToken.expiry,
                     up: payload
                 })
             ).toString("base64")

@@ -956,7 +956,7 @@ public class SuperTokensOkHttpTest {
     }
 
     @Test
-    public void okhttp_testThatOldSessionsStillWorkWhenUsingHeaders() throws Exception {
+    public void okhttp_transferMethodChangeClearsSessionAndRequiresNewLogin() throws Exception {
         com.example.TestUtils.startST(1);
         new SuperTokens.Builder(context, Constants.apiDomain)
                 .tokenTransferMethod("cookie")
@@ -997,26 +997,19 @@ public class SuperTokensOkHttpTest {
                 .build();
         cookieJar.saveFromResponse(httpUrl, cookies);
 
-        SuperTokens.setTokenTransferMethod("header");
+        new SuperTokens.Builder(context, Constants.apiDomain).tokenTransferMethod("header").reconfigure();
+        assert !SuperTokens.doesSessionExist(context);
+        assert SuperTokens.getAccessToken(context) == null;
+        int refreshesBeforeRequest = com.example.TestUtils.getRefreshTokenCounter();
 
         Request userInfoRequest = new Request.Builder()
                 .url(userInfoAPIURL)
                 .build();
         Response userInfoResponse = okHttpClient.newCall(userInfoRequest).execute();
-        if (userInfoResponse.code() != 200) {
-            throw new Exception("User info API failed even after calling refresh");
-        }
-
-        List<Cookie> newCookies = cookieJar.loadForRequest(httpUrl);
-        Cookie idRefreshTokenCookie = null;
-
-        for (Cookie _cookie : newCookies) {
-            if (_cookie.name().equals("sIdRefreshToken")) {
-                idRefreshTokenCookie = _cookie;
-            }
-        }
-
-        assert idRefreshTokenCookie == null;
+        assert userInfoResponse.code() == 401;
+        userInfoResponse.close();
+        assert com.example.TestUtils.getRefreshTokenCounter() == refreshesBeforeRequest;
+        assert !SuperTokens.doesSessionExist(context);
 
         accessToken = SuperTokens.getAccessToken(context);
 
@@ -1029,9 +1022,7 @@ public class SuperTokensOkHttpTest {
                 .build();
         Response logoutResponse = okHttpClient.newCall(request).execute();
 
-        if (logoutResponse.code() != 200) {
-            throw new Exception("Error making logout request");
-        }
+        assert logoutResponse.code() == 401;
         logoutResponse.close();
 
         bodyJson = new JsonObject();
