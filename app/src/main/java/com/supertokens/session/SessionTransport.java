@@ -12,6 +12,11 @@ final class SessionTransport {
 
     private SessionTransport() {}
 
+    static boolean isResponseInScope(String url, SessionState.Configuration configuration) throws IOException {
+        return Utils.shouldDoInterceptionBasedOnUrl(url, configuration.values.apiDomain,
+                configuration.values.sessionTokenBackendDomain);
+    }
+
     static void requireCurrent(SessionRequestTag tag) throws StaleSessionException {
         if (!SessionState.isCurrent(tag.getOwner(), tag.configuration)) throw new StaleSessionException();
     }

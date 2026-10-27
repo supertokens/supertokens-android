@@ -154,6 +154,32 @@ public class SuperTokens {
                 .getRequestHeaders(CustomHeaderProvider.RequestType.SIGN_OUT);
         Map<String, String> headers = provided == null ? java.util.Collections.emptyMap()
                 : new java.util.HashMap<>(provided);
+        int attempts = 0;
+        while (signOutRequest(context, responseTag, headers)) {
+            SessionTransport.requireCurrent(tag);
+            if (attempts >= captured.values.maxRetryAttemptsForSessionRefresh) {
+                throw new IllegalAccessException(SessionTransport.retryLimitMessage(captured.signOutUrl,
+                        captured.values.maxRetryAttemptsForSessionRefresh));
+            }
+            resolution = RefreshCoordinator.resolve(context, tag.getOwner(),
+                    SessionTransport.access(responseTag.getSnapshot()) == null,
+                    SessionTransport.access(responseTag.getSnapshot()),
+                    SuperTokensHttpURLConnection.refreshTransport(), responseTag.getSnapshot().getRefreshTokenRevision());
+            if (!resolution.isSuccess()) {
+                if (resolution.getError() != null) throw resolution.getError();
+                if (resolution.getStatus() == SessionResolution.Status.NO_SESSION) return;
+                throw new IOException("Could not resolve session for sign out");
+            }
+            responseTag = SessionTransport.nextWire(tag);
+            attempts++;
+        }
+    }
+
+    // Return a retry decision only after closing the rejected response; its headers cannot clear state.
+    private static boolean signOutRequest(Context context, SessionRequestTag responseTag,
+                                          Map<String, String> headers)
+            throws IOException, IllegalAccessException, SuperTokensGeneralError {
+        SessionState.Configuration captured = responseTag.configuration;
         if (!SessionState.isCurrent(responseTag.getOwner(), captured)) throw new StaleSessionException();
         HttpURLConnection connection = (HttpURLConnection) new URL(captured.signOutUrl).openConnection();
         java.io.InputStream responseBody = null;
@@ -193,14 +219,14 @@ public class SuperTokens {
             if (responseCode == captured.values.sessionExpiredStatusCode) {
                 try {
                     if (!response.isRemoval()) {
-                        throw new IOException("Sign out failed with response code " + responseCode);
+                        return true;
                     }
                 } catch (IllegalArgumentException e) {
                     throw new IOException("Invalid sign out response", e);
                 }
                 SuperTokensHttpURLConnection.manuallySetCookiesFromResponse(connection.getURL(), connection);
                 applySignOutResponse(context, responseTag, response);
-                return;
+                return false;
             }
             if (responseCode < 200 || responseCode >= 300) {
                 throw new IOException("Sign out failed with response code " + responseCode);
@@ -224,6 +250,7 @@ public class SuperTokens {
             }
             SuperTokensHttpURLConnection.manuallySetCookiesFromResponse(connection.getURL(), connection);
             applySignOutResponse(context, responseTag, response);
+            return false;
         } finally {
             java.io.InputStream stream = responseBody == null ? connection.getErrorStream() : responseBody;
             if (stream != null) {

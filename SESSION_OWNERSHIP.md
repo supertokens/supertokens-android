@@ -67,6 +67,20 @@ An explicit bearer different from the captured session is unmanaged: legacy requ
 it but cannot write session state or trigger managed refresh. Tagged requests reject it
 before dispatch. An explicitly called refresh URL is raw transport and does not adopt headers.
 
+Redirected responses must also match the captured scheme, effective port, host/backend
+scope and domain path before credential adoption, removal or managed retry. Out-of-scope
+responses return unmanaged for untagged requests; tagged requests throw `IOException`.
+In-scope redirects remain supported. URLConnection's recorded request Authorization is
+not evidence of the final redirected wire's headers. Legacy OkHttp refresh also checks
+final response scope; ordinary host redirect policy remains in effect.
+
+Remote sign-out reactively refreshes server-rejected access credentials, bounded by
+`maxRetryAttemptsForSessionRefresh`. Refresh and retry remain pinned to the original
+owner/configuration and failed wire's refresh revision. Replacement aborts with a stale
+owner error; a successful response still requires body validation before removal.
+Cookie sign-out forces reactive resolution when there is no access-token string;
+the captured refresh revision lets it reuse an intervening refresh or join its flight.
+
 One refresh flight is shared across clients, getters and URLConnection for each owner/lineage.
 Ordinary requests remain concurrent; only short state/persistence commits are serialized.
 Ordinary promotions are suppressed while that lineage refreshes. Refresh success checks

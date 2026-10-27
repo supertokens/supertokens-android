@@ -6,6 +6,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changes
+
+- Add owner-bound session snapshots, conditional updates, observation and request tagging, with atomic credential persistence and coordinated refresh.
+- Fence stale responses and out-of-scope redirects from changing session state; restore bounded refresh and retry for sign-out.
+
+### Compatibility
+
+- Interception now enforces configured scheme, effective port and path boundaries. Reconfiguration clears the session, and switching from cookie to header mode requires fresh authentication.
+- Migrated consumers using the new session APIs require this SDK; version 0.5.4 does not provide them. See [session ownership](SESSION_OWNERSHIP.md) for integration and limitations.
+
 ## [0.5.4] - 2025-03-26
 
 ### Changes

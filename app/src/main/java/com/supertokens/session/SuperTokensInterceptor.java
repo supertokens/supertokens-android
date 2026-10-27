@@ -89,6 +89,10 @@ public class SuperTokensInterceptor implements Interceptor {
             SessionTransport.requireCurrent(logical);
             Response response = chain.proceed(request);
             try {
+                if (!SessionTransport.isResponseInScope(response.request().url().toString(), config)) {
+                    if (supplied != null) throw new IOException("Response URL is outside captured session scope");
+                    return response;
+                }
                 // Downstream auth replacement has no authority to mutate the managed session.
                 boolean wireManaged = managed && response.request().headers("Authorization").size() <= 1
                         && SessionTransport.matches(
@@ -169,6 +173,9 @@ public class SuperTokensInterceptor implements Interceptor {
         java.util.concurrent.ScheduledFuture<?> timeout = deadline.cancelAfterDeadline(refreshCall::cancel);
         try (Response response = refreshClient == null ? chain.proceed(request) : refreshCall.execute()) {
             deadline.remainingMillis();
+            if (!SessionTransport.isResponseInScope(response.request().url().toString(), configuration)) {
+                throw new RefreshCoordinator.ConfigurationException("Refresh response URL is outside captured session scope");
+            }
             if (response.request().headers("Authorization").size() > 1
                     || !SessionTransport.matches(response.request().header("Authorization"), auth)) {
                 throw new RefreshCoordinator.ConfigurationException("Refresh authorization changed during dispatch");

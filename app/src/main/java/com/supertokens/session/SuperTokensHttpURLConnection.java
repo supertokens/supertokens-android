@@ -75,10 +75,15 @@ public class SuperTokensHttpURLConnection {
                 SessionTransport.requireCurrent(logical);
                 connection.connect();
                 int code = connection.getResponseCode();
+                // The wrapper records pre-redirect headers, not the final wire's authorization.
+                if (!SessionTransport.isResponseInScope(connection.getURL().toString(), config)) {
+                    if (requestTag != null) throw new IOException("Response URL is outside captured session scope");
+                    return connection;
+                }
                 boolean managed = connection.isManagedAuthorization();
                 boolean current = !managed || SessionTransport.apply(context, logical, wire,
                         SessionResponse.fromHttp(connection), requestTag != null);
-                manuallySetCookiesFromResponse(url, connection);
+                manuallySetCookiesFromResponse(connection.getURL(), connection);
                 if (!managed || !current || code != config.values.sessionExpiredStatusCode
                         || !SessionState.isCurrent(logical.getOwner(), config)) return connection;
                 if (attempts >= config.values.maxRetryAttemptsForSessionRefresh) {
