@@ -1,9 +1,10 @@
+#!/bin/bash
+set -euo pipefail
+
 echo "Starting tests for FDI $1";
 
-update-alternatives --set java $(update-alternatives --list java | grep jdk-15)
-update-alternatives --set javac $(update-alternatives --list javac | grep jdk-15)
-JAVA_HOME=/usr/java/jdk-15.0.1
-export JAVA_HOME
+export JAVA_HOME=/usr/java/jdk-17
+export PATH="$JAVA_HOME/bin:$PATH"
 
 java -version
 
@@ -55,12 +56,7 @@ then
 fi
 coreFree=$(echo $coreFree | jq .core | tr -d '"')
 
-./setupAndTestWithFreeCore.sh $coreFree $driverTag
-if [[ $? -ne 0 ]]
-then
-    echo "test failed... exiting!"
-    exit 1
-fi
+./setupAndTestWithFreeCore.sh "$coreFree" "$driverTag"
 rm -rf ../../supertokens-root
 rm -rf ../testHelpers/server/node_modules/supertokens-node
 git checkout HEAD -- ../testHelpers/server/package.json
