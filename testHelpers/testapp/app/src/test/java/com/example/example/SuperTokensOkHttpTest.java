@@ -830,7 +830,7 @@ public class SuperTokensOkHttpTest {
 
     @Test
     public void okhttp_testThatOldSessionsStillWorkAfterRefreshing() throws Exception {
-        com.example.TestUtils.startST(1);
+        com.example.TestUtils.startST(30);
         new SuperTokens.Builder(context, Constants.apiDomain)
                 .tokenTransferMethod("cookie")
                 .build();
@@ -904,7 +904,7 @@ public class SuperTokensOkHttpTest {
 
     @Test
     public void okhttp_testThatRefreshingOldSessionsWorksFineWithExpiredAccessToken() throws Exception {
-        com.example.TestUtils.startST(1);
+        com.example.TestUtils.startST(30);
         new SuperTokens.Builder(context, Constants.apiDomain)
                 .tokenTransferMethod("cookie")
                 .build();
@@ -972,7 +972,7 @@ public class SuperTokensOkHttpTest {
 
     @Test
     public void okhttp_transferMethodChangeClearsSessionAndRequiresNewLogin() throws Exception {
-        com.example.TestUtils.startST(1);
+        com.example.TestUtils.startST(30);
         new SuperTokens.Builder(context, Constants.apiDomain)
                 .tokenTransferMethod("cookie")
                 .build();

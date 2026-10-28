@@ -576,7 +576,7 @@ public class SuperTokensRetrofitTest {
 
     @Test
     public void retrofit_testThatOldSessionsStillWorkAfterRefreshing() throws Exception {
-        com.example.TestUtils.startST(1);
+        com.example.TestUtils.startST(30);
         new SuperTokens.Builder(context, Constants.apiDomain)
                 .tokenTransferMethod("cookie")
                 .build();
@@ -623,7 +623,7 @@ public class SuperTokensRetrofitTest {
 
     @Test
     public void retrofit_testThatRefreshingOldSessionsWorksFineWithExpiredAccessToken() throws Exception {
-        com.example.TestUtils.startST(1);
+        com.example.TestUtils.startST(30);
         new SuperTokens.Builder(context, Constants.apiDomain)
                 .tokenTransferMethod("cookie")
                 .build();
@@ -680,7 +680,7 @@ public class SuperTokensRetrofitTest {
 
     @Test
     public void retrofit_transferMethodChangeClearsSessionAndRequiresNewLogin() throws Exception {
-        com.example.TestUtils.startST(1);
+        com.example.TestUtils.startST(30);
         new SuperTokens.Builder(context, Constants.apiDomain)
                 .tokenTransferMethod("cookie")
                 .build();
