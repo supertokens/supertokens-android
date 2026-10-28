@@ -3,7 +3,7 @@ set -euo pipefail
 
 echo "Starting tests for FDI $1";
 
-export JAVA_HOME=/usr/java/jdk-17
+export JAVA_HOME=/usr/java/jdk-21
 export PATH="$JAVA_HOME/bin:$PATH"
 
 java -version
