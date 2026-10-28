@@ -13,8 +13,7 @@
  * under the License.
  */
 let SuperTokens = require("supertokens-node");
-let SuperTokensRaw = require("supertokens-node/lib/build/supertokens").default;
-let SessionRecipeRaw = require("supertokens-node/lib/build/recipe/session/recipe").default;
+const resetRecipes = require("./resetRecipes");
 let Session = require("supertokens-node/recipe/session");
 let express = require("express");
 let cookieParser = require("cookie-parser");
@@ -41,13 +40,6 @@ try {
 } catch (ex) {
     console.log({ex});
     multitenancySupported = false;
-}
-
-let UserMetaDataRecipeRaw;
-try {
-    UserMetaDataRecipeRaw = require("supertokens-node/lib/build/recipe/usermetadata/recipe").default;
-} catch {
-    // Ignored
 }
 
 let urlencodedParser = bodyParser.urlencoded({ limit: "20mb", extended: true, parameterLimit: 20000 });
@@ -248,15 +240,7 @@ app.post("/startst", async (req, res) => {
         );
     }
     if (enableAntiCsrf !== undefined) {
-        SuperTokensRaw.reset();
-        SessionRecipeRaw.reset();
-
-        if (multitenancySupported) {
-            MultitenancyRaw.reset();
-        }
-        if (UserMetaDataRecipeRaw !== undefined) {
-            UserMetaDataRecipeRaw.reset();
-        }
+        resetRecipes();
 
         SuperTokens.init(getConfig(enableAntiCsrf, enableJWT));
     }
@@ -279,14 +263,7 @@ app.post("/reinitialiseBackendConfig", async (req, res) => {
     let currentEnableJWT = lastSetEnableJWT;
     let jwtPropertyName = req.body.jwtPropertyName;
 
-    SuperTokensRaw.reset();
-    SessionRecipeRaw.reset();
-    if (multitenancySupported) {
-        MultitenancyRaw.reset();
-    }
-    if (UserMetaDataRecipeRaw !== undefined) {
-        UserMetaDataRecipeRaw.reset();
-    }
+    resetRecipes();
     SuperTokens.init(getConfig(lastSetEnableAntiCSRF, currentEnableJWT, jwtPropertyName));
 
     res.send("");

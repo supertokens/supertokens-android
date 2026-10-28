@@ -47,6 +47,7 @@ git checkout $pluginInterfaceTag
 cd ../
 echo $SUPERTOKENS_API_KEY > apiPassword
 ./utils/setupTestEnvLocal
+./gradlew --stop
 if ! find core -name '*.jar' -type f -exec "$JAVA_HOME/bin/jar" tf {} \; | grep '^io/supertokens/Main.class$' >/dev/null; then
     echo "Core setup failed: no built JAR contains io.supertokens.Main" >&2
     exit 1
@@ -59,10 +60,39 @@ cd ../project/testHelpers/server/
 nvm use 16
 npm i -d --force
 npm i git+https://github.com:supertokens/supertokens-node.git#$2
+npm test
 TEST_MODE=testing INSTALL_PATH=../../../supertokens-root node . &
 pid=$!
 trap 'kill "$pid" 2>/dev/null || true' EXIT
+server_ready=false
+for attempt in {1..60}; do
+    if ! kill -0 "$pid" 2>/dev/null; then
+        echo "Test server exited before becoming ready" >&2
+        wait "$pid" || true
+        exit 1
+    fi
+    if [ "$(curl --noproxy '*' -s -o /dev/null -w '%{http_code}' --max-time 1 http://127.0.0.1:8080/)" = "404" ]; then
+        server_ready=true
+        break
+    fi
+    sleep 1
+done
+if [ "$server_ready" != true ]; then
+    echo "Test server did not become ready within 60 seconds" >&2
+    exit 1
+fi
 cd ../../
 JAVA_HOME=/usr/java/jdk-15.0.1 PATH="/usr/java/jdk-15.0.1/bin:$PATH" ./gradlew clean build
+if ! kill -0 "$pid" 2>/dev/null; then
+    echo "Test server exited during the Android build" >&2
+    wait "$pid" || true
+    exit 1
+fi
 cd testHelpers/testapp
-JAVA_HOME=/usr/java/jdk-15.0.1 PATH="/usr/java/jdk-15.0.1/bin:$PATH" ./gradlew test
+if ! JAVA_HOME=/usr/java/jdk-15.0.1 PATH="/usr/java/jdk-15.0.1/bin:$PATH" ./gradlew test; then
+    if ! kill -0 "$pid" 2>/dev/null; then
+        echo "Test server exited during integration tests" >&2
+        wait "$pid" || true
+    fi
+    exit 1
+fi
