@@ -67,6 +67,16 @@ jobs:
             echo 'export NVM_DIR="$HOME/.nvm"' >> $BASH_ENV
             echo '[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"' >> $BASH_ENV
       - run: (cd .circleci/ && ./doTests.sh  << parameters.fdi-version >>)
+      - store_test_results:
+          path: testHelpers/testapp/app/build/test-results
+      - store_test_results:
+          path: app/build/test-results
+      - store_artifacts:
+          path: testHelpers/testapp/app/build/reports/tests
+          destination: integration-test-reports
+      - store_artifacts:
+          path: app/build/reports/tests
+          destination: android-test-reports
       - store_artifacts:
           path: ../supertokens-root/logs
           destination: logfiles

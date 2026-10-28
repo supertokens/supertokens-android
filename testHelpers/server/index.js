@@ -14,6 +14,7 @@
  */
 let SuperTokens = require("supertokens-node");
 const resetRecipes = require("./resetRecipes");
+const createLegacySession = require("./legacySession");
 let Session = require("supertokens-node/recipe/session");
 let express = require("express");
 let cookieParser = require("cookie-parser");
@@ -30,8 +31,6 @@ let noOfTimesGetSessionCalledDuringTest = 0;
 let noOfTimesRefreshAttemptedDuringTest = 0;
 let customRefreshHeaderValue = "";
 let supertokens_node_version = require("supertokens-node/lib/build/version").version;
-let Querier = require("supertokens-node/lib/build/querier").Querier;
-let NormalisedURLPath = require("supertokens-node/lib/build/normalisedURLPath").default;
 let Multitenancy, MultitenancyRaw, multitenancySupported;
 try {
     MultitenancyRaw = require("supertokens-node/lib/build/recipe/multitenancy/recipe").default;
@@ -508,23 +507,17 @@ app.post("/test/startServer", async (req, res) => {
     res.status(200).send("")
 });
 
-app.post("/login-2.18", async (req, res) => {
+app.post("/login-2.18", async (req, res, next) => {
     // This CDI version is no longer supported by this SDK, but we want to ensure that sessions keep working after the upgrade
     // We can hard-code the structure of the request&response, since this is a fixed CDI version and it's not going to change
-    Querier.apiVersion = "2.18";
     const payload = req.body.payload || {};
     const userId = req.body.userId;
-    const legacySessionResp = await Querier.getNewInstanceOrThrowError().sendPostRequest(
-        new NormalisedURLPath("/recipe/session"),
-        {
-            userId,
-            enableAntiCsrf: false,
-            userDataInJWT: payload,
-            userDataInDatabase: {}
-        },
-        {}
-    );
-    Querier.apiVersion = undefined;
+    let legacySessionResp;
+    try {
+        legacySessionResp = await createLegacySession("http://localhost:9000", userId, payload);
+    } catch (err) {
+        return next(err);
+    }
 
     const legacyAccessToken = legacySessionResp.accessToken.token;
     const legacyRefreshToken = legacySessionResp.refreshToken.token;

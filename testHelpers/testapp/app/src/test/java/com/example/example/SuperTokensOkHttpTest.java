@@ -872,7 +872,10 @@ public class SuperTokensOkHttpTest {
 
         Response userInfoResponse = okHttpClient.newCall(userInfoRequest).execute();
         if (userInfoResponse.code() != 200) {
-            throw new Exception("User info API failed even after calling refresh");
+            int status = userInfoResponse.code();
+            userInfoResponse.close();
+            throw new Exception("User info API failed even after calling refresh; HTTP " + status
+                    + ", legacy cookie present: " + hasLegacyRefreshCookie(cookieJar.loadForRequest(httpUrl)));
         }
 
         List<Cookie> newCookies = cookieJar.loadForRequest(httpUrl);
@@ -884,7 +887,19 @@ public class SuperTokensOkHttpTest {
             }
         }
 
-        assert idRefreshTokenCookie == null;
+        userInfoResponse.close();
+        if (idRefreshTokenCookie != null) {
+            throw new AssertionError("Legacy refresh cookie was not removed after successful user info request");
+        }
+    }
+
+    private static boolean hasLegacyRefreshCookie(List<Cookie> cookies) {
+        for (Cookie cookie : cookies) {
+            if (cookie.name().equals("sIdRefreshToken")) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @Test

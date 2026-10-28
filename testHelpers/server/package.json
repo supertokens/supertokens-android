@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "node resetRecipes.test.js"
+    "test": "node resetRecipes.test.js && node legacySession.test.js"
   },
   "author": "",
   "license": "ISC",
