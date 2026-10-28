@@ -1,7 +1,7 @@
 package com.supertokens.session;
 
-import java.io.File;
-import java.net.URLClassLoader;
+import java.io.ByteArrayOutputStream;
+import java.io.InputStream;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -219,13 +219,23 @@ public class SessionLifecycleTest extends SessionTestFixture {
 
     @Test public void precompiledPublishedSdkConsumerLinksAndExecutesAgainstCandidate() throws Exception {
         SuperTokens.resetForTests();
-        File classes = new File(System.getProperty("supertokens.oldSdkClasses",
-                "/private/var/folders/5r/6bl83v_92vg_zgq58303jlc00000gn/T/opencode/upstream-session-abi/classes"));
-        assertTrue("provide original precompiled 0.5.4 consumer via supertokens.oldSdkClasses", new File(classes, "compatibility/OldSdkConsumer.class").isFile());
-        try (URLClassLoader loader = new URLClassLoader(new java.net.URL[]{classes.toURI().toURL()}, getClass().getClassLoader())) {
-            Class<?> consumer = Class.forName("compatibility.OldSdkConsumer", true, loader);
-            assertSame(loader, consumer.getClassLoader());
-            consumer.getMethod("exerciseAbsentSession", android.content.Context.class).invoke(null, context);
+        byte[] bytes;
+        try (InputStream input = getClass().getResourceAsStream("/compatibility/OldSdkConsumer.bin")) {
+            assertNotNull("Missing precompiled 0.5.4 consumer fixture", input);
+            ByteArrayOutputStream output = new ByteArrayOutputStream();
+            byte[] buffer = new byte[4096];
+            int count;
+            while ((count = input.read(buffer)) != -1) output.write(buffer, 0, count);
+            bytes = output.toByteArray();
         }
+        ClassLoader loader = new ClassLoader(getClass().getClassLoader()) {
+            @Override protected Class<?> findClass(String name) throws ClassNotFoundException {
+                if (!name.equals("compatibility.OldSdkConsumer")) throw new ClassNotFoundException(name);
+                return defineClass(name, bytes, 0, bytes.length);
+            }
+        };
+        Class<?> consumer = Class.forName("compatibility.OldSdkConsumer", true, loader);
+        assertSame(loader, consumer.getClassLoader());
+        consumer.getMethod("exerciseAbsentSession", android.content.Context.class).invoke(null, context);
     }
 }
