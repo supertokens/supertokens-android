@@ -71,7 +71,7 @@ for attempt in {1..60}; do
         wait "$pid" || true
         exit 1
     fi
-    if [ "$(curl --noproxy '*' -s -o /dev/null -w '%{http_code}' --max-time 1 http://127.0.0.1:8080/)" = "404" ]; then
+    if [ "$(curl --noproxy '*' -s -o /dev/null -w '%{http_code}' --max-time 1 http://127.0.0.1:8080/healthz)" = "200" ]; then
         server_ready=true
         break
     fi

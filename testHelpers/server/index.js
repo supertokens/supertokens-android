@@ -209,6 +209,8 @@ app.use(
 );
 app.disable('etag');
 
+app.get("/healthz", (req, res) => res.status(200).send("ok"));
+
 app.use(middleware());
 
 app.post("/login", async (req, res) => {
