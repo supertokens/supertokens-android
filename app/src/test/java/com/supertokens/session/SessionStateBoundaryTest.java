@@ -15,6 +15,80 @@ import org.junit.Test;
 import static org.junit.Assert.*;
 
 public class SessionStateBoundaryTest extends SessionTestFixture {
+    @Test public void confirmedSignOutAfterRefreshClearsOnlyCapturedOwner() throws Exception {
+        SessionSnapshot before = install("A", "before");
+        SessionRequestTag signOut = SuperTokens.captureRequestTag(context);
+        server.enqueue(rotation(tokens("A", "refreshed")));
+        assertTrue(SuperTokens.resolveAccessToken(context, before.getOwner(), true, null).isSuccess());
+        SessionResponse removal = new SessionResponse(200, "", java.util.Collections.singletonMap(
+                "front-token", java.util.Collections.singletonList("remove")));
+        assertTrue(SessionState.applyConfirmedSignOutResponse(context, signOut, removal).isSuccess());
+        assertEquals(SessionSnapshot.Status.ABSENT, SuperTokens.getSessionSnapshot(context).getStatus());
+        SessionSnapshot replacement = install("B", "new");
+        assertEquals(SessionCommitResult.Status.STALE_OWNER,
+                SessionState.applyConfirmedSignOutResponse(context, signOut, removal).getStatus());
+        assertSame(replacement, SuperTokens.getSessionSnapshot(context));
+    }
+
+    @Test public void cookieSwitchDuringRefreshIsNotSpeculativelyAdopted() throws Exception {
+        assertTrue(new SuperTokens.Builder(context, server.url("/").toString())
+                .tokenTransferMethod("cookie").reconfigure().isSuccess());
+        server.enqueue(new MockResponse().addHeader("front-token", cookieFront("alice")));
+        assertEquals(200, request(false, null, "/login"));
+        SessionSnapshot original = SuperTokens.getSessionSnapshot(context);
+        SessionRequestTag tag = SuperTokens.captureRequestTag(context);
+        RefreshCoordinator.Acquisition refresh = SessionState.acquireRefresh(original.getOwner(), true,
+                null, SuperTokensHttpURLConnection.refreshTransport(), original.getRefreshTokenRevision());
+        assertTrue(refresh.leader);
+        assertTrue(SessionState.startRefresh(refresh.flight));
+        SessionResponse other = new SessionResponse(200, "", java.util.Collections.singletonMap(
+                "front-token", java.util.Collections.singletonList(cookieFront("bob"))));
+        SessionState.applyOrdinaryResponse(context, tag, other);
+        assertSame(original, SuperTokens.getSessionSnapshot(context));
+        assertNull(tag.getAcceptedSnapshot());
+        SessionState.completeRefresh(context, refresh.flight, null, new java.io.IOException("transport ended"));
+    }
+
+    @Test public void unconfirmedRemovalAfterRefreshRemainsRevisionFenced() throws Exception {
+        SessionSnapshot before = install("A", "before");
+        SessionRequestTag ordinary = SuperTokens.captureRequestTag(context);
+        SessionRequestTag failedSignOut = SuperTokens.captureRequestTag(context);
+        server.enqueue(rotation(tokens("A", "refreshed")));
+        assertTrue(SuperTokens.resolveAccessToken(context, before.getOwner(), true, null).isSuccess());
+        SessionSnapshot refreshed = SuperTokens.getSessionSnapshot(context);
+        java.util.Map<String, java.util.List<String>> headers = java.util.Collections.singletonMap(
+                "front-token", java.util.Collections.singletonList("remove"));
+        assertTrue(SessionState.applyOrdinaryResponse(context, ordinary,
+                new SessionResponse(200, "", headers)).isSuccess());
+        assertTrue(SessionState.applyConfirmedSignOutResponse(context, failedSignOut,
+                new SessionResponse(401, "", headers)).isSuccess());
+        assertSame(refreshed, SuperTokens.getSessionSnapshot(context));
+        assertNull(ordinary.getAcceptedSnapshot());
+        assertNull(failedSignOut.getAcceptedSnapshot());
+    }
+
+    @Test public void currentRemovalRetiresInFlightRefresh() throws Exception {
+        SessionSnapshot before = install("A", "before");
+        SessionRequestTag tag = SuperTokens.captureRequestTag(context);
+        RefreshCoordinator.Acquisition refresh = SessionState.acquireRefresh(before.getOwner(), true,
+                null, SuperTokensHttpURLConnection.refreshTransport(), before.getRefreshTokenRevision());
+        assertTrue(refresh.leader);
+        assertTrue(SessionState.startRefresh(refresh.flight));
+        server.enqueue(new MockResponse().addHeader("front-token", "remove"));
+        assertEquals(200, request(false, tag, "/logout"));
+        assertEquals(SessionSnapshot.Status.ABSENT, SuperTokens.getSessionSnapshot(context).getStatus());
+        assertEquals(SessionResolution.Status.STALE_OWNER, refresh.flight.await().getStatus());
+        SessionSnapshot replacement = install("B", "new");
+        SessionTokens lateTokens = tokens("A", "late");
+        java.util.Map<String, java.util.List<String>> headers = new java.util.HashMap<>();
+        headers.put("front-token", java.util.Collections.singletonList(lateTokens.getFrontToken()));
+        headers.put("st-access-token", java.util.Collections.singletonList(lateTokens.getAccessToken()));
+        headers.put("st-refresh-token", java.util.Collections.singletonList(lateTokens.getRefreshToken()));
+        SessionResponse late = new SessionResponse(200, "", headers);
+        SessionState.completeRefresh(context, refresh.flight, late, null);
+        assertSame(replacement, SuperTokens.getSessionSnapshot(context));
+    }
+
     @Test public void cookieUnauthorizedDeliveredAfterRefreshReusesCompletedLineage() throws Exception {
         assertTrue(new SuperTokens.Builder(context, server.url("/").toString())
                 .tokenTransferMethod("cookie").reconfigure().isSuccess());
@@ -220,6 +294,56 @@ public class SessionStateBoundaryTest extends SessionTestFixture {
             assertEquals(200, request(true, null, "/logout"));
             assertEquals(SessionSnapshot.Status.ABSENT, SuperTokens.getSessionSnapshot(context).getStatus());
         } finally { CookieHandler.setDefault(old); }
+    }
+
+    @Test public void cookieAccountSwitchReplacesOwnerAndFencesOldResponse() throws Exception {
+        assertTrue(new SuperTokens.Builder(context, server.url("/").toString())
+                .tokenTransferMethod("cookie").reconfigure().isSuccess());
+        String first = cookieFront("alice");
+        String second = cookieFront("bob");
+        server.enqueue(new MockResponse().addHeader("front-token", first));
+        assertEquals(200, request(false, null, "/login"));
+        SessionSnapshot original = SuperTokens.getSessionSnapshot(context);
+        SessionRequestTag stale = SuperTokens.captureRequestTag(context);
+        SessionRequestTag switchTag = SuperTokens.captureRequestTag(context);
+        server.enqueue(new MockResponse().addHeader("front-token", second));
+        assertEquals(200, request(false, switchTag, "/login"));
+        SessionSnapshot switched = SuperTokens.getSessionSnapshot(context);
+        assertEquals("bob", switched.getUserId());
+        assertFalse(original.isCurrent());
+        assertSame(switched, switchTag.getAcceptedSnapshot());
+        SessionResponse old = new SessionResponse(200, "", java.util.Collections.singletonMap(
+                "front-token", java.util.Collections.singletonList("remove")));
+        assertEquals(SessionCommitResult.Status.STALE_OWNER,
+                SessionState.applyOrdinaryResponse(context, stale, old).getStatus());
+        assertSame(switched, SuperTokens.getSessionSnapshot(context));
+    }
+
+    @Test public void staleCookieSwitchAndRemovalCannotOverwriteNewerPromotion() throws Exception {
+        assertTrue(new SuperTokens.Builder(context, server.url("/").toString())
+                .tokenTransferMethod("cookie").reconfigure().isSuccess());
+        server.enqueue(new MockResponse().addHeader("front-token", cookieFront("alice")));
+        assertEquals(200, request(false, null, "/login"));
+        SessionRequestTag staleSwitch = SuperTokens.captureRequestTag(context);
+        SessionRequestTag staleRemoval = SuperTokens.captureRequestTag(context);
+        server.enqueue(new MockResponse().addHeader("front-token", cookieFront("alice")));
+        assertEquals(200, request(false, null, "/profile"));
+        SessionSnapshot promoted = SuperTokens.getSessionSnapshot(context);
+        SessionResponse other = new SessionResponse(200, "", java.util.Collections.singletonMap(
+                "front-token", java.util.Collections.singletonList(cookieFront("bob"))));
+        SessionResponse removal = new SessionResponse(200, "", java.util.Collections.singletonMap(
+                "front-token", java.util.Collections.singletonList("remove")));
+        assertTrue(SessionState.applyOrdinaryResponse(context, staleSwitch, other).isSuccess());
+        assertTrue(SessionState.applyOrdinaryResponse(context, staleRemoval, removal).isSuccess());
+        assertSame(promoted, SuperTokens.getSessionSnapshot(context));
+        assertNull(staleSwitch.getAcceptedSnapshot());
+        assertNull(staleRemoval.getAcceptedSnapshot());
+    }
+
+    private static String cookieFront(String user) throws Exception {
+        String value = new org.json.JSONObject().put("uid", user).put("ate", 4102444800000L)
+                .put("up", new org.json.JSONObject()).toString();
+        return java.util.Base64.getEncoder().encodeToString(value.getBytes(java.nio.charset.StandardCharsets.UTF_8));
     }
 
     @Test public void duplicateCredentialHeadersNeverPartiallyMutateTuple() throws Exception {

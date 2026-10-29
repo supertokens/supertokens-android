@@ -130,6 +130,68 @@ public class SessionSignOutRefreshTest extends SessionTestFixture {
         assertEquals(SessionSnapshot.Status.ABSENT, SuperTokens.getSessionSnapshot(context).getStatus());
     }
 
+    @Test public void confirmedDelayedSignOutClearsSameOwnerAfterRefresh() throws Exception {
+        delayedSignOutAfterRefresh("{\"status\":\"OK\"}", 200, true);
+    }
+
+    @Test public void failedDelayedSignOutDoesNotClearRefreshedOwner() throws Exception {
+        delayedSignOutAfterRefresh("{\"status\":\"GENERAL_ERROR\",\"message\":\"failed\"}", 200, false);
+    }
+
+    @Test public void delayedExpiryRemovalDoesNotClearRefreshedOwner() throws Exception {
+        delayedSignOutAfterRefresh("", 401, false);
+    }
+
+    private void delayedSignOutAfterRefresh(String body, int code, boolean clears) throws Exception {
+        SessionSnapshot initial = install("A", "initial");
+        SessionTokens refreshed = tokens("A", "refreshed");
+        CountDownLatch arrived = new CountDownLatch(1), release = new CountDownLatch(1);
+        server.setDispatcher(new Dispatcher() {
+            @Override public MockResponse dispatch(RecordedRequest request) throws InterruptedException {
+                if (request.getPath().equals("/auth/session/refresh")) return rotation(refreshed);
+                arrived.countDown();
+                if (!release.await(5, TimeUnit.SECONDS)) return new MockResponse().setResponseCode(504);
+                return new MockResponse().setResponseCode(code).addHeader("front-token", "remove").setBody(body);
+            }
+        });
+        ExecutorService worker = Executors.newSingleThreadExecutor();
+        try {
+            Future<?> signout = worker.submit(() -> {
+                try {
+                    SuperTokens.signOut(context);
+                    if (!clears) fail("failed or superseded signout accepted");
+                } catch (SuperTokensGeneralError expected) {
+                    if (clears || code != 200) throw new AssertionError(expected);
+                } catch (IOException expected) {
+                    if (code != 401 || !expected.getMessage().contains("superseded")) throw new AssertionError(expected);
+                } catch (Exception error) { throw new AssertionError(error); }
+            });
+            assertTrue(arrived.await(3, TimeUnit.SECONDS));
+            SessionResolution resolution = SuperTokens.resolveAccessToken(context, initial.getOwner(), true, null);
+            assertTrue(resolution.isSuccess());
+            SessionSnapshot afterRefresh = resolution.getSnapshot();
+            assertSame(initial.getOwner(), afterRefresh.getOwner());
+            assertTrue(afterRefresh.getRefreshTokenRevision() > initial.getRefreshTokenRevision());
+            assertEquals(refreshed.getRefreshToken(), afterRefresh.getTokens().getRefreshToken());
+            release.countDown();
+            signout.get(5, TimeUnit.SECONDS);
+            SessionSnapshot after = SuperTokens.getSessionSnapshot(context);
+            if (clears) assertEquals(SessionSnapshot.Status.ABSENT, after.getStatus());
+            else {
+                assertSame(afterRefresh.getOwner(), after.getOwner());
+                assertEquals(afterRefresh.getRevision(), after.getRevision());
+                assertEquals(refreshed.getRefreshToken(), after.getTokens().getRefreshToken());
+            }
+            assertEquals(2, server.getRequestCount());
+            assertRequest("/auth/signout", initial.getTokens().getAccessToken());
+            assertRequest("/auth/session/refresh", initial.getTokens().getRefreshToken());
+        } finally {
+            release.countDown();
+            worker.shutdownNow();
+            assertTrue(worker.awaitTermination(5, TimeUnit.SECONDS));
+        }
+    }
+
     private void assertRequest(String path, String token) throws Exception {
         RecordedRequest request = server.takeRequest(1, TimeUnit.SECONDS);
         assertNotNull(request);

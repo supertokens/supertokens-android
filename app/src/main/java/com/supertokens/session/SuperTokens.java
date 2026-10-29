@@ -180,17 +180,68 @@ public class SuperTokens {
                                           Map<String, String> headers)
             throws IOException, IllegalAccessException, SuperTokensGeneralError {
         SessionState.Configuration captured = responseTag.configuration;
+        URL origin = new URL(captured.signOutUrl);
+        URL destination = origin;
+        String method = "POST";
+        for (int redirects = 0; ; redirects++) {
+            if (!SessionTransport.isResponseInScope(destination.toString(), captured)
+                    || !sameOrigin(origin, destination) || !safeRedirectPath(destination)) {
+                throw new IOException("Sign out redirect outside captured session scope");
+            }
+            SignOutRedirect result = signOutWire(context, responseTag, headers, destination, method, redirects < 20);
+            if (result.location == null) return result.retry;
+            destination = new URL(destination, result.location);
+            if (result.code == 301 || result.code == 302 || result.code == 303) method = "GET";
+        }
+    }
+
+    private static boolean sameOrigin(URL left, URL right) {
+        int leftPort = left.getPort() < 0 ? left.getDefaultPort() : left.getPort();
+        int rightPort = right.getPort() < 0 ? right.getDefaultPort() : right.getPort();
+        return left.getProtocol().equalsIgnoreCase(right.getProtocol())
+                && left.getHost().equalsIgnoreCase(right.getHost()) && leftPort == rightPort
+                && right.getUserInfo() == null;
+    }
+
+    private static boolean safeRedirectPath(URL url) {
+        String path = url.getPath();
+        if (path.indexOf('%') >= 0 || path.indexOf('\\') >= 0) return false;
+        for (String part : path.split("/")) {
+            if (part.equals(".") || part.equals("..")) return false;
+        }
+        return true;
+    }
+
+    private static final class SignOutRedirect {
+        final String location;
+        final int code;
+        final boolean retry;
+
+        SignOutRedirect(String location, int code, boolean retry) {
+            this.location = location;
+            this.code = code;
+            this.retry = retry;
+        }
+    }
+
+    private static SignOutRedirect signOutWire(Context context, SessionRequestTag responseTag,
+                                               Map<String, String> headers, URL destination, String method,
+                                               boolean mayRedirect)
+            throws IOException, IllegalAccessException, SuperTokensGeneralError {
+        SessionState.Configuration captured = responseTag.configuration;
         if (!SessionState.isCurrent(responseTag.getOwner(), captured)) throw new StaleSessionException();
-        HttpURLConnection connection = (HttpURLConnection) new URL(captured.signOutUrl).openConnection();
+        HttpURLConnection connection = (HttpURLConnection) destination.openConnection();
         java.io.InputStream responseBody = null;
         try {
-            connection.setRequestMethod("POST");
+            connection.setRequestMethod(method);
             connection.setInstanceFollowRedirects(false);
             connection.setUseCaches(false);
             connection.setConnectTimeout((int) RefreshCoordinator.NETWORK_TIMEOUT_MS);
             connection.setReadTimeout((int) RefreshCoordinator.NETWORK_TIMEOUT_MS);
-            connection.setDoOutput(true);
-            connection.setFixedLengthStreamingMode(0);
+            if (method.equals("POST")) {
+                connection.setDoOutput(true);
+                connection.setFixedLengthStreamingMode(0);
+            }
             for (Map.Entry<String, String> header : headers.entrySet()) {
                 String name = header.getKey();
                 if (name.equalsIgnoreCase("Authorization") || name.equalsIgnoreCase(Constants.CSRF_HEADER_KEY)
@@ -210,23 +261,40 @@ public class SuperTokens {
             }
             // Ambient cookie jars remain outside process-owner credential fencing.
             if (!SessionState.isCurrent(responseTag.getOwner(), captured)) throw new StaleSessionException();
-            connection.getOutputStream().close();
+            if (method.equals("POST")) connection.getOutputStream().close();
             int responseCode = connection.getResponseCode();
             if (!SessionState.isCurrent(responseTag.getOwner(), captured)) throw new StaleSessionException();
+            if (responseCode == 301 || responseCode == 302 || responseCode == 303
+                    || responseCode == 307 || responseCode == 308) {
+                String location = connection.getHeaderField("Location");
+                if (location == null || location.trim().isEmpty()) throw new IOException("Sign out redirect missing Location");
+                if (!mayRedirect) throw new IOException("Sign out redirect limit exceeded");
+                URL next = new URL(destination, location);
+                if (!sameOrigin(new URL(captured.signOutUrl), next) || !safeRedirectPath(next)
+                        || !SessionTransport.isResponseInScope(next.toString(), captured)) {
+                    throw new IOException("Sign out redirect outside captured session scope");
+                }
+                SuperTokensHttpURLConnection.manuallySetCookiesFromResponse(destination, connection);
+                if (!SessionState.isCurrent(responseTag.getOwner(), captured)) throw new StaleSessionException();
+                return new SignOutRedirect(location, responseCode, false);
+            }
             SessionResponse response = new SessionResponse(responseCode, connection.getResponseMessage(),
                     connection.getHeaderFields());
             responseBody = responseCode >= 400 ? connection.getErrorStream() : connection.getInputStream();
             if (responseCode == captured.values.sessionExpiredStatusCode) {
                 try {
                     if (!response.isRemoval()) {
-                        return true;
+                        return new SignOutRedirect(null, 0, true);
                     }
                 } catch (IllegalArgumentException e) {
                     throw new IOException("Invalid sign out response", e);
                 }
+                applySignOutResponse(context, responseTag, response, false);
+                if (responseTag.getAcceptedSnapshot() == null) {
+                    throw new IOException("Sign out removal was superseded by newer session credentials");
+                }
                 SuperTokensHttpURLConnection.manuallySetCookiesFromResponse(connection.getURL(), connection);
-                applySignOutResponse(context, responseTag, response);
-                return false;
+                return new SignOutRedirect(null, 0, false);
             }
             if (responseCode < 200 || responseCode >= 300) {
                 throw new IOException("Sign out failed with response code " + responseCode);
@@ -249,8 +317,8 @@ public class SuperTokens {
                 throw new IllegalStateException(e);
             }
             SuperTokensHttpURLConnection.manuallySetCookiesFromResponse(connection.getURL(), connection);
-            applySignOutResponse(context, responseTag, response);
-            return false;
+            applySignOutResponse(context, responseTag, response, true);
+            return new SignOutRedirect(null, 0, false);
         } finally {
             java.io.InputStream stream = responseBody == null ? connection.getErrorStream() : responseBody;
             if (stream != null) {
@@ -265,8 +333,10 @@ public class SuperTokens {
     }
 
     private static void applySignOutResponse(Context context, SessionRequestTag tag,
-                                             SessionResponse response) throws IOException {
-        SessionCommitResult result = SessionState.applyOrdinaryResponse(context, tag, response);
+                                             SessionResponse response, boolean confirmed) throws IOException {
+        SessionCommitResult result = confirmed
+                ? SessionState.applyConfirmedSignOutResponse(context, tag, response)
+                : SessionState.applyOrdinaryResponse(context, tag, response);
         SessionState.dispatch();
         if (result.getStatus() == SessionCommitResult.Status.STALE_OWNER) throw new StaleSessionException();
         if (!result.isSuccess()) {

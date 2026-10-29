@@ -659,6 +659,35 @@ final class SessionState {
                 && equal(snapshot.getTenantId(), identity.tenantId);
     }
 
+    // Only call after the sign-out endpoint's successful body has been validated.
+    static SessionCommitResult applyConfirmedSignOutResponse(Context context, SessionRequestTag tag,
+                                                              SessionResponse response) {
+        SessionResponse.Candidate candidate;
+        try {
+            candidate = response.ordinaryCandidate();
+        } catch (IllegalArgumentException e) {
+            synchronized (lock) {
+                return new SessionCommitResult(SessionCommitResult.Status.INVALID_SESSION, current, null);
+            }
+        }
+        if (response.code < 200 || response.code >= 300 || candidate == null || !candidate.removal) {
+            return applyOrdinaryResponse(context, tag, response);
+        }
+        synchronized (lock) {
+            if (current == null || configuration == null) {
+                return new SessionCommitResult(SessionCommitResult.Status.NOT_CONFIGURED, null, null);
+            }
+            if (configuration != tag.configuration || !isCurrentLocked(tag.getOwner())) {
+                return staleCommit();
+            }
+            if (current.getStatus() == SessionSnapshot.Status.RECOVERY_REQUIRED
+                    || current.getStatus() == SessionSnapshot.Status.UNAVAILABLE) {
+                return new SessionCommitResult(SessionCommitResult.Status.RECOVERY_REQUIRED, current, null);
+            }
+            return clearForResponseLocked(context, tag, response.code);
+        }
+    }
+
     static SessionCommitResult applyOrdinaryResponse(Context context, SessionRequestTag tag,
                                                       SessionResponse response) {
         SessionResponse.Candidate candidate;
@@ -685,17 +714,15 @@ final class SessionState {
                 return success();
             }
             if (tag.getSnapshot().getAccessTokenRevision() != current.getAccessTokenRevision()
-                    || tag.getSnapshot().getRefreshTokenRevision() != current.getRefreshTokenRevision()
-                    || (refreshFlight != null && !refreshFlight.isDone()
-                    && sameLineage(refreshFlight, current))) {
+                    || tag.getSnapshot().getRefreshTokenRevision() != current.getRefreshTokenRevision()) {
                 return success();
             }
             if (candidate.removal) {
-                if (tag.getSnapshot().getAccessTokenRevision() != current.getAccessTokenRevision()
-                        || tag.getSnapshot().getRefreshTokenRevision() != current.getRefreshTokenRevision()) {
-                    return success();
-                }
                 return clearForResponseLocked(context, tag, response.code);
+            }
+            if (refreshFlight != null && !refreshFlight.isDone()
+                    && sameLineage(refreshFlight, current)) {
+                return success();
             }
             if (response.code < 200 || response.code >= 300) {
                 return success();
@@ -730,7 +757,10 @@ final class SessionState {
                 return replaceForResponseLocked(context, tag, candidate.tokens, identity);
             }
             if (identityChanged) {
-                if (!candidate.completeHeader) {
+                boolean cookieReplacement = !headerMode
+                        && candidate.tokens.getAccessToken() == null
+                        && candidate.tokens.getRefreshToken() == null;
+                if (!candidate.completeHeader && !cookieReplacement) {
                     return new SessionCommitResult(SessionCommitResult.Status.INVALID_SESSION,
                             current, null);
                 }
