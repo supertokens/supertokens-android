@@ -17,284 +17,172 @@
 package com.supertokens.session;
 
 import android.content.Context;
-
 import org.jetbrains.annotations.NotNull;
-
 import java.io.IOException;
 import java.util.Map;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
-
-import okhttp3.FormBody;
+import java.util.concurrent.TimeUnit;
+import okhttp3.Authenticator;
 import okhttp3.Interceptor;
+import okhttp3.MediaType;
+import okhttp3.OkHttpClient;
 import okhttp3.Request;
+import okhttp3.RequestBody;
 import okhttp3.Response;
+import okio.BufferedSink;
 
 @SuppressWarnings("unused")
 public class SuperTokensInterceptor implements Interceptor {
-    private static final Object refreshTokenLock = new Object();
-    private static final ReentrantReadWriteLock refreshAPILock = new ReentrantReadWriteLock();
+    private final OkHttpClient refreshClient;
 
-
-    // Returns true authorization header in the provided request matches the current local access token.
-    // This is used to decide whether the authorization header should be removed before making the request.
-    private boolean shouldRemoveAuthHeader(Request request, Context context) {
-        String originalHeader = request.header("Authorization");
-
-        if (originalHeader == null) {
-            originalHeader = request.header("authorization");
-        }
-
-        if (originalHeader != null) {
-            String accessToken = Utils.getTokenForHeaderAuth(Utils.TokenType.ACCESS, context);
-            String refreshToken = Utils.getTokenForHeaderAuth(Utils.TokenType.REFRESH, context);
-
-            if (accessToken != null && refreshToken != null && (originalHeader.equals("Bearer " + accessToken) || originalHeader.equals("bearer " + accessToken))) {
-                return true;
-            }
-        }
-
-        return false;
+    public SuperTokensInterceptor() {
+        refreshClient = null;
     }
 
-
-    private static Request setAuthorizationHeaderIfRequired(Request request, Request.Builder builder, Context context, boolean addRefreshToken) {
-        String authHeader = Utils.getAuthorizationHeaderIfExists(addRefreshToken, context);
-        boolean hasExistingAuthHeader = request.header("Authorization") != null || request.header("authorization") != null;
-
-        if (authHeader != null && !hasExistingAuthHeader) {
-            builder.header("Authorization", authHeader);
-        }
-
-        return builder.build();
-    }
-
-    private static Response makeRequest(Chain chain, Request request) throws IOException {
-        return chain.proceed(request);
+    public SuperTokensInterceptor(OkHttpClient refreshClient) {
+        if (refreshClient == null) throw new NullPointerException("refreshClient");
+        OkHttpClient.Builder builder = refreshClient.newBuilder()
+                .retryOnConnectionFailure(false).followRedirects(false).followSslRedirects(false)
+                .authenticator(Authenticator.NONE).proxyAuthenticator(Authenticator.NONE).cache(null)
+                .callTimeout(RefreshCoordinator.NETWORK_TIMEOUT_MS, TimeUnit.MILLISECONDS)
+                .connectTimeout(RefreshCoordinator.NETWORK_TIMEOUT_MS, TimeUnit.MILLISECONDS)
+                .readTimeout(RefreshCoordinator.NETWORK_TIMEOUT_MS, TimeUnit.MILLISECONDS)
+                .writeTimeout(RefreshCoordinator.NETWORK_TIMEOUT_MS, TimeUnit.MILLISECONDS);
+        builder.interceptors().clear();
+        builder.networkInterceptors().clear();
+        this.refreshClient = builder.build();
     }
 
     @NotNull
     @Override
     public Response intercept(@NotNull Chain chain) throws IOException {
-        if (!SuperTokens.isInitCalled) {
-            throw new IOException("SuperTokens.init function needs to be called before using interceptors");
+        if (!SuperTokens.isInitCalled) throw new IOException("SuperTokens.init function needs to be called before using interceptors");
+        Context context = SuperTokens.contextWeakReference.get();
+        if (context == null) throw new IOException("Context is null");
+        Request original = chain.request();
+        SessionRequestTag supplied = original.tag(SessionRequestTag.class);
+        SessionRequestTag logical = supplied == null ? SessionState.capture() : supplied;
+        SessionState.Configuration config = logical.configuration;
+        String url = original.url().toString();
+        if (!Utils.shouldDoInterceptionBasedOnUrl(url, config.values.apiDomain,
+                config.values.sessionTokenBackendDomain) || url.equals(config.refreshTokenUrl)) {
+            return chain.proceed(original);
         }
-
-        Context applicationContext = SuperTokens.contextWeakReference.get();
-        if (applicationContext == null) {
-            throw new IOException("Context is null");
-        }
-
-        String requestUrl = chain.request().url().url().toString();
-
-        boolean doNotDoInterception = !Utils.shouldDoInterceptionBasedOnUrl(requestUrl, SuperTokens.config.apiDomain, SuperTokens.config.sessionTokenBackendDomain);
-
-        if (doNotDoInterception) {
-            return chain.proceed(chain.request());
-        }
-
-        if (requestUrl.equals(SuperTokens.refreshTokenUrl)) {
-            /**
-             * We don't want to intercept calls to the refresh token endpoint. Return the response of the request.
-             *
-             * Note: This check is required in the case of okhttp because requests made internally get passed back to the
-             * interception chain
-             */
-            return chain.proceed(chain.request());
-        }
-
-        boolean wasAuthHeaderRemovedInitially = false;
-        int sessionRefreshAttempts = 0;
+        SessionTransport.requireCurrent(logical);
+        String explicit = original.header("Authorization");
+        boolean managed = explicit == null || (original.headers("Authorization").size() == 1
+                && SessionTransport.matches(explicit, SessionTransport.authorization(logical.getSnapshot(), false)));
+        if (!managed && supplied != null) throw new IOException("Authorization does not match the captured session");
+        SessionRequestTag wire = new SessionRequestTag(logical.getSnapshot(), config);
+        int attempts = 0;
         while (true) {
-            Request.Builder requestBuilder = chain.request().newBuilder();
-            Utils.LocalSessionState preRequestLocalSessionState;
-            Response response;
-            refreshAPILock.readLock().lock();
+            SessionTransport.requireCurrent(logical);
+            Request.Builder builder = original.newBuilder().header("st-auth-mode", config.values.tokenTransferMethod);
+            if (original.header("rid") == null) builder.header("rid", "anti-csrf");
+            if (managed) {
+                builder.removeHeader("Authorization");
+                String auth = SessionTransport.authorization(wire.getSnapshot(), false);
+                if (auth != null) builder.header("Authorization", auth);
+                String anti = SessionTransport.antiCSRF(wire.getSnapshot());
+                if (anti != null) builder.header(Constants.CSRF_HEADER_KEY, anti);
+            }
+            Request request = builder.build();
+            SessionTransport.requireCurrent(logical);
+            Response response = chain.proceed(request);
             try {
-                preRequestLocalSessionState = Utils.getLocalSessionState(applicationContext);
-                String antiCSRFToken = AntiCSRF.getToken(applicationContext, preRequestLocalSessionState.lastAccessTokenUpdate);
-
-                if (antiCSRFToken != null) {
-                    requestBuilder.header(Constants.CSRF_HEADER_KEY, antiCSRFToken);
+                if (!SessionTransport.isResponseInScope(response.request().url().toString(), config)) {
+                    if (supplied != null) throw new IOException("Response URL is outside captured session scope");
+                    return response;
                 }
-
-                requestBuilder.header("st-auth-mode", SuperTokens.config.tokenTransferMethod);
-
-                Request request = requestBuilder.build();
-
-                if (request.header("rid") == null) {
-                    request = request.newBuilder().header("rid", "anti-csrf").build();
+                // Downstream auth replacement has no authority to mutate the managed session.
+                boolean wireManaged = managed && response.request().headers("Authorization").size() <= 1
+                        && SessionTransport.matches(
+                        response.request().header("Authorization"), request.header("Authorization"));
+                if (!wireManaged) {
+                    if (supplied != null) throw new IOException("Authorization changed during dispatch");
+                    return response;
                 }
-
-                // Check if the Authorization header should be removed
-                // This is necessary to ensure that if the auth header was removed initially,
-                // it remains removed in subsequent retries even if the token has changed.
-                if (wasAuthHeaderRemovedInitially || shouldRemoveAuthHeader(request, applicationContext)) {
-                    Request.Builder builder = request.newBuilder();
-                    builder.removeHeader("Authorization");
-                    builder.removeHeader("authorization");
-                    request = builder.build();
-
-                    wasAuthHeaderRemovedInitially = true;
+                boolean current = SessionTransport.apply(context, logical, wire,
+                        SessionResponse.fromOkHttp(response), supplied != null);
+                if (!current || response.code() != config.values.sessionExpiredStatusCode) return response;
+                if (!SessionState.isCurrent(logical.getOwner(), config)) return response;
+                if (attempts >= config.values.maxRetryAttemptsForSessionRefresh) {
+                    throw new IOException(SessionTransport.retryLimitMessage(url,
+                            config.values.maxRetryAttemptsForSessionRefresh));
                 }
-
-                request = setAuthorizationHeaderIfRequired(request, request.newBuilder(), applicationContext, false);
-
-                response = makeRequest(chain, request);
-                Utils.saveTokenFromHeaders(response, applicationContext);
-                Utils.fireSessionUpdateEventsIfNecessary(
-                        preRequestLocalSessionState.status == Utils.LocalSessionStateStatus.EXISTS,
-                        response.code(),
-                        response.header(Constants.FRONT_TOKEN_HEADER_KEY)
-                );
-            } finally {
-                refreshAPILock.readLock().unlock();
-            }
-
-            if (response.code() == SuperTokens.config.sessionExpiredStatusCode) {
-                /**
-                 * An API may return a 401 error response even with a valid session, causing a session refresh loop in the interceptor.
-                 * To prevent this infinite loop, we break out of the loop after retrying the original request a specified number of times.
-                 * The maximum number of retry attempts is defined by maxRetryAttemptsForSessionRefresh config variable.
-                 */
-                if (sessionRefreshAttempts >= SuperTokens.config.maxRetryAttemptsForSessionRefresh) {
-                    String errorMsg = "Received a 401 response from " + requestUrl + ". Attempted to refresh the session and retry the request with the updated session tokens " + SuperTokens.config.maxRetryAttemptsForSessionRefresh + " times, but each attempt resulted in a 401 error. The maximum session refresh limit has been reached. Please investigate your API. To increase the session refresh attempts, update maxRetryAttemptsForSessionRefresh in the config.";
-                    System.err.println(errorMsg);
-                    throw new IOException(errorMsg);
-                }
-
-                // Cloning the response object, if retry is false then we return this
-                Response clonedResponse = new Response.Builder()
-                        .body(response.peekBody(Long.MAX_VALUE))
-                        .cacheResponse(response.cacheResponse())
-                        .code(response.code())
-                        .handshake(response.handshake())
-                        .headers(response.headers())
-                        .message(response.message())
-                        .networkResponse(response.networkResponse())
-                        .priorResponse(response.priorResponse())
-                        .protocol(response.protocol())
-                        .receivedResponseAtMillis(response.receivedResponseAtMillis())
-                        .request(response.request())
-                        .sentRequestAtMillis(response.sentRequestAtMillis())
-                        .build();
-                response.close();
-
-                Utils.Unauthorised unauthorisedResponse = onUnauthorisedResponse(preRequestLocalSessionState, applicationContext, chain);
-
-                sessionRefreshAttempts++;
-
-                if (unauthorisedResponse.status != Utils.Unauthorised.UnauthorisedStatus.RETRY) {
-                    if (unauthorisedResponse.error != null) {
-                        throw unauthorisedResponse.error;
+                if (refreshClient == null && response.body() != null) {
+                    // The legacy chain cannot proceed again while its prior response is open.
+                    okhttp3.ResponseBody saved = response.peekBody(1024 * 1024 + 1);
+                    if (saved.contentLength() > 1024 * 1024) {
+                        saved.close();
+                        throw new IOException("Session-expired response body is too large to retain for refresh");
                     }
-
-                    return clonedResponse;
+                    Response buffered = response.newBuilder().body(saved).build();
+                    response.close();
+                    response = buffered;
                 }
-            } else {
-                return response;
+                SessionResolution resolution = RefreshCoordinator.resolve(context, logical.getOwner(),
+                        SessionTransport.access(wire.getSnapshot()) == null,
+                        SessionTransport.access(wire.getSnapshot()), (ctx, configuration, captured) -> {
+                            if (configuration != config) throw new StaleSessionException();
+                            return refresh(chain, configuration, captured);
+                        }, wire.getSnapshot().getRefreshTokenRevision());
+                if (!resolution.isSuccess()) {
+                    if (resolution.getError() != null) throw resolution.getError();
+                    return response;
+                }
+                wire = SessionTransport.nextWire(logical);
+                attempts++;
+            } catch (IOException | RuntimeException e) {
+                response.close();
+                throw e;
             }
+            response.close();
         }
     }
 
-    private static Utils.Unauthorised onUnauthorisedResponse(Utils.LocalSessionState preRequestLocalSessionState, Context applicationContext, Chain chain) {
-        // this is intentionally not put in a loop because the loop in other projects is because locking has a timeout
-        Response refreshResponse = null;
-        try {
-            refreshAPILock.writeLock().lock();
-            Utils.LocalSessionState postLockLocalSessionState = Utils.getLocalSessionState(applicationContext);
-            if (postLockLocalSessionState.status == Utils.LocalSessionStateStatus.NOT_EXISTS) {
-                SuperTokens.config.eventHandler.handleEvent(EventHandler.EventType.UNAUTHORISED);
-                return new Utils.Unauthorised(Utils.Unauthorised.UnauthorisedStatus.SESSION_EXPIRED);
+    private SessionResponse refresh(Chain chain, SessionState.Configuration configuration,
+                                    SessionSnapshot captured) throws IOException {
+        RefreshDeadline deadline = new RefreshDeadline();
+        SessionRequestTag tag = new SessionRequestTag(captured, configuration);
+        SessionTransport.requireCurrent(tag);
+        RequestBody body = new RequestBody() {
+            @Override public MediaType contentType() { return MediaType.get("application/x-www-form-urlencoded"); }
+            @Override public long contentLength() { return 0; }
+            @Override public boolean isOneShot() { return true; }
+            @Override public void writeTo(BufferedSink sink) {}
+        };
+        Request.Builder builder = new Request.Builder().url(configuration.refreshTokenUrl).post(body)
+                .header("rid", SuperTokens.rid).header("fdi-version", Utils.join(Version.supported_fdi, ","))
+                .header("st-auth-mode", configuration.values.tokenTransferMethod);
+        String auth = SessionTransport.authorization(captured, true);
+        String anti = SessionTransport.antiCSRF(captured);
+        if (auth != null) builder.header("Authorization", auth);
+        if (anti != null) builder.header(Constants.CSRF_HEADER_KEY, anti);
+        Map<String, String> headers = configuration.values.customHeaderMapper
+                .getRequestHeaders(CustomHeaderProvider.RequestType.REFRESH);
+        if (headers != null) {
+            for (Map.Entry<String, String> entry : headers.entrySet()) builder.header(entry.getKey(), entry.getValue());
+        }
+        Request request = builder.build();
+        if (!SessionTransport.matches(request.header("Authorization"), auth)) {
+            throw new RefreshCoordinator.ConfigurationException("Refresh callback changed authorization");
+        }
+        SessionTransport.requireCurrent(tag);
+        okhttp3.Call refreshCall = refreshClient == null ? chain.call() : refreshClient.newCall(request);
+        if (refreshClient != null) refreshCall.timeout().timeout(deadline.remainingMillis(), TimeUnit.MILLISECONDS);
+        java.util.concurrent.ScheduledFuture<?> timeout = deadline.cancelAfterDeadline(refreshCall::cancel);
+        try (Response response = refreshClient == null ? chain.proceed(request) : refreshCall.execute()) {
+            deadline.remainingMillis();
+            if (!SessionTransport.isResponseInScope(response.request().url().toString(), configuration)) {
+                throw new RefreshCoordinator.ConfigurationException("Refresh response URL is outside captured session scope");
             }
-
-            if ( postLockLocalSessionState.status != preRequestLocalSessionState.status ||
-                    (postLockLocalSessionState.status == Utils.LocalSessionStateStatus.EXISTS &&
-                            preRequestLocalSessionState.status == Utils.LocalSessionStateStatus.EXISTS &&
-                            postLockLocalSessionState.lastAccessTokenUpdate != preRequestLocalSessionState.lastAccessTokenUpdate) ) {
-                return new Utils.Unauthorised(Utils.Unauthorised.UnauthorisedStatus.RETRY);
+            if (response.request().headers("Authorization").size() > 1
+                    || !SessionTransport.matches(response.request().header("Authorization"), auth)) {
+                throw new RefreshCoordinator.ConfigurationException("Refresh authorization changed during dispatch");
             }
-
-            Request.Builder refreshRequestBuilder = new Request.Builder();
-            refreshRequestBuilder.url(SuperTokens.refreshTokenUrl);
-            refreshRequestBuilder.method("POST", new FormBody.Builder().build());
-            
-            Request refreshRequest = refreshRequestBuilder.build();
-
-            if (preRequestLocalSessionState.status == Utils.LocalSessionStateStatus.EXISTS) {
-                String antiCSRFToken = AntiCSRF.getToken(applicationContext, preRequestLocalSessionState.lastAccessTokenUpdate);
-
-                if (antiCSRFToken != null) {
-                    refreshRequestBuilder.header(Constants.CSRF_HEADER_KEY, antiCSRFToken);
-                }
-            }
-
-            refreshRequestBuilder.header("rid", SuperTokens.rid);
-            refreshRequestBuilder.header("fdi-version", Utils.join(Version.supported_fdi, ","));
-            refreshRequestBuilder.header("st-auth-mode", SuperTokens.config.tokenTransferMethod);
-
-            refreshRequestBuilder = setAuthorizationHeaderIfRequired(refreshRequest, refreshRequestBuilder, applicationContext, true).newBuilder();
-
-            Map<String, String> customRefreshHeaders = SuperTokens.config.customHeaderMapper.getRequestHeaders(CustomHeaderProvider.RequestType.REFRESH);
-            if (customRefreshHeaders != null) {
-                for (Map.Entry<String, String> entry : customRefreshHeaders.entrySet()) {
-                    refreshRequestBuilder.header(entry.getKey(), entry.getValue());
-                }
-            }
-
-            refreshRequest = refreshRequestBuilder.build();
-            refreshResponse = makeRequest(chain, refreshRequest);
-
-            Utils.saveTokenFromHeaders(refreshResponse, applicationContext);
-            final int code = refreshResponse.code();
-
-            boolean isUnauthorised = code == SuperTokens.config.sessionExpiredStatusCode;
-
-            if (isUnauthorised && refreshResponse.header(Constants.FRONT_TOKEN_HEADER_KEY) != null) {
-                FrontToken.setItem(applicationContext, "remove");
-            }
-
-            String frontTokenInHeaders = refreshResponse.header(Constants.FRONT_TOKEN_HEADER_KEY);
-
-            Utils.fireSessionUpdateEventsIfNecessary(
-                    preRequestLocalSessionState.status == Utils.LocalSessionStateStatus.EXISTS,
-                    code,
-                    frontTokenInHeaders == null ? "remove" : frontTokenInHeaders
-            );
-
-            if (code < 200 || code >= 300) {
-                String responseMessage = refreshResponse.message();
-                throw new IOException(responseMessage);
-            }
-
-            if (Utils.getLocalSessionState(applicationContext).status == Utils.LocalSessionStateStatus.NOT_EXISTS) {
-                // The execution should never come here.. but just in case.
-                // removed by server. So we logout
-                // we do not send "UNAUTHORISED" event here because
-                // this is a result of the refresh API returning a session expiry, which
-                // means that the frontend did not know for sure that the session existed
-                // in the first place.
-                return new Utils.Unauthorised(Utils.Unauthorised.UnauthorisedStatus.SESSION_EXPIRED);
-            }
-
-            SuperTokens.config.eventHandler.handleEvent(EventHandler.EventType.REFRESH_SESSION);
-            return new Utils.Unauthorised(Utils.Unauthorised.UnauthorisedStatus.RETRY);
-
-        } catch (Exception e) {
-            IOException ioe = new IOException(e);
-            if (e instanceof IOException) {
-                ioe = (IOException) e;
-            }
-            if (Utils.getLocalSessionState(applicationContext).status == Utils.LocalSessionStateStatus.NOT_EXISTS) {
-                return new Utils.Unauthorised(Utils.Unauthorised.UnauthorisedStatus.SESSION_EXPIRED);
-            }
-
-            return new Utils.Unauthorised(Utils.Unauthorised.UnauthorisedStatus.API_ERROR, ioe);
-
+            return SessionResponse.fromOkHttp(response);
         } finally {
-            refreshAPILock.writeLock().unlock();
-            if (refreshResponse != null) {
-                refreshResponse.close();
-            }
+            RefreshDeadline.finished(timeout);
         }
     }
 }

@@ -17,312 +17,214 @@
 package com.supertokens.session;
 
 import android.content.Context;
-
 import java.io.IOException;
 import java.net.CookieManager;
 import java.net.HttpCookie;
 import java.net.HttpURLConnection;
 import java.net.URISyntaxException;
 import java.net.URL;
-import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 @SuppressWarnings("unused")
 public class SuperTokensHttpURLConnection {
-    private static final Object refreshTokenLock = new Object();
-    private static final ReentrantReadWriteLock refreshAPILock = new ReentrantReadWriteLock();
-
-    private static void setAuthorizationHeaderIfRequired(SuperTokensCustomHttpURLConnection connection, Context context) {
-        String authHeader = Utils.getAuthorizationHeaderIfExists(false, context);
-
-        // NOTE: We do not check for existing Auth headers here because they are added after this function runs.
-        // The `setRequestProperty` method in SuperTokensCustomHttpURLConnection is overridden to prevent users from adding
-        // an auth header that matches the locally stored access token.
-        if (authHeader != null) {
-            connection.setRequestPropertyIgnoringOverride("Authorization", authHeader);
-        }
+    public static HttpURLConnection newRequest(URL url, PreConnectCallback callback)
+            throws IllegalAccessException, IOException {
+        return newRequest(url, callback, null);
     }
 
-    private static void setAuthorizationHeaderIfRequiredForRefresh(HttpURLConnection connection, Context context) {
-        String authHeader = Utils.getAuthorizationHeaderIfExists(true, context);
-        // NOTE: Checking for an existing auth header is not necessary for a refresh API call.
-        if (authHeader != null) {
-            connection.setRequestProperty("Authorization", authHeader);
+    public static HttpURLConnection newRequest(URL url, PreConnectCallback callback,
+                                               SessionRequestTag requestTag)
+            throws IllegalAccessException, IOException {
+        if (!SuperTokens.isInitCalled) throw new IllegalAccessException("SuperTokens.init function needs to be called before using newRequest");
+        Context context = SuperTokens.contextWeakReference.get();
+        if (context == null) throw new IllegalAccessException("Context is null");
+        SessionRequestTag logical = requestTag == null ? SessionState.capture() : requestTag;
+        SessionState.Configuration config = logical.configuration;
+        if (!Utils.shouldDoInterceptionBasedOnUrl(url.toString(), config.values.apiDomain,
+                config.values.sessionTokenBackendDomain)) {
+            throw new IllegalAccessException("Trying to call newRequest with a URL that cannot be handled by SuperTokens");
         }
-    }
-
-    private static void manuallySetCookiesFromResponse(URL url, HttpURLConnection connection) throws IOException, IllegalAccessException {
-        /*
-            Android has a bug where it does not set cookies when the API url path
-            does not start with the cookie path
-
-            To fix this we read the Set-Cookie header and then for each cookie we create
-            a URL using the same path as the cookie path and the same domain as the URL
-            of the original request.
-
-            We then set the cookies using CookieManager.getDefault. Note: We dont need to
-            check for CookieManager.getDefault being null because newRequest checks this before
-            using connection.connect
-         */
-        List<String> cookies = connection.getHeaderFields().get("Set-Cookie");
-
-        if (cookies != null) {
-            // We check if one of the cookies is the access token and throw if the Cookie Manager has not
-            // been set.
-            for (int i = 0; i < cookies.size(); i++) {
-                HttpCookie currentCookie = HttpCookie.parse(cookies.get(i)).get(0);
-
-                // The backend may respond with cookies instead of headers even if auth mode is
-                // set to headers. In this case we should throw if a CookieManager is not set
-                if (currentCookie.getName().equals("sAccessToken") && CookieManager.getDefault() == null) {
-                    throw new IllegalAccessException("Please initialise a CookieManager.\n" +
-                            "For example: new CookieManager(new SuperTokensPersistentCookieStore(context), null).\n" +
-                            "SuperTokens provides a persistent cookie store called SuperTokensPersistentCookieStore.\n" +
-                            "For more information visit our documentation.");
-                }
-            }
-
-            for (int i = 0; i < cookies.size(); i++) {
-                HttpCookie currentCookie = HttpCookie.parse(cookies.get(i)).get(0);
-
-                String pathToUse = "/";
-
-                if (currentCookie.getPath() != null) {
-                    pathToUse = currentCookie.getPath();
-                }
-
-                String urlDomain = new NormalisedURLDomain(url.toString()).getAsStringDangerous();
-
-                URL urlToUse = new URL(urlDomain + pathToUse);
-
-                Map<String, List<String>> fakeSetCookieHeader = new HashMap<>();
-                List<String> fakeCookieValue = new ArrayList<>();
-                fakeCookieValue.add(cookies.get(i));
-
-                fakeSetCookieHeader.put("Set-Cookie", fakeCookieValue);
-
-                try {
-                    CookieManager.getDefault().put(urlToUse.toURI(), fakeSetCookieHeader);
-                } catch (URISyntaxException e) {
-                    // Should not come here
-                    throw new IllegalStateException("Could not parse response correctly");
-                }
-            }
-        }
-    }
-
-    public static HttpURLConnection newRequest(URL url, PreConnectCallback preConnectCallback) throws IllegalAccessException, IOException {
-        if ( !SuperTokens.isInitCalled ) {
-            throw new IllegalAccessException("SuperTokens.init function needs to be called before using newRequest");
-        }
-
-        Context applicationContext = SuperTokens.contextWeakReference.get();
-        if ( applicationContext == null ) {
-            throw new IllegalAccessException("Context is null");
-        }
-
-        boolean doNotDoInterception = !Utils.shouldDoInterceptionBasedOnUrl(url.toString(), SuperTokens.config.apiDomain, SuperTokens.config.sessionTokenBackendDomain);
-
-        if (doNotDoInterception) {
-            String errorMessage = "Trying to call newRequest with a URL that cannot be handled by SuperTokens.\n";
-            errorMessage += "If you are trying to use SuperTokens with multiple subdomains for your APIs, make sure you are setting cookieDomain in SuperTokens.init correctly";
-            throw new IllegalAccessException(errorMessage);
-        }
-
-        int sessionRefreshAttempts = 0;
-        HttpURLConnection connection;
-        SuperTokensCustomHttpURLConnection customConnection = null;
-        while (true) {
-            Utils.LocalSessionState preRequestLocalSessionState;
-            int responseCode;
-            // TODO: write comment as to why we have this lock here. Do we also have this lock for iOS and website package?
-            refreshAPILock.readLock().lock();
+        if (url.toString().equals(config.refreshTokenUrl)) {
+            HttpURLConnection raw = (HttpURLConnection) url.openConnection();
             try {
-                boolean wasAuthHeaderRemovedInitially = customConnection != null && customConnection.getWasAuthHeaderRemovedInitially();
-                connection = (HttpURLConnection) url.openConnection();
-                customConnection = new SuperTokensCustomHttpURLConnection(connection, applicationContext, wasAuthHeaderRemovedInitially);
-
-                // Add antiCSRF token, if present in storage, to the request headers
-                preRequestLocalSessionState = Utils.getLocalSessionState(applicationContext);
-                String antiCSRFToken = AntiCSRF.getToken(applicationContext, preRequestLocalSessionState.lastAccessTokenUpdate);
-
-                if (antiCSRFToken != null) {
-                    customConnection.setRequestProperty(Constants.CSRF_HEADER_KEY, antiCSRFToken);
-                }
-
-                if (CookieManager.getDefault() == null && SuperTokens.config.tokenTransferMethod.equals("cookie")) {
-                    throw new IllegalAccessException("Please initialise a CookieManager.\n" +
-                            "For example: new CookieManager(new SuperTokensPersistentCookieStore(context), null).\n" +
-                            "SuperTokens provides a persistent cookie store called SuperTokensPersistentCookieStore.\n" +
-                            "For more information visit our documentation.");
-                }
-
-                if (customConnection.getRequestProperty("rid") == null) {
-                    customConnection.setRequestProperty("rid", "anti-csrf");
-                }
-
-                customConnection.setRequestProperty("st-auth-mode", SuperTokens.config.tokenTransferMethod);
-                setAuthorizationHeaderIfRequired(customConnection, applicationContext);
-
-                // This will allow the user to set headers or modify request in anyway they want
-                // TODO NEMI: Replace this with pre api hook when implemented
-                if (preConnectCallback != null) {
-                    preConnectCallback.doAction(customConnection);
-                }
-
-                customConnection.connect();
-
-                responseCode = customConnection.getResponseCode();
-                Utils.saveTokenFromHeaders(customConnection, applicationContext);
-                manuallySetCookiesFromResponse(url, customConnection);
-
-                Utils.fireSessionUpdateEventsIfNecessary(
-                        preRequestLocalSessionState.status == Utils.LocalSessionStateStatus.EXISTS,
-                        responseCode,
-                        customConnection.getHeaderField(Constants.FRONT_TOKEN_HEADER_KEY)
-                );
-            } finally {
-                refreshAPILock.readLock().unlock();
+                if (callback != null) callback.doAction(raw);
+                raw.connect();
+                return raw;
+            } catch (IOException | RuntimeException e) {
+                raw.disconnect();
+                throw e;
             }
-
-            if (responseCode == SuperTokens.config.sessionExpiredStatusCode) {
-                /**
-                 * An API may return a 401 error response even with a valid session, causing a session refresh loop in the interceptor.
-                 * To prevent this infinite loop, we break out of the loop after retrying the original request a specified number of times.
-                 * The maximum number of retry attempts is defined by maxRetryAttemptsForSessionRefresh config variable.
-                 */
-                if (sessionRefreshAttempts >= SuperTokens.config.maxRetryAttemptsForSessionRefresh) {
-                    String errorMsg = "Received a 401 response from " + url + ". Attempted to refresh the session and retry the request with the updated session tokens " + SuperTokens.config.maxRetryAttemptsForSessionRefresh + " times, but each attempt resulted in a 401 error. The maximum session refresh limit has been reached. Please investigate your API. To increase the session refresh attempts, update maxRetryAttemptsForSessionRefresh in the config.";
-                    System.err.println(errorMsg);
-                    throw new IllegalAccessException(errorMsg);
+        }
+        requireCookieManager(config);
+        SessionRequestTag wire = new SessionRequestTag(logical.getSnapshot(), config);
+        int attempts = 0;
+        while (true) {
+            SessionTransport.requireCurrent(logical);
+            SuperTokensCustomHttpURLConnection connection = new SuperTokensCustomHttpURLConnection(
+                    (HttpURLConnection) url.openConnection(), context, logical, wire, requestTag != null);
+            try {
+                connection.setRequestPropertyIgnoringOverride("rid", "anti-csrf");
+                connection.setRequestPropertyIgnoringOverride("st-auth-mode", config.values.tokenTransferMethod);
+                String auth = SessionTransport.authorization(wire.getSnapshot(), false);
+                String anti = SessionTransport.antiCSRF(wire.getSnapshot());
+                if (auth != null) connection.setRequestPropertyIgnoringOverride("Authorization", auth);
+                if (anti != null) connection.setRequestPropertyIgnoringOverride(Constants.CSRF_HEADER_KEY, anti);
+                if (callback != null) callback.doAction(connection);
+                SessionTransport.requireCurrent(logical);
+                connection.connect();
+                int code = connection.getResponseCode();
+                // The wrapper records pre-redirect headers, not the final wire's authorization.
+                if (!SessionTransport.isResponseInScope(connection.getURL().toString(), config)) {
+                    if (requestTag != null) throw new IOException("Response URL is outside captured session scope");
+                    return connection;
                 }
-
-                // Network call threw UnauthorisedAccess, try to call the refresh token endpoint and retry original call
-                Utils.Unauthorised unauthorisedResponse = SuperTokensHttpURLConnection.onUnauthorisedResponse(preRequestLocalSessionState, applicationContext);
-
-                sessionRefreshAttempts++;
-
-                if (unauthorisedResponse.status != Utils.Unauthorised.UnauthorisedStatus.RETRY) {
-
-                    if (unauthorisedResponse.error != null) {
-                        throw unauthorisedResponse.error;
-                    }
-
-                    return customConnection;
+                boolean managed = connection.isManagedAuthorization();
+                boolean current = !managed || SessionTransport.apply(context, logical, wire,
+                        SessionResponse.fromHttp(connection), requestTag != null);
+                manuallySetCookiesFromResponse(connection.getURL(), connection);
+                if (!managed || !current || code != config.values.sessionExpiredStatusCode
+                        || !SessionState.isCurrent(logical.getOwner(), config)) return connection;
+                if (attempts >= config.values.maxRetryAttemptsForSessionRefresh) {
+                    throw new IllegalAccessException(SessionTransport.retryLimitMessage(url.toString(),
+                            config.values.maxRetryAttemptsForSessionRefresh));
                 }
-            } else if (responseCode == -1) {
-                // If the response code is -1 then the response was not a valid HTTP response, return the output of the users execution
-                return customConnection;
-            } else {
-                return customConnection;
+                SessionResolution resolution = RefreshCoordinator.resolve(context, logical.getOwner(),
+                        SessionTransport.access(wire.getSnapshot()) == null,
+                        SessionTransport.access(wire.getSnapshot()), (ctx, configuration, captured) -> {
+                            if (configuration != config) throw new StaleSessionException();
+                            return refresh(ctx, configuration, captured);
+                        }, wire.getSnapshot().getRefreshTokenRevision());
+                if (!resolution.isSuccess()) {
+                    if (resolution.getError() != null) throw resolution.getError();
+                    return connection;
+                }
+                wire = SessionTransport.nextWire(logical);
+                attempts++;
+            } catch (IOException | IllegalAccessException | RuntimeException e) {
+                connection.disconnect();
+                if (e instanceof IllegalStateException && e.getCause() instanceof IOException) {
+                    throw (IOException) e.getCause();
+                }
+                throw e;
             }
-            customConnection.disconnect();
+            connection.disconnect();
         }
     }
 
-    static Utils.Unauthorised onUnauthorisedResponse(Utils.LocalSessionState preRequestLocalSessionState, Context applicationContext) {
-        // this is intentionally not put in a loop because the loop in other projects is because locking has a timeout
-        HttpURLConnection refreshTokenConnection = null;
+    static RefreshCoordinator.Transport refreshTransport() {
+        return SuperTokensHttpURLConnection::refresh;
+    }
+
+    static SessionResponse refresh(Context context, SessionState.Configuration configuration,
+                                   SessionSnapshot captured) throws IOException {
+        RefreshDeadline deadline = new RefreshDeadline();
+        SessionRequestTag tag = new SessionRequestTag(captured, configuration);
+        SessionTransport.requireCurrent(tag);
+        URL url = new URL(configuration.refreshTokenUrl);
+        HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+        java.util.concurrent.ScheduledFuture<?> timeout = null;
         try {
-            refreshAPILock.writeLock().lock();
-            Utils.LocalSessionState postLockLocalSessionState = Utils.getLocalSessionState(applicationContext);
-            if ( postLockLocalSessionState.status == Utils.LocalSessionStateStatus.NOT_EXISTS ) {
-                SuperTokens.config.eventHandler.handleEvent(EventHandler.EventType.UNAUTHORISED);
-                return new Utils.Unauthorised(Utils.Unauthorised.UnauthorisedStatus.SESSION_EXPIRED);
-            }
-
-            if ( postLockLocalSessionState.status != preRequestLocalSessionState.status ||
-                    (postLockLocalSessionState.status == Utils.LocalSessionStateStatus.EXISTS &&
-                            preRequestLocalSessionState.status == Utils.LocalSessionStateStatus.EXISTS &&
-                            postLockLocalSessionState.lastAccessTokenUpdate != preRequestLocalSessionState.lastAccessTokenUpdate) ) {
-                return new Utils.Unauthorised(Utils.Unauthorised.UnauthorisedStatus.RETRY);
-            }
-
-            URL refreshTokenUrl = new URL(SuperTokens.refreshTokenUrl);
-            refreshTokenConnection = (HttpURLConnection) refreshTokenUrl.openConnection();
-            refreshTokenConnection.setRequestMethod("POST");
-
-            if (preRequestLocalSessionState.status == Utils.LocalSessionStateStatus.EXISTS) {
-                String antiCSRFToken = AntiCSRF.getToken(applicationContext, preRequestLocalSessionState.lastAccessTokenUpdate);
-
-                if (antiCSRFToken != null) {
-                    refreshTokenConnection.setRequestProperty(Constants.CSRF_HEADER_KEY, antiCSRFToken);
+            requireCookieManager(configuration);
+            connection.setRequestMethod("POST");
+            connection.setInstanceFollowRedirects(false);
+            connection.setUseCaches(false);
+            connection.setConnectTimeout((int) RefreshCoordinator.NETWORK_TIMEOUT_MS);
+            connection.setReadTimeout((int) RefreshCoordinator.NETWORK_TIMEOUT_MS);
+            // Streaming prevents HttpURLConnection from transparently replaying this POST.
+            connection.setDoOutput(true);
+            connection.setFixedLengthStreamingMode(0);
+            connection.setRequestProperty("rid", SuperTokens.rid);
+            connection.setRequestProperty("fdi-version", Utils.join(Version.supported_fdi, ","));
+            connection.setRequestProperty("st-auth-mode", configuration.values.tokenTransferMethod);
+            String auth = SessionTransport.authorization(captured, true);
+            String anti = SessionTransport.antiCSRF(captured);
+            if (auth != null) connection.setRequestProperty("Authorization", auth);
+            if (anti != null) connection.setRequestProperty(Constants.CSRF_HEADER_KEY, anti);
+            Map<String, String> headers = configuration.values.customHeaderMapper
+                    .getRequestHeaders(CustomHeaderProvider.RequestType.REFRESH);
+            if (headers != null) {
+                for (Map.Entry<String, String> entry : headers.entrySet()) {
+                    if (entry.getKey().equalsIgnoreCase("Authorization")
+                            && !SessionTransport.matches(entry.getValue(), auth)) {
+                        throw new RefreshCoordinator.ConfigurationException("Refresh callback changed authorization");
+                    }
+                    connection.setRequestProperty(entry.getKey(), entry.getValue());
                 }
             }
-
-            refreshTokenConnection.setRequestProperty("rid", SuperTokens.rid);
-            refreshTokenConnection.setRequestProperty("fdi-version", Utils.join(Version.supported_fdi, ","));
-            refreshTokenConnection.setRequestProperty("st-auth-mode", SuperTokens.config.tokenTransferMethod);
-            setAuthorizationHeaderIfRequiredForRefresh(refreshTokenConnection, applicationContext);
-
-            Map<String, String> customRefreshHeaders = SuperTokens.config.customHeaderMapper.getRequestHeaders(CustomHeaderProvider.RequestType.REFRESH);
-            if (customRefreshHeaders != null) {
-                for (Map.Entry<String, String> entry : customRefreshHeaders.entrySet()) {
-                    refreshTokenConnection.setRequestProperty(entry.getKey(), entry.getValue());
-                }
-            }
-
-            refreshTokenConnection.connect();
-
-            Utils.saveTokenFromHeaders(new SuperTokensCustomHttpURLConnection(refreshTokenConnection, applicationContext), applicationContext);
-            manuallySetCookiesFromResponse(refreshTokenUrl, refreshTokenConnection);
-
-            final int responseCode = refreshTokenConnection.getResponseCode();
-
-            boolean isUnauthorised = responseCode == SuperTokens.config.sessionExpiredStatusCode;
-
-            if (isUnauthorised && refreshTokenConnection.getHeaderField(Constants.FRONT_TOKEN_HEADER_KEY) != null) {
-                FrontToken.setItem(applicationContext, "remove");
-            }
-
-            String frontTokenInHeaders = refreshTokenConnection.getHeaderField(Constants.FRONT_TOKEN_HEADER_KEY);
-
-            Utils.fireSessionUpdateEventsIfNecessary(
-                    preRequestLocalSessionState.status == Utils.LocalSessionStateStatus.EXISTS,
-                    responseCode,
-                    frontTokenInHeaders == null ? "remove" : frontTokenInHeaders
-            );
-
-            if (responseCode >= 300) {
-                throw new IOException(refreshTokenConnection.getResponseMessage());
-            }
-
-            if (Utils.getLocalSessionState(applicationContext).status == Utils.LocalSessionStateStatus.NOT_EXISTS) {
-                // The execution should never come here.. but just in case.
-                // removed by server. So we logout
-                // we do not send "UNAUTHORISED" event here because
-                // this is a result of the refresh API returning a session expiry, which
-                // means that the frontend did not know for sure that the session existed
-                // in the first place.
-                return new Utils.Unauthorised(Utils.Unauthorised.UnauthorisedStatus.SESSION_EXPIRED);
-            }
-
-            SuperTokens.config.eventHandler.handleEvent(EventHandler.EventType.REFRESH_SESSION);
-            return new Utils.Unauthorised(Utils.Unauthorised.UnauthorisedStatus.RETRY);
-        } catch (Exception e) {
-            IOException ioe = new IOException(e);
-            if (e instanceof IOException) {
-                ioe = (IOException) e;
-            }
-
-            if ( Utils.getLocalSessionState(applicationContext).status == Utils.LocalSessionStateStatus.NOT_EXISTS ) {
-                return new Utils.Unauthorised(Utils.Unauthorised.UnauthorisedStatus.SESSION_EXPIRED);
-            }
-
-            return new Utils.Unauthorised(Utils.Unauthorised.UnauthorisedStatus.API_ERROR, ioe);
-
+            SessionTransport.requireCurrent(tag);
+            int remaining = (int) deadline.remainingMillis();
+            connection.setConnectTimeout(remaining);
+            connection.setReadTimeout(remaining);
+            timeout = deadline.cancelAfterDeadline(connection::disconnect);
+            connection.getOutputStream().close();
+            int code = connection.getResponseCode();
+            SessionResponse response = new SessionResponse(code, connection.getResponseMessage(), connection.getHeaderFields());
+            manuallySetCookiesFromResponse(url, connection);
+            deadline.remainingMillis();
+            return response;
+        } catch (IllegalAccessException e) {
+            throw new RefreshCoordinator.ConfigurationException(e.getMessage());
         } finally {
-            refreshAPILock.writeLock().unlock();
-            if ( refreshTokenConnection != null ) {
-                refreshTokenConnection.disconnect();
+            RefreshDeadline.finished(timeout);
+            connection.disconnect();
+        }
+    }
+
+    static Utils.Unauthorised onUnauthorisedResponse(Utils.LocalSessionState previous, Context context) {
+        SessionRequestTag tag = SessionState.capture();
+        if (previous.status == Utils.LocalSessionStateStatus.NOT_EXISTS) {
+            return new Utils.Unauthorised(Utils.Unauthorised.UnauthorisedStatus.SESSION_EXPIRED);
+        }
+        if (previous.lastAccessTokenUpdate == null || !previous.lastAccessTokenUpdate.equals(
+                SessionState.lastAccessTokenUpdate(tag.getOwner()))) {
+            return new Utils.Unauthorised(Utils.Unauthorised.UnauthorisedStatus.API_ERROR,
+                    new StaleSessionException());
+        }
+        SessionResolution result = RefreshCoordinator.resolve(context, tag.getOwner(), true, null,
+                SuperTokensHttpURLConnection::refresh);
+        if (result.isSuccess()) return new Utils.Unauthorised(Utils.Unauthorised.UnauthorisedStatus.RETRY);
+        if (result.getError() != null) return new Utils.Unauthorised(Utils.Unauthorised.UnauthorisedStatus.API_ERROR, result.getError());
+        return new Utils.Unauthorised(Utils.Unauthorised.UnauthorisedStatus.SESSION_EXPIRED);
+    }
+
+    private static void requireCookieManager(SessionState.Configuration config) throws IllegalAccessException {
+        if (CookieManager.getDefault() == null && "cookie".equals(config.values.tokenTransferMethod)) {
+            throw new IllegalAccessException("Please initialise a CookieManager with a SuperTokensPersistentCookieStore");
+        }
+    }
+
+    static void manuallySetCookiesFromResponse(URL url, HttpURLConnection connection)
+            throws IOException, IllegalAccessException {
+        for (Map.Entry<String, List<String>> entry : connection.getHeaderFields().entrySet()) {
+            if (entry.getKey() == null || !entry.getKey().equalsIgnoreCase("Set-Cookie")) continue;
+            for (String value : entry.getValue()) {
+                // Some JDK handlers hide already-consumed HttpOnly cookies as empty headers.
+                if (value == null || value.trim().isEmpty()) continue;
+                for (HttpCookie cookie : HttpCookie.parse(value)) {
+                    if (CookieManager.getDefault() == null) {
+                        // Expired cookies remove server state; they do not establish cookie authentication.
+                        if (cookie.getName().equals("sAccessToken") && !cookie.hasExpired()) {
+                            throw new IllegalAccessException("Please initialise a CookieManager with a SuperTokensPersistentCookieStore");
+                        }
+                        continue;
+                    }
+                    // Android misses cookies when the response URL does not start with their path.
+                    String path = cookie.getPath() == null ? "/" : cookie.getPath();
+                    URL cookieUrl = new URL(new NormalisedURLDomain(url.toString()).getAsStringDangerous() + path);
+                    try {
+                        CookieManager.getDefault().put(cookieUrl.toURI(),
+                                Collections.singletonMap("Set-Cookie", Collections.singletonList(value)));
+                    } catch (URISyntaxException e) {
+                        throw new IOException("Could not parse cookie URL", e);
+                    }
+                }
             }
         }
     }
 
     public interface PreConnectCallback {
-        void doAction(HttpURLConnection con) throws IOException;
+        void doAction(HttpURLConnection connection) throws IOException;
     }
 }

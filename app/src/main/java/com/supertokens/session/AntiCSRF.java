@@ -17,66 +17,34 @@
 package com.supertokens.session;
 
 import android.content.Context;
-import android.content.SharedPreferences;
 
 import androidx.annotation.Nullable;
 
-//TODO verify about locking
-
 class AntiCSRF {
-    private static AntiCSRFTokenInfo antiCSRFTokenInfo;
-
     static String getToken(Context context, @Nullable String associatedAccessTokenUpdate) {
-        if ( associatedAccessTokenUpdate == null ) {
-            antiCSRFTokenInfo = null;
+        if (associatedAccessTokenUpdate == null || !SuperTokens.isInitCalled) return null;
+        SessionSnapshot snapshot = SessionState.snapshot();
+        if (!associatedAccessTokenUpdate.equals(SessionState.lastAccessTokenUpdate(snapshot.getOwner()))) {
             return null;
         }
-
-        if ( antiCSRFTokenInfo == null ) {
-            SharedPreferences sharedPreferences = getSharedPreferences(context);
-            String antiCSRF = sharedPreferences.getString(getSharedPrefsAntiCSRFKey(context), null);
-            if ( antiCSRF == null ) {
-                return null;
-            }
-
-            antiCSRFTokenInfo = new AntiCSRFTokenInfo(antiCSRF, associatedAccessTokenUpdate);
-        } else if ( antiCSRFTokenInfo.associatedAccessTokenUpdate != null && !antiCSRFTokenInfo.associatedAccessTokenUpdate.equals(associatedAccessTokenUpdate) ) {
-            antiCSRFTokenInfo = null;
-            return getToken(context, associatedAccessTokenUpdate);
-        }
-
-        return antiCSRFTokenInfo.antiCSRF;
+        SessionTokens tokens = snapshot.getInternalTokens();
+        return tokens == null ? null : tokens.getAntiCSRF();
     }
 
+    @Deprecated
     static void removeToken(Context context) {
-        SharedPreferences sharedPreferences = getSharedPreferences(context);
-        SharedPreferences.Editor editor = sharedPreferences.edit();
-        editor.remove(getSharedPrefsAntiCSRFKey(context));
-        editor.apply();
-
-        antiCSRFTokenInfo = null;
+        Utils.getSharedPreferences(context).edit().remove(Constants.CSRF_TOKEN_PREFS_KEY).apply();
+        SessionState.legacyStorageChanged(context);
+        SessionState.dispatch();
     }
 
+    @Deprecated
     static void setToken(Context context, @Nullable String associatedAccessTokenUpdate, String antiCSRFToken) {
-        if ( associatedAccessTokenUpdate == null ) {
-            antiCSRFTokenInfo = null;
-            return;
-        }
-
-        SharedPreferences sharedPreferences = getSharedPreferences(context);
-        SharedPreferences.Editor editor = sharedPreferences.edit();
-        editor.putString(getSharedPrefsAntiCSRFKey(context), antiCSRFToken);
-        editor.apply();
-
-        antiCSRFTokenInfo = new AntiCSRFTokenInfo(antiCSRFToken, associatedAccessTokenUpdate);
-    }
-
-    private static SharedPreferences getSharedPreferences(Context context) {
-        return context.getSharedPreferences(Constants.SHARED_PREFERENCES_KEY, Context.MODE_PRIVATE);
-    }
-
-    private static String getSharedPrefsAntiCSRFKey(Context context) {
-        return Constants.CSRF_TOKEN_PREFS_KEY;
+        if (associatedAccessTokenUpdate == null) return;
+        Utils.getSharedPreferences(context).edit()
+                .putString(Constants.CSRF_TOKEN_PREFS_KEY, antiCSRFToken).apply();
+        SessionState.legacyStorageChanged(context);
+        SessionState.dispatch();
     }
 
     static class AntiCSRFTokenInfo {

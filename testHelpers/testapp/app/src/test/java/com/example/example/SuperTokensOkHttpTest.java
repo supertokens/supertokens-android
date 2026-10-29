@@ -830,7 +830,7 @@ public class SuperTokensOkHttpTest {
 
     @Test
     public void okhttp_testThatOldSessionsStillWorkAfterRefreshing() throws Exception {
-        com.example.TestUtils.startST(1);
+        com.example.TestUtils.startST(30);
         new SuperTokens.Builder(context, Constants.apiDomain)
                 .tokenTransferMethod("cookie")
                 .build();
@@ -872,7 +872,10 @@ public class SuperTokensOkHttpTest {
 
         Response userInfoResponse = okHttpClient.newCall(userInfoRequest).execute();
         if (userInfoResponse.code() != 200) {
-            throw new Exception("User info API failed even after calling refresh");
+            int status = userInfoResponse.code();
+            userInfoResponse.close();
+            throw new Exception("User info API failed even after calling refresh; HTTP " + status
+                    + ", legacy cookie present: " + hasLegacyRefreshCookie(cookieJar.loadForRequest(httpUrl)));
         }
 
         List<Cookie> newCookies = cookieJar.loadForRequest(httpUrl);
@@ -884,12 +887,24 @@ public class SuperTokensOkHttpTest {
             }
         }
 
-        assert idRefreshTokenCookie == null;
+        userInfoResponse.close();
+        if (idRefreshTokenCookie != null) {
+            throw new AssertionError("Legacy refresh cookie was not removed after successful user info request");
+        }
+    }
+
+    private static boolean hasLegacyRefreshCookie(List<Cookie> cookies) {
+        for (Cookie cookie : cookies) {
+            if (cookie.name().equals("sIdRefreshToken")) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @Test
     public void okhttp_testThatRefreshingOldSessionsWorksFineWithExpiredAccessToken() throws Exception {
-        com.example.TestUtils.startST(1);
+        com.example.TestUtils.startST(30);
         new SuperTokens.Builder(context, Constants.apiDomain)
                 .tokenTransferMethod("cookie")
                 .build();
@@ -956,8 +971,8 @@ public class SuperTokensOkHttpTest {
     }
 
     @Test
-    public void okhttp_testThatOldSessionsStillWorkWhenUsingHeaders() throws Exception {
-        com.example.TestUtils.startST(1);
+    public void okhttp_transferMethodChangeClearsSessionAndRequiresNewLogin() throws Exception {
+        com.example.TestUtils.startST(30);
         new SuperTokens.Builder(context, Constants.apiDomain)
                 .tokenTransferMethod("cookie")
                 .build();
@@ -997,26 +1012,19 @@ public class SuperTokensOkHttpTest {
                 .build();
         cookieJar.saveFromResponse(httpUrl, cookies);
 
-        SuperTokens.setTokenTransferMethod("header");
+        new SuperTokens.Builder(context, Constants.apiDomain).tokenTransferMethod("header").reconfigure();
+        assert !SuperTokens.doesSessionExist(context);
+        assert SuperTokens.getAccessToken(context) == null;
+        int refreshesBeforeRequest = com.example.TestUtils.getRefreshTokenCounter();
 
         Request userInfoRequest = new Request.Builder()
                 .url(userInfoAPIURL)
                 .build();
         Response userInfoResponse = okHttpClient.newCall(userInfoRequest).execute();
-        if (userInfoResponse.code() != 200) {
-            throw new Exception("User info API failed even after calling refresh");
-        }
-
-        List<Cookie> newCookies = cookieJar.loadForRequest(httpUrl);
-        Cookie idRefreshTokenCookie = null;
-
-        for (Cookie _cookie : newCookies) {
-            if (_cookie.name().equals("sIdRefreshToken")) {
-                idRefreshTokenCookie = _cookie;
-            }
-        }
-
-        assert idRefreshTokenCookie == null;
+        assert userInfoResponse.code() == 401;
+        userInfoResponse.close();
+        assert com.example.TestUtils.getRefreshTokenCounter() == refreshesBeforeRequest;
+        assert !SuperTokens.doesSessionExist(context);
 
         accessToken = SuperTokens.getAccessToken(context);
 
@@ -1029,9 +1037,7 @@ public class SuperTokensOkHttpTest {
                 .build();
         Response logoutResponse = okHttpClient.newCall(request).execute();
 
-        if (logoutResponse.code() != 200) {
-            throw new Exception("Error making logout request");
-        }
+        assert logoutResponse.code() == 401;
         logoutResponse.close();
 
         bodyJson = new JsonObject();

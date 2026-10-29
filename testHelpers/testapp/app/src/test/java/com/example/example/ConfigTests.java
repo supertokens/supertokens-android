@@ -174,27 +174,29 @@ public class ConfigTests {
 
     @Test
     public void testShouldDoInterceptionBasedOnUrl() throws Exception {
-        // true cases without cookieDomain
-        assert (shouldDoInterceptionBasedOnUrl("https://localhost:3000", "https://localhost:3001", null));
-        assert (shouldDoInterceptionBasedOnUrl("http://localhost:3000", "http://localhost:3001", null));
-        assert (shouldDoInterceptionBasedOnUrl("localhost:3000", "localhost:3001", null));
+        // Configuration ownership is an exact origin, including scheme and effective port.
+        assert (!shouldDoInterceptionBasedOnUrl("https://localhost:3000", "https://localhost:3001", null));
+        assert (!shouldDoInterceptionBasedOnUrl("http://localhost:3000", "http://localhost:3001", null));
+        assert (!shouldDoInterceptionBasedOnUrl("localhost:3000", "localhost:3001", null));
         assert (shouldDoInterceptionBasedOnUrl("api.example.com", "https://api.example.com", null));
         assert (shouldDoInterceptionBasedOnUrl("http://api.example.com", "http://api.example.com", null));
-        assert (shouldDoInterceptionBasedOnUrl("api.example.com", "http://api.example.com", null));
-        assert (shouldDoInterceptionBasedOnUrl("https://api.example.com", "http://api.example.com", null));
-        assert (shouldDoInterceptionBasedOnUrl("https://api.example.com:3000", "http://api.example.com:3000", null));
+        assert (!shouldDoInterceptionBasedOnUrl("api.example.com", "http://api.example.com", null));
+        assert (!shouldDoInterceptionBasedOnUrl("https://api.example.com", "http://api.example.com", null));
+        assert (!shouldDoInterceptionBasedOnUrl("https://api.example.com:3000", "http://api.example.com:3000", null));
         assert (shouldDoInterceptionBasedOnUrl("localhost:3000", "localhost:3000", null));
         assert (shouldDoInterceptionBasedOnUrl("https://localhost:3000", "https://localhost:3000", null));
         assert (shouldDoInterceptionBasedOnUrl("http://localhost:3000", "http://localhost:3000", null));
-        assert (shouldDoInterceptionBasedOnUrl("localhost:3000", "https://localhost:3000", null));
-        assert (shouldDoInterceptionBasedOnUrl("localhost", "https://localhost", null));
-        assert (shouldDoInterceptionBasedOnUrl("http://localhost:3000", "https://localhost:3000", null));
+        assert (!shouldDoInterceptionBasedOnUrl("localhost:3000", "https://localhost:3000", null));
+        assert (!shouldDoInterceptionBasedOnUrl("localhost", "https://localhost", null));
+        assert (!shouldDoInterceptionBasedOnUrl("http://localhost:3000", "https://localhost:3000", null));
         assert (shouldDoInterceptionBasedOnUrl("127.0.0.1:3000", "127.0.0.1:3000", null));
         assert (shouldDoInterceptionBasedOnUrl("https://127.0.0.1:3000", "https://127.0.0.1:3000", null));
         assert (shouldDoInterceptionBasedOnUrl("http://127.0.0.1:3000", "http://127.0.0.1:3000", null));
-        assert (shouldDoInterceptionBasedOnUrl("127.0.0.1:3000", "https://127.0.0.1:3000", null));
-        assert (shouldDoInterceptionBasedOnUrl("http://127.0.0.1:3000", "https://127.0.0.1:3000", null));
-        assert (shouldDoInterceptionBasedOnUrl("http://127.0.0.1", "https://127.0.0.1", null));
+        assert (!shouldDoInterceptionBasedOnUrl("127.0.0.1:3000", "https://127.0.0.1:3000", null));
+        assert (!shouldDoInterceptionBasedOnUrl("http://127.0.0.1:3000", "https://127.0.0.1:3000", null));
+        assert (!shouldDoInterceptionBasedOnUrl("http://127.0.0.1", "https://127.0.0.1", null));
+        assert (shouldDoInterceptionBasedOnUrl("https://api.example.com:443/auth/user", "https://api.example.com/auth", null));
+        assert (!shouldDoInterceptionBasedOnUrl("https://api.example.com/auth-other", "https://api.example.com/auth", null));
 
         // true cases with cookieDomain
         assert (shouldDoInterceptionBasedOnUrl("api.example.com", "", "example.com"));
@@ -231,11 +233,11 @@ public class ConfigTests {
         assert (shouldDoInterceptionBasedOnUrl("https://sub1.api.example.co.uk:3000", "", ".api.example.co.uk"));
         assert (shouldDoInterceptionBasedOnUrl("https://api.example.co.uk:3000", "", ".api.example.co.uk"));
         assert (shouldDoInterceptionBasedOnUrl("https://api.example.co.uk:3000", "", "api.example.co.uk"));
-        assert (shouldDoInterceptionBasedOnUrl("localhost:3000", "localhost:8080", null));
-        assert (shouldDoInterceptionBasedOnUrl("localhost:3001", "localhost", null));
-        assert (shouldDoInterceptionBasedOnUrl("https://api.example.com:3002", "https://api.example.com:3001",
+        assert (!shouldDoInterceptionBasedOnUrl("localhost:3000", "localhost:8080", null));
+        assert (!shouldDoInterceptionBasedOnUrl("localhost:3001", "localhost", null));
+        assert (!shouldDoInterceptionBasedOnUrl("https://api.example.com:3002", "https://api.example.com:3001",
                 null));
-        assert (shouldDoInterceptionBasedOnUrl("http://localhost.org", "localhost.org:2000", null));
+        assert (!shouldDoInterceptionBasedOnUrl("http://localhost.org", "localhost.org:2000", null));
         assert (shouldDoInterceptionBasedOnUrl("http://localhost.org", "localhost", "localhost.org"));
         assert (shouldDoInterceptionBasedOnUrl("localhost", "localhost", "localhost.org"));
         assert (shouldDoInterceptionBasedOnUrl("localhost", "", "localhost:8080"));
