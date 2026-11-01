@@ -17,6 +17,19 @@
 package com.example.example;
 
 public class Constants {
-    public static String apiDomain = "http://127.0.0.1:8080";
+    public static String apiDomain = isolatedBackend();
     public static String userId = "testing-supertokens-android";
+
+    private static String isolatedBackend() {
+        String value = System.getenv("ST_TEST_BACKEND_URL");
+        if (value == null || System.getenv("ST_TEST_RUN_ID") == null) {
+            throw new IllegalStateException("Use the isolated ordinary fixture runner");
+        }
+        java.net.URI uri = java.net.URI.create(value);
+        if (!"http".equals(uri.getScheme()) || !"127.0.0.1".equals(uri.getHost())
+                || uri.getPort() < 1024 || uri.getPort() == 8080 || uri.getPort() == 9000) {
+            throw new IllegalStateException("Expected isolated loopback backend URL");
+        }
+        return value;
+    }
 }

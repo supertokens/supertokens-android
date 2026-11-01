@@ -1,3 +1,9 @@
+#!/bin/bash
+set -euo pipefail
+repository="$(cd "$(dirname "$0")/.." && pwd)"
+mkdir -p "$repository/owned-integration-evidence"
+export GRADLE_USER_HOME="$(mktemp -d "$repository/owned-integration-evidence/core-build.XXXXXX")"
+
 coreInfo=`curl -s -X GET \
 "https://api.supertokens.io/0/core/latest?password=$SUPERTOKENS_API_KEY&planType=FREE&mode=DEV&version=$1" \
 -H 'api-version: 0'`
@@ -44,20 +50,29 @@ git checkout $pluginInterfaceTag
 cd ../
 echo $SUPERTOKENS_API_KEY > apiPassword
 ./utils/setupTestEnvLocal
+if ! find core -name '*.jar' -type f -exec "$JAVA_HOME/bin/jar" tf {} \; | grep '^io/supertokens/Main.class$' >/dev/null; then
+    echo "Core setup failed: no built JAR contains io.supertokens.Main" >&2
+    exit 1
+fi
+if ! find plugin-interface -name '*.jar' -type f -print -quit | grep -q .; then
+    echo "Core setup failed: plugin-interface JAR is missing" >&2
+    exit 1
+fi
 cd ../project/testHelpers/server/
 nvm use 16
 npm i -d --force
 npm i git+https://github.com:supertokens/supertokens-node.git#$2
-TEST_MODE=testing INSTALL_PATH=../../../supertokens-root node . &
-pid=$!
-cd ../../
-./gradlew clean build # Creates the output of the SDK that the test app uses
-cd testHelpers/testapp
-./gradlew test
-
-if [[ $? -ne 0 ]]
-then
-    echo "test failed... exiting!"
-    exit 1
-fi
-kill -9 $pid
+npm test
+npm run test:entrypoints
+core_source="$(cd ../../../supertokens-root && pwd)"
+cd "$repository"
+CORE_PROTOCOL_TESTS=1 ST_TEST_JAVA=/usr/java/jdk-21/bin/java \
+JAVA_HOME=/usr/java/jdk-11 PATH="/usr/java/jdk-11/bin:$PATH" \
+node testHelpers/server/runOrdinary.js "$core_source" "$repository/owned-integration-evidence" 18081 19001 \
+    node "$repository/testHelpers/server/runOwnedTests.js" matrix "$repository" "$repository/owned-integration-evidence/release-context.json"
+fdi=$(node -p 'JSON.parse(require("fs").readFileSync("owned-integration-evidence/release-context.json")).fdi')
+# This is reached only after runOrdinary proves successful command drain and cleanup.
+node .circleci/integrationReceipt.js finalize /tmp/integration-receipts "$fdi"
+CORE_PROTOCOL_TESTS=1 ST_TEST_JAVA=/usr/java/jdk-21/bin/java \
+JAVA_HOME=/usr/java/jdk-11 PATH="/usr/java/jdk-11/bin:$PATH" \
+node .circleci/publishedUpgradeAdapter.js "$core_source"

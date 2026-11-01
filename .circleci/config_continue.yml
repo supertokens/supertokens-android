@@ -24,6 +24,7 @@ jobs:
       - image: rishabhpoddar/supertokens_android_sdk_testing
     environment:
       JVM_OPTS: -Xmx3200m
+      JAVA_TOOL_OPTIONS: -Dfile.encoding=UTF-8
     parameters:
       fdi-version:
         type: string
@@ -36,9 +37,23 @@ jobs:
       - run: apt-get install -f
       - run: apt-get upgrade -y
       - run: update-ca-certificates -f
+      - run:
+          name: Install JDK 11 for Gradle 6.5 and Android compatibility
+          command: |
+            curl -fL --retry 3 'https://github.com/adoptium/temurin11-binaries/releases/download/jdk-11.0.25%2B9/OpenJDK11U-jdk_x64_linux_hotspot_11.0.25_9.tar.gz' -o /usr/java/jdk11.tar.gz
+            mkdir -p /usr/java/jdk-11
+            tar -xzf /usr/java/jdk11.tar.gz -C /usr/java/jdk-11 --strip-components=1
+            /usr/java/jdk-11/bin/java -version
       - run: cd / && wget https://download.java.net/java/GA/jdk15.0.1/51f4f36ad4ef43e39d0dfdbaf6549e32/9/GPL/openjdk-15.0.1_linux-x64_bin.tar.gz
       - run: cd / && mv openjdk-15.0.1_linux-x64_bin.tar.gz /usr/java
       - run: cd /usr/java && tar -xzvf openjdk-15.0.1_linux-x64_bin.tar.gz
+      - run:
+          name: Install JDK 21 for Core
+          command: |
+            curl -fL --retry 3 'https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.7%2B6/OpenJDK21U-jdk_x64_linux_hotspot_21.0.7_6.tar.gz' -o /usr/java/jdk21.tar.gz
+            mkdir -p /usr/java/jdk-21
+            tar -xzf /usr/java/jdk21.tar.gz -C /usr/java/jdk-21 --strip-components=1
+            /usr/java/jdk-21/bin/java -version
       - run: cd / && echo 'JAVA_HOME=/usr/java/jdk-15.0.1' >> /etc/profile
       - run: cd / && echo 'PATH=$PATH:$HOME/bin:$JAVA_HOME/bin' >> /etc/profile
       - run: cd / && echo 'export JAVA_HOME' >> /etc/profile
@@ -58,7 +73,25 @@ jobs:
 
             echo 'export NVM_DIR="$HOME/.nvm"' >> $BASH_ENV
             echo '[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"' >> $BASH_ENV
+      - run: node .circleci/integrationReceipt.js begin /tmp/integration-receipts '<< parameters.fdi-version >>'
       - run: (cd .circleci/ && ./doTests.sh  << parameters.fdi-version >>)
+      - run: node .circleci/integrationReceipt.js write /tmp/integration-receipts '<< parameters.fdi-version >>'
+      - persist_to_workspace:
+          root: /tmp/integration-receipts
+          paths: ['*.json']
+      - store_test_results:
+          path: testHelpers/testapp/app/build/integration-receipts
+      - store_test_results:
+          path: app/build/test-results
+      - store_artifacts:
+          path: testHelpers/testapp/app/build/integration-receipts
+          destination: integration-test-reports
+      - store_artifacts:
+          path: owned-integration-evidence
+          destination: owned-integration-evidence
+      - store_artifacts:
+          path: app/build/reports/tests
+          destination: android-test-reports
       - store_artifacts:
           path: ../supertokens-root/logs
           destination: logfiles
@@ -68,7 +101,18 @@ jobs:
     steps:
       - run: git config --global url."https://github.com/".insteadOf ssh://git@github.com/ # This makes npm use http instead of ssh (required for node 16)
       - checkout
-      - run: (cd .circleci/ && ./markAsSuccess.sh)
+      - attach_workspace:
+          at: /tmp/integration-receipts
+      - run:
+          name: Require exact-revision API, device, upgrade, R8 and matrix results before publishing
+          no_output_timeout: 110m
+          command: timeout 105m bash .circleci/markAsSuccess.sh
+      - store_artifacts:
+          path: /tmp/integration-receipts
+          destination: required-integration
+      - store_artifacts:
+          path: .circleci/required-compatibility.json
+          destination: required-compatibility
       - slack/status
 
 workflows:

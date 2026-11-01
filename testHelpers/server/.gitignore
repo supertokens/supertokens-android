@@ -1,2 +1,8 @@
 /node_modules
 package-lock.json
+.account-linking-qualification.json
+.account-linking-qualification.json.*.tmp
+.express-runtime.json
+.express-runtime.json.*.tmp
+.core-runtime-launch.json
+.core-runtime-launch.json.*.tmp

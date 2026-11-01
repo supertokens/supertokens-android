@@ -70,7 +70,7 @@ import retrofit2.converter.gson.GsonConverterFactory;
 @SuppressWarnings({"CatchMayIgnoreException", "FieldCanBeLocal"})
 @RunWith(MockitoJUnitRunner.class)
 public class SuperTokensRetrofitTest {
-    private final String testBaseURL = "http://127.0.0.1:8080/";
+    private final String testBaseURL = Constants.apiDomain + "/";
     private final String refreshTokenEndpoint = testBaseURL + "/refresh";
     private final String loginAPIURL = testBaseURL + "/login";
     private final String userInfoAPIURL = testBaseURL + "/";
@@ -598,7 +598,7 @@ public class SuperTokensRetrofitTest {
         HttpUrl httpUrl = new HttpUrl.Builder()
                 .scheme("http")
                 .host("127.0.0.1")
-                .port(8080)
+                .port(okhttp3.HttpUrl.parse(Constants.apiDomain).port())
                 .build();
         List<Cookie> cookies = new ArrayList<>();
         cookies.add(idRefreshToken);
@@ -653,7 +653,7 @@ public class SuperTokensRetrofitTest {
         HttpUrl httpUrl = new HttpUrl.Builder()
                 .scheme("http")
                 .host("127.0.0.1")
-                .port(8080)
+                .port(okhttp3.HttpUrl.parse(Constants.apiDomain).port())
                 .build();
 
         List<Cookie> cookies = new ArrayList<>();
@@ -708,7 +708,7 @@ public class SuperTokensRetrofitTest {
         HttpUrl httpUrl = new HttpUrl.Builder()
                 .scheme("http")
                 .host("127.0.0.1")
-                .port(8080)
+                .port(okhttp3.HttpUrl.parse(Constants.apiDomain).port())
                 .build();
         cookieJar.saveFromResponse(httpUrl, cookies);
 
@@ -768,7 +768,7 @@ public class SuperTokensRetrofitTest {
         try {
             Response<ResponseBody> userInfoResponse = retrofitTestAPIService.throw401().execute();
         } catch (IOException e) {
-            assert e.getMessage().equals("Received a 401 response from http://127.0.0.1:8080/throw-401. Attempted to refresh the session and retry the request with the updated session tokens 10 times, but each attempt resulted in a 401 error. The maximum session refresh limit has been reached. Please investigate your API. To increase the session refresh attempts, update maxRetryAttemptsForSessionRefresh in the config.");
+            assert e.getMessage().equals("Received a 401 response from " + Constants.apiDomain + "/throw-401. Attempted to refresh the session and retry the request with the updated session tokens 10 times, but each attempt resulted in a 401 error. The maximum session refresh limit has been reached. Please investigate your API. To increase the session refresh attempts, update maxRetryAttemptsForSessionRefresh in the config.");
         }
 
         int sessionRefreshCalledCount = com.example.TestUtils.getRefreshTokenCounter();
@@ -795,7 +795,7 @@ public class SuperTokensRetrofitTest {
         try {
             Response<ResponseBody> userInfoResponse = retrofitTestAPIService.throw401().execute();
         } catch (IOException e) {
-            assert e.getMessage().equals("Received a 401 response from http://127.0.0.1:8080/throw-401. Attempted to refresh the session and retry the request with the updated session tokens 5 times, but each attempt resulted in a 401 error. The maximum session refresh limit has been reached. Please investigate your API. To increase the session refresh attempts, update maxRetryAttemptsForSessionRefresh in the config.");
+            assert e.getMessage().equals("Received a 401 response from " + Constants.apiDomain + "/throw-401. Attempted to refresh the session and retry the request with the updated session tokens 5 times, but each attempt resulted in a 401 error. The maximum session refresh limit has been reached. Please investigate your API. To increase the session refresh attempts, update maxRetryAttemptsForSessionRefresh in the config.");
         }
 
         int sessionRefreshCalledCount = com.example.TestUtils.getRefreshTokenCounter();
@@ -822,7 +822,7 @@ public class SuperTokensRetrofitTest {
         try {
             Response<ResponseBody> userInfoResponse = retrofitTestAPIService.throw401().execute();
         } catch (IOException e) {
-            assert e.getMessage().equals("Received a 401 response from http://127.0.0.1:8080/throw-401. Attempted to refresh the session and retry the request with the updated session tokens 0 times, but each attempt resulted in a 401 error. The maximum session refresh limit has been reached. Please investigate your API. To increase the session refresh attempts, update maxRetryAttemptsForSessionRefresh in the config.");
+            assert e.getMessage().equals("Received a 401 response from " + Constants.apiDomain + "/throw-401. Attempted to refresh the session and retry the request with the updated session tokens 0 times, but each attempt resulted in a 401 error. The maximum session refresh limit has been reached. Please investigate your API. To increase the session refresh attempts, update maxRetryAttemptsForSessionRefresh in the config.");
         }
 
         int sessionRefreshCalledCount = com.example.TestUtils.getRefreshTokenCounter();

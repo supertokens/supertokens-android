@@ -1,14 +1,23 @@
 apply plugin: 'com.android.library'
 apply plugin: 'maven-publish'
-def publishVersionID = "0.5.4"
+def publishVersionID = "0.6.0"
 
 android {
+    lintOptions {
+        abortOnError true
+        error 'NewApi'
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
     compileSdkVersion 32
     defaultConfig {
         minSdkVersion 17
         targetSdkVersion 32
         versionCode 1
         versionName publishVersionID
+        consumerProguardFiles 'consumer-rules.pro'
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
     buildTypes {
@@ -20,7 +29,20 @@ android {
 
     testOptions {
         unitTests.returnDefaultValues = true
+        unitTests.all {
+            ['seed', 'threads', 'operations', 'watchdogSeconds'].each { option ->
+                def key = "session.stress.${option}"
+                if (project.hasProperty(key)) systemProperty key, project.property(key)
+            }
+        }
+        if (project.hasProperty('coreProtocolUrl')) {
+            unitTests.all { systemProperty 'coreProtocolUrl', project.property('coreProtocolUrl') }
+        }
     }
+    if (project.hasProperty('coreProtocolUrl')) {
+        sourceSets.test.java.srcDir 'src/coreTest/java'
+    }
+    sourceSets.androidTest.java.srcDir 'src/coreTest/java'
 
     afterEvaluate {
         publishing {
@@ -65,7 +87,103 @@ dependencies {
     testImplementation 'org.mockito:mockito-core:1.10.19'
     testImplementation 'com.google.code.gson:gson:2.8.5'
     testImplementation 'com.squareup.okhttp3:okhttp:4.1.0'
+    testImplementation 'com.squareup.okhttp3:mockwebserver:4.1.0'
+    testImplementation 'com.squareup.okhttp3:okhttp-tls:4.1.0'
+    testImplementation 'org.json:json:20231013'
+    androidTestImplementation 'androidx.test:runner:1.4.0'
+    androidTestImplementation 'junit:junit:4.13.2'
+    androidTestImplementation 'com.squareup.okhttp3:okhttp:4.12.0'
+    androidTestImplementation 'com.squareup.okhttp3:mockwebserver:4.12.0'
     testImplementation 'com.github.franmontiel:PersistentCookieJar:v1.0.1'
     testImplementation 'com.squareup.retrofit2:retrofit:2.3.0'
     testImplementation 'com.squareup.retrofit2:converter-gson:2.3.0'
+}
+
+configurations {
+    legacy054 { transitive = false }
+    legacy054DriverDependencies { transitive = true }
+}
+
+dependencies {
+    legacy054 'com.github.supertokens:supertokens-android:0.5.4@aar'
+    legacy054DriverDependencies 'com.squareup.okhttp3:okhttp:4.1.0'
+}
+
+def legacy054Checksum = file('src/test/compatibility/legacy054.sha256')
+def legacy054Jar = file("$buildDir/legacy054/classes.jar")
+def legacy054DriverClasses = file("$buildDir/legacy054/driver")
+
+task extractLegacy054 {
+    inputs.files configurations.legacy054
+    inputs.file legacy054Checksum
+    outputs.file legacy054Jar
+    doLast {
+        def aar = configurations.legacy054.singleFile
+        def digest = java.security.MessageDigest.getInstance('SHA-256')
+        aar.withInputStream { stream ->
+            byte[] buffer = new byte[8192]
+            int count
+            while ((count = stream.read(buffer)) != -1) digest.update(buffer, 0, count)
+        }
+        def actual = digest.digest().encodeHex().toString()
+        if (actual != legacy054Checksum.text.trim()) {
+            throw new GradleException("Unexpected 0.5.4 AAR checksum: $actual")
+        }
+        copy {
+            from zipTree(aar)
+            include 'classes.jar'
+            into legacy054Jar.parentFile
+        }
+        if (!legacy054Jar.isFile()) throw new GradleException('0.5.4 AAR has no classes.jar')
+    }
+}
+
+task compileLegacy054Driver(type: JavaCompile, dependsOn: extractLegacy054) {
+    source = fileTree('src/legacyDriver/java') { include '**/*.java' }
+    destinationDir = legacy054DriverClasses
+    sourceCompatibility = '1.8'
+    targetCompatibility = '1.8'
+    // Variant compile classpaths include candidate SDK classes and cannot be used here.
+    classpath = files(legacy054Jar, android.bootClasspath) + configurations.legacy054DriverDependencies
+}
+
+task legacy054Test(type: Test, dependsOn: compileLegacy054Driver) {
+    description = 'Runs isolated published-0.5.4 oracle tests (COMPATIBILITY_PLAN.md M0).'
+    group = 'verification'
+    filter {
+        includeTestsMatching 'com.supertokens.session.legacy054.*Test'
+        failOnNoMatchingTests = true
+    }
+    inputs.file legacy054Jar
+    inputs.dir legacy054DriverClasses
+    systemProperty 'legacy054.jar', legacy054Jar.absolutePath
+    systemProperty 'legacy054.driver', legacy054DriverClasses.absolutePath
+    afterSuite { descriptor, result ->
+        if (descriptor.parent == null && result.testCount == 0) {
+            throw new GradleException('legacy054Test discovered no tests')
+        }
+    }
+}
+
+afterEvaluate {
+    def androidTests = tasks.getByName('testDebugUnitTest')
+    legacy054Test.dependsOn androidTests.taskDependencies.getDependencies(androidTests)
+    legacy054Test.testClassesDirs = androidTests.testClassesDirs
+    legacy054Test.classpath = androidTests.classpath
+    legacy054Test.systemProperties.putAll(androidTests.systemProperties)
+    tasks.withType(Test).matching { it.name != 'legacy054Test' }.all {
+        exclude '**/legacy054/**'
+    }
+}
+
+apply from: 'src/test/compatibility/api-compatibility.gradle'
+apply from: 'src/test/compatibility/okhttp-matrix.gradle'
+
+apply from: 'src/test/compatibility/upgrade-harness.gradle'
+// AGP needs Java 8 defaults to supply test lambda stubs; publish only Java 7 production classes.
+android.libraryVariants.all { variant ->
+    variant.javaCompileProvider.configure {
+        sourceCompatibility = JavaVersion.VERSION_1_7.toString()
+        targetCompatibility = JavaVersion.VERSION_1_7.toString()
+    }
 }

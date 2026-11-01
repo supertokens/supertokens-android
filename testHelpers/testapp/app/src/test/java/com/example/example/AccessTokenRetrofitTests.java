@@ -37,7 +37,7 @@ import retrofit2.converter.gson.GsonConverterFactory;
 @SuppressWarnings({"CatchMayIgnoreException", "FieldCanBeLocal", "SingleStatementInBlock"})
 @RunWith(MockitoJUnitRunner.class)
 public class AccessTokenRetrofitTests {
-    private final String testBaseURL = "http://127.0.0.1:8080/";
+    private final String testBaseURL = Constants.apiDomain + "/";
     private final String refreshTokenEndpoint = testBaseURL + "/refresh";
     private final String loginAPIURL = testBaseURL + "/login";
     private final String userInfoAPIURL = testBaseURL + "/";

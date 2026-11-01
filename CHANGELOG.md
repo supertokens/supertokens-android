@@ -6,6 +6,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### 0.6.0 candidate
+
+#### Added
+
+- Owner-bound snapshots, conditional `installSession`/`clearSession`, `resolveAccessToken`, request tags, `observeSessions` and explicit `reconfigure()` for coordinated native session ownership.
+- Opt-in SDK-owned OkHttp refresh transport, requiring OkHttp 3.14+.
+
+#### Fixed
+
+- Fence delayed responses, refresh and sign-out against replacement sessions; share refresh across callers without serializing ordinary requests.
+- Preserve legacy session import, repeated initialization, startup configuration changes, response expiry acceptance, custom authorization and synchronous event behavior. Commit session state atomically before callbacks.
+- Keep snapshot reads available during serialized persistence without exposing uncommitted credentials; distinguish healthy pending replacement from storage failure.
+- Preserve cookie serialization across minified consumer builds with packaged consumer rules.
+
+#### Compatibility
+
+- Existing 0.5.4 integrations require no code or stored-session migration changes. New APIs are optional and retain stricter validation and explicit failure reporting.
+- Preserve legacy outbound host matching, caller-owned refresh timeouts, Java 7 production bytecode and minSdk 17. Redirected responses must remain on the sent request's origin to change managed state or trigger retries.
+- See [session ownership](SESSION_OWNERSHIP.md) for cookie, persistence and rollback limits. This candidate entry is not release approval; [qualification](docs/compatibility-wiki/index.md) remains artifact-specific, with API17 and Linux CI verification gaps.
+
 ## [0.5.4] - 2025-03-26
 
 ### Changes

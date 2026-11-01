@@ -1,0 +1,18 @@
+<?xml version='1.0' encoding='utf-8'?>
+<map>
+  <string name="supertokens-android-session-status">available</string>
+  <string name="supertokens-android-session-revision">3</string>
+  <string name="supertokens-android-session-adoption">00000000-0000-0000-0000-00000000002d</string>
+  <string name="supertokens-android-session-access-revision">3</string>
+  <string name="supertokens-android-fronttoken-key">eyJ1aWQiOiJmaXh0dXJlLWlkLTAwNDciLCJhdGUiOjQxMDI0NDg0MzQwMDAsInVwIjp7ImlhdCI6NDEwMjQ0NDgzNCwiZXhwIjo0MTAyNDQ4NDM0LCJzdWIiOiJmaXh0dXJlLWlkLTAwNDciLCJ0SWQiOiJwdWJsaWMiLCJyc3ViIjoiZml4dHVyZS1pZC0wMDQ3Iiwic2Vzc2lvbkhhbmRsZSI6IjAwMDAwMDAwLTAwMDAtMDAwMC0wMDAwLTAwMDAwMDAwMDAzMCIsInJlZnJlc2hUb2tlbkhhc2gxIjoiYTA1ZTczZmU1NDdjYTI0MjRiZmEzNmVlZjQxMzEwZTFiMWM2YjU1OTUwZDkyNTdjYjhiN2FkZDM4NTJhM2Q0YSIsInBhcmVudFJlZnJlc2hUb2tlbkhhc2gxIjpudWxsLCJhbnRpQ3NyZlRva2VuIjpudWxsLCJpc3MiOiJodHRwOi8vZml4dHVyZS5pbnZhbGlkIn19</string>
+  <string name="supertokens-android-session-legacy-marker">4102444831153</string>
+  <string name="st-storage-item-st-last-access-token-update">4102444832400</string>
+  <string name="supertokens-android-session-user">fixture-id-0040</string>
+  <string name="supertokens-android-session-refresh-revision">2</string>
+  <string name="supertokens-android-session-tenant">public</string>
+  <string name="supertokens-android-session-expiry">4102448433000</string>
+  <string name="supertokens-android-session-validation">legacy</string>
+  <string name="supertokens-android-session-configuration">2aa63df14b969c83ace67801818c6b682cc90d4bf374da8e71a85925ef118461</string>
+  <string name="supertokens-android-session-schema">1</string>
+  <string name="supertokens-android-session-fingerprint">272820ea85f4da12832a571eb5a7b6c21f55ba125beff7c1ad1a8a26272247df</string>
+</map>

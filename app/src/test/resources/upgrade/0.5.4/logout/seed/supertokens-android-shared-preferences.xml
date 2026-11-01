@@ -1,0 +1,17 @@
+<?xml version='1.0' encoding='utf-8'?>
+<map>
+  <string name="supertokens-android-session-status">absent</string>
+  <string name="supertokens-android-session-revision">4</string>
+  <string name="supertokens-android-session-adoption">00000000-0000-0000-0000-00000000001b</string>
+  <string name="st-storage-item-st-refresh-token">INVALID-FIXTURE-SECRET-0025</string>
+  <string name="supertokens-android-session-access-revision">4</string>
+  <string name="supertokens-android-fronttoken-key">eyJ1aWQiOiJmaXh0dXJlLWlkLTAwMjkiLCJhdGUiOjQxMDI0NDg0MjUwMDAsInVwIjp7ImlhdCI6NDEwMjQ0NDgyNSwiZXhwIjo0MTAyNDQ4NDI1LCJzdWIiOiJmaXh0dXJlLWlkLTAwMjkiLCJ0SWQiOiJwdWJsaWMiLCJyc3ViIjoiZml4dHVyZS1pZC0wMDI5Iiwic2Vzc2lvbkhhbmRsZSI6IjAwMDAwMDAwLTAwMDAtMDAwMC0wMDAwLTAwMDAwMDAwMDAxZSIsInJlZnJlc2hUb2tlbkhhc2gxIjoiNjdmYTg1ZTA4ZjFkNzk2ZDQ5M2U3NjY4NDgyZWJkY2VjMTNiZDYwODQ3YzVjYjMzNThmMWViZmQ4NTljMmE0MSIsInBhcmVudFJlZnJlc2hUb2tlbkhhc2gxIjpudWxsLCJhbnRpQ3NyZlRva2VuIjpudWxsLCJpc3MiOiJodHRwOi8vZml4dHVyZS5pbnZhbGlkIn19</string>
+  <string name="st-storage-item-st-last-access-token-update">4102444823866</string>
+  <string name="supertokens-android-session-refresh-revision">4</string>
+  <string name="supertokens-android-session-expiry">0</string>
+  <string name="supertokens-android-session-validation">strict</string>
+  <string name="supertokens-android-session-configuration">1daf86fe5d3e59891d14e708772b52bff82f53020a008ea86d0419cacfbf5ae7</string>
+  <string name="st-storage-item-st-access-token">eyJraWQiOiJmaXh0dXJlLWlkLTAwMDEiLCJ0eXAiOiJKV1QiLCJ2ZXJzaW9uIjoiNSIsImFsZyI6IlJTMjU2In0.eyJpYXQiOjQxMDI0NDQ4MjUsImV4cCI6NDEwMjQ0ODQyNSwic3ViIjoiZml4dHVyZS1pZC0wMDI5IiwidElkIjoicHVibGljIiwicnN1YiI6ImZpeHR1cmUtaWQtMDAyOSIsInNlc3Npb25IYW5kbGUiOiIwMDAwMDAwMC0wMDAwLTAwMDAtMDAwMC0wMDAwMDAwMDAwMWUiLCJyZWZyZXNoVG9rZW5IYXNoMSI6IjY3ZmE4NWUwOGYxZDc5NmQ0OTNlNzY2ODQ4MmViZGNlYzEzYmQ2MDg0N2M1Y2IzMzU4ZjFlYmZkODU5YzJhNDEiLCJwYXJlbnRSZWZyZXNoVG9rZW5IYXNoMSI6bnVsbCwiYW50aUNzcmZUb2tlbiI6bnVsbCwiaXNzIjoiaHR0cDovL2ZpeHR1cmUuaW52YWxpZCJ9.SU5WQUxJRC1GSVhUVVJFLVNFQ1JFVC0wMDI3</string>
+  <string name="supertokens-android-session-schema">1</string>
+  <string name="supertokens-android-session-fingerprint">92be2d565849b3e194a528932603d052949adcd953a88a94a1b3a63c3ce9d684</string>
+</map>

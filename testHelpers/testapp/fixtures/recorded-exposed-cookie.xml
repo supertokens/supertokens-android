@@ -1,0 +1,183 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.example.example.PublishedUpgradeLiveTest" tests="4" skipped="0" failures="2" errors="0" timestamp="2026-10-30T14:19:15" hostname="recorded-test-host" time="2.126">
+  <properties/>
+  <testcase name="publishedSessionContinuesAgainstConfiguredFdiMember[EXPOSED_COOKIE-LOGIN-/login]" classname="com.example.example.PublishedUpgradeLiveTest" time="0.892"/>
+  <testcase name="publishedSessionContinuesAgainstConfiguredFdiMember[EXPOSED_COOKIE-REFRESH-/login]" classname="com.example.example.PublishedUpgradeLiveTest" time="0.413">
+    <failure message="java.io.IOException: java.lang.IllegalArgumentException: Empty cookie header string" type="java.io.IOException">java.io.IOException: java.lang.IllegalArgumentException: Empty cookie header string
+	at com.supertokens.session.SuperTokensHttpURLConnection.onUnauthorisedResponse(SuperTokensHttpURLConnection.java:306)
+	at com.supertokens.session.SuperTokens.attemptRefreshingSession(SuperTokens.java:206)
+	at com.supertokens.session.Legacy054Driver.refresh(Legacy054Driver.java:85)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)
+	at java.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:566)
+	at com.supertokens.session.Legacy054Harness.invoke(Legacy054Harness.java:54)
+	at com.supertokens.session.Legacy054Harness.invoke(Legacy054Harness.java:63)
+	at com.supertokens.testing.PublishedUpgradeScenario.run(PublishedUpgradeScenario.java:98)
+	at com.example.example.PublishedUpgradeLiveTest.publishedSessionContinuesAgainstConfiguredFdiMember(PublishedUpgradeLiveTest.java:98)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)
+	at java.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:566)
+	at org.junit.runners.model.FrameworkMethod$1.runReflectiveCall(FrameworkMethod.java:50)
+	at org.junit.internal.runners.model.ReflectiveCallable.run(ReflectiveCallable.java:12)
+	at org.junit.runners.model.FrameworkMethod.invokeExplosively(FrameworkMethod.java:47)
+	at org.junit.internal.runners.statements.InvokeMethod.evaluate(InvokeMethod.java:17)
+	at org.junit.runners.ParentRunner.runLeaf(ParentRunner.java:325)
+	at org.junit.runners.BlockJUnit4ClassRunner.runChild(BlockJUnit4ClassRunner.java:78)
+	at org.junit.runners.BlockJUnit4ClassRunner.runChild(BlockJUnit4ClassRunner.java:57)
+	at org.junit.runners.ParentRunner$3.run(ParentRunner.java:290)
+	at org.junit.runners.ParentRunner$1.schedule(ParentRunner.java:71)
+	at org.junit.runners.ParentRunner.runChildren(ParentRunner.java:288)
+	at org.junit.runners.ParentRunner.access$000(ParentRunner.java:58)
+	at org.junit.runners.ParentRunner$2.evaluate(ParentRunner.java:268)
+	at org.junit.runners.ParentRunner.run(ParentRunner.java:363)
+	at org.junit.runners.Suite.runChild(Suite.java:128)
+	at org.junit.runners.Suite.runChild(Suite.java:27)
+	at org.junit.runners.ParentRunner$3.run(ParentRunner.java:290)
+	at org.junit.runners.ParentRunner$1.schedule(ParentRunner.java:71)
+	at org.junit.runners.ParentRunner.runChildren(ParentRunner.java:288)
+	at org.junit.runners.ParentRunner.access$000(ParentRunner.java:58)
+	at org.junit.runners.ParentRunner$2.evaluate(ParentRunner.java:268)
+	at org.junit.runners.ParentRunner.run(ParentRunner.java:363)
+	at org.gradle.api.internal.tasks.testing.junit.JUnitTestClassExecutor.runTestClass(JUnitTestClassExecutor.java:110)
+	at org.gradle.api.internal.tasks.testing.junit.JUnitTestClassExecutor.execute(JUnitTestClassExecutor.java:58)
+	at org.gradle.api.internal.tasks.testing.junit.JUnitTestClassExecutor.execute(JUnitTestClassExecutor.java:38)
+	at org.gradle.api.internal.tasks.testing.junit.AbstractJUnitTestClassProcessor.processTestClass(AbstractJUnitTestClassProcessor.java:62)
+	at org.gradle.api.internal.tasks.testing.SuiteTestClassProcessor.processTestClass(SuiteTestClassProcessor.java:51)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)
+	at java.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:566)
+	at org.gradle.internal.dispatch.ReflectionDispatch.dispatch(ReflectionDispatch.java:36)
+	at org.gradle.internal.dispatch.ReflectionDispatch.dispatch(ReflectionDispatch.java:24)
+	at org.gradle.internal.dispatch.ContextClassLoaderDispatch.dispatch(ContextClassLoaderDispatch.java:33)
+	at org.gradle.internal.dispatch.ProxyDispatchAdapter$DispatchingInvocationHandler.invoke(ProxyDispatchAdapter.java:94)
+	at com.sun.proxy.$Proxy2.processTestClass(Unknown Source)
+	at org.gradle.api.internal.tasks.testing.worker.TestWorker.processTestClass(TestWorker.java:119)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)
+	at java.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:566)
+	at org.gradle.internal.dispatch.ReflectionDispatch.dispatch(ReflectionDispatch.java:36)
+	at org.gradle.internal.dispatch.ReflectionDispatch.dispatch(ReflectionDispatch.java:24)
+	at org.gradle.internal.remote.internal.hub.MessageHubBackedObjectConnection$DispatchWrapper.dispatch(MessageHubBackedObjectConnection.java:182)
+	at org.gradle.internal.remote.internal.hub.MessageHubBackedObjectConnection$DispatchWrapper.dispatch(MessageHubBackedObjectConnection.java:164)
+	at org.gradle.internal.remote.internal.hub.MessageHub$Handler.run(MessageHub.java:414)
+	at org.gradle.internal.concurrent.ExecutorPolicy$CatchAndRecordFailures.onExecute(ExecutorPolicy.java:64)
+	at org.gradle.internal.concurrent.ManagedExecutorImpl$1.run(ManagedExecutorImpl.java:48)
+	at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1128)
+	at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:628)
+	at org.gradle.internal.concurrent.ThreadFactoryImpl$ManagedThreadRunnable.run(ThreadFactoryImpl.java:56)
+	at java.base/java.lang.Thread.run(Thread.java:829)
+Caused by: java.lang.IllegalArgumentException: Empty cookie header string
+	at java.base/java.net.HttpCookie.parseInternal(HttpCookie.java:828)
+	at java.base/java.net.HttpCookie.parse(HttpCookie.java:204)
+	at java.base/java.net.HttpCookie.parse(HttpCookie.java:180)
+	at com.supertokens.session.SuperTokensHttpURLConnection.manuallySetCookiesFromResponse(SuperTokensHttpURLConnection.java:76)
+	at com.supertokens.session.SuperTokensHttpURLConnection.onUnauthorisedResponse(SuperTokensHttpURLConnection.java:271)
+	... 65 more
+</failure>
+  </testcase>
+  <testcase name="publishedSessionContinuesAgainstConfiguredFdiMember[EXPOSED_COOKIE-SIGN_OUT-/login]" classname="com.example.example.PublishedUpgradeLiveTest" time="0.406">
+    <failure message="java.lang.IllegalArgumentException: Empty cookie header string" type="java.lang.IllegalArgumentException">java.lang.IllegalArgumentException: Empty cookie header string
+	at java.base/java.net.HttpCookie.parseInternal(HttpCookie.java:828)
+	at java.base/java.net.HttpCookie.parse(HttpCookie.java:204)
+	at java.base/java.net.HttpCookie.parse(HttpCookie.java:180)
+	at com.supertokens.session.SuperTokensHttpURLConnection.manuallySetCookiesFromResponse(SuperTokensHttpURLConnection.java:76)
+	at com.supertokens.session.SuperTokensHttpURLConnection.newRequest(SuperTokensHttpURLConnection.java:180)
+	at com.supertokens.session.SuperTokens.signOut(SuperTokens.java:145)
+	at com.supertokens.session.Legacy054Driver.signOut(Legacy054Driver.java:93)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)
+	at java.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:566)
+	at com.supertokens.session.Legacy054Harness.invoke(Legacy054Harness.java:54)
+	at com.supertokens.session.Legacy054Harness.invoke(Legacy054Harness.java:63)
+	at com.supertokens.testing.PublishedUpgradeScenario.run(PublishedUpgradeScenario.java:104)
+	at com.example.example.PublishedUpgradeLiveTest.publishedSessionContinuesAgainstConfiguredFdiMember(PublishedUpgradeLiveTest.java:98)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)
+	at java.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:566)
+	at org.junit.runners.model.FrameworkMethod$1.runReflectiveCall(FrameworkMethod.java:50)
+	at org.junit.internal.runners.model.ReflectiveCallable.run(ReflectiveCallable.java:12)
+	at org.junit.runners.model.FrameworkMethod.invokeExplosively(FrameworkMethod.java:47)
+	at org.junit.internal.runners.statements.InvokeMethod.evaluate(InvokeMethod.java:17)
+	at org.junit.runners.ParentRunner.runLeaf(ParentRunner.java:325)
+	at org.junit.runners.BlockJUnit4ClassRunner.runChild(BlockJUnit4ClassRunner.java:78)
+	at org.junit.runners.BlockJUnit4ClassRunner.runChild(BlockJUnit4ClassRunner.java:57)
+	at org.junit.runners.ParentRunner$3.run(ParentRunner.java:290)
+	at org.junit.runners.ParentRunner$1.schedule(ParentRunner.java:71)
+	at org.junit.runners.ParentRunner.runChildren(ParentRunner.java:288)
+	at org.junit.runners.ParentRunner.access$000(ParentRunner.java:58)
+	at org.junit.runners.ParentRunner$2.evaluate(ParentRunner.java:268)
+	at org.junit.runners.ParentRunner.run(ParentRunner.java:363)
+	at org.junit.runners.Suite.runChild(Suite.java:128)
+	at org.junit.runners.Suite.runChild(Suite.java:27)
+	at org.junit.runners.ParentRunner$3.run(ParentRunner.java:290)
+	at org.junit.runners.ParentRunner$1.schedule(ParentRunner.java:71)
+	at org.junit.runners.ParentRunner.runChildren(ParentRunner.java:288)
+	at org.junit.runners.ParentRunner.access$000(ParentRunner.java:58)
+	at org.junit.runners.ParentRunner$2.evaluate(ParentRunner.java:268)
+	at org.junit.runners.ParentRunner.run(ParentRunner.java:363)
+	at org.gradle.api.internal.tasks.testing.junit.JUnitTestClassExecutor.runTestClass(JUnitTestClassExecutor.java:110)
+	at org.gradle.api.internal.tasks.testing.junit.JUnitTestClassExecutor.execute(JUnitTestClassExecutor.java:58)
+	at org.gradle.api.internal.tasks.testing.junit.JUnitTestClassExecutor.execute(JUnitTestClassExecutor.java:38)
+	at org.gradle.api.internal.tasks.testing.junit.AbstractJUnitTestClassProcessor.processTestClass(AbstractJUnitTestClassProcessor.java:62)
+	at org.gradle.api.internal.tasks.testing.SuiteTestClassProcessor.processTestClass(SuiteTestClassProcessor.java:51)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)
+	at java.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:566)
+	at org.gradle.internal.dispatch.ReflectionDispatch.dispatch(ReflectionDispatch.java:36)
+	at org.gradle.internal.dispatch.ReflectionDispatch.dispatch(ReflectionDispatch.java:24)
+	at org.gradle.internal.dispatch.ContextClassLoaderDispatch.dispatch(ContextClassLoaderDispatch.java:33)
+	at org.gradle.internal.dispatch.ProxyDispatchAdapter$DispatchingInvocationHandler.invoke(ProxyDispatchAdapter.java:94)
+	at com.sun.proxy.$Proxy2.processTestClass(Unknown Source)
+	at org.gradle.api.internal.tasks.testing.worker.TestWorker.processTestClass(TestWorker.java:119)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)
+	at java.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:566)
+	at org.gradle.internal.dispatch.ReflectionDispatch.dispatch(ReflectionDispatch.java:36)
+	at org.gradle.internal.dispatch.ReflectionDispatch.dispatch(ReflectionDispatch.java:24)
+	at org.gradle.internal.remote.internal.hub.MessageHubBackedObjectConnection$DispatchWrapper.dispatch(MessageHubBackedObjectConnection.java:182)
+	at org.gradle.internal.remote.internal.hub.MessageHubBackedObjectConnection$DispatchWrapper.dispatch(MessageHubBackedObjectConnection.java:164)
+	at org.gradle.internal.remote.internal.hub.MessageHub$Handler.run(MessageHub.java:414)
+	at org.gradle.internal.concurrent.ExecutorPolicy$CatchAndRecordFailures.onExecute(ExecutorPolicy.java:64)
+	at org.gradle.internal.concurrent.ManagedExecutorImpl$1.run(ManagedExecutorImpl.java:48)
+	at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1128)
+	at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:628)
+	at org.gradle.internal.concurrent.ThreadFactoryImpl$ManagedThreadRunnable.run(ThreadFactoryImpl.java:56)
+	at java.base/java.lang.Thread.run(Thread.java:829)
+</failure>
+  </testcase>
+  <testcase name="publishedSessionContinuesAgainstConfiguredFdiMember[EXPOSED_COOKIE-PAYLOAD_UPDATE-/login]" classname="com.example.example.PublishedUpgradeLiveTest" time="0.415"/>
+  <system-out><![CDATA[LIVE_UPGRADE node=16.7.0 coreCdi=["2.14","2.13","2.12","2.11","2.10","2.21","2.20","2.19","2.18","2.17","3.0","2.16","4.0","2.15","2.7","2.8","2.9"] fdi=1.16 flags={"v3AccessToken":true,"sessionJwt":true,"sessionClaims":true} mode=EXPOSED_COOKIE flow=LOGIN login=/login
+LIVE_UPGRADE fixtureOwner=android-test-97ff87b77b9f7e546ba7dd96a0e6dfc0
+UPGRADE observed publishedLoginVersion=5 mode=EXPOSED_COOKIE flow=LOGIN
+UPGRADE observed publishedHandoffVersion=5 mode=EXPOSED_COOKIE flow=LOGIN
+UPGRADE observed candidateRefreshVersion=5
+UPGRADE mode=EXPOSED_COOKIE flow=LOGIN fdi=1.16 observations={"publishedLogin":{"tokenVersion":"5","status":"PRESENT"},"schemaVersion":2,"candidateRefresh":{"tokenVersion":"5","status":"PRESENT"},"publishedHandoff":{"tokenVersion":"5","status":"PRESENT"}}
+LIVE_UPGRADE cleanupOwner=android-test-97ff87b77b9f7e546ba7dd96a0e6dfc0 cleaned=true
+LIVE_UPGRADE observations={"publishedLogin":{"tokenVersion":"5","status":"PRESENT"},"schemaVersion":2,"candidateRefresh":{"tokenVersion":"5","status":"PRESENT"},"publishedHandoff":{"tokenVersion":"5","status":"PRESENT"}} PASS
+LIVE_UPGRADE node=16.7.0 coreCdi=["2.14","2.13","2.12","2.11","2.10","2.21","2.20","2.19","2.18","2.17","3.0","2.16","4.0","2.15","2.7","2.8","2.9"] fdi=1.16 flags={"v3AccessToken":true,"sessionJwt":true,"sessionClaims":true} mode=EXPOSED_COOKIE flow=REFRESH login=/login
+LIVE_UPGRADE fixtureOwner=android-test-e3a851cd97013603275fad67e9df4c5a
+UPGRADE observed publishedLoginVersion=5 mode=EXPOSED_COOKIE flow=REFRESH
+LIVE_UPGRADE cleanupOwner=android-test-e3a851cd97013603275fad67e9df4c5a cleaned=true
+LIVE_UPGRADE node=16.7.0 coreCdi=["2.14","2.13","2.12","2.11","2.10","2.21","2.20","2.19","2.18","2.17","3.0","2.16","4.0","2.15","2.7","2.8","2.9"] fdi=1.16 flags={"v3AccessToken":true,"sessionJwt":true,"sessionClaims":true} mode=EXPOSED_COOKIE flow=SIGN_OUT login=/login
+LIVE_UPGRADE fixtureOwner=android-test-7c8f022cb91b81726e79314d60707569
+UPGRADE observed publishedLoginVersion=5 mode=EXPOSED_COOKIE flow=SIGN_OUT
+LIVE_UPGRADE cleanupOwner=android-test-7c8f022cb91b81726e79314d60707569 cleaned=true
+LIVE_UPGRADE node=16.7.0 coreCdi=["2.14","2.13","2.12","2.11","2.10","2.21","2.20","2.19","2.18","2.17","3.0","2.16","4.0","2.15","2.7","2.8","2.9"] fdi=1.16 flags={"v3AccessToken":true,"sessionJwt":true,"sessionClaims":true} mode=EXPOSED_COOKIE flow=PAYLOAD_UPDATE login=/login
+LIVE_UPGRADE fixtureOwner=android-test-744971256b3960e0322d9684617b1a4f
+UPGRADE observed publishedLoginVersion=5 mode=EXPOSED_COOKIE flow=PAYLOAD_UPDATE
+UPGRADE observed publishedHandoffVersion=5 mode=EXPOSED_COOKIE flow=PAYLOAD_UPDATE
+UPGRADE observed candidateRefreshVersion=5
+UPGRADE mode=EXPOSED_COOKIE flow=PAYLOAD_UPDATE fdi=1.16 observations={"publishedLogin":{"tokenVersion":"5","status":"PRESENT"},"schemaVersion":2,"candidateRefresh":{"tokenVersion":"5","status":"PRESENT"},"publishedHandoff":{"tokenVersion":"5","status":"PRESENT"}}
+LIVE_UPGRADE cleanupOwner=android-test-744971256b3960e0322d9684617b1a4f cleaned=true
+LIVE_UPGRADE observations={"publishedLogin":{"tokenVersion":"5","status":"PRESENT"},"schemaVersion":2,"candidateRefresh":{"tokenVersion":"5","status":"PRESENT"},"publishedHandoff":{"tokenVersion":"5","status":"PRESENT"}} PASS
+]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

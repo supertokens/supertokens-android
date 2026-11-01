@@ -1,3 +1,9 @@
+#!/bin/bash
+set -euo pipefail
+cd "$(dirname "$0")"
+node integrationReceipt.js verify /tmp/integration-receipts
+node requiredCompatibility.js
+
 frontendDriverJson=`cat ../frontendDriverInterfaceSupported.json`
 frontendDriverLength=`echo $frontendDriverJson | jq ".versions | length"`
 frontendDriverArray=`echo $frontendDriverJson | jq ".versions"`
@@ -17,7 +23,7 @@ while IFS='"' read -ra ADDR; do
 done <<< "$version"
 
 echo "calling /frontend PATCH to make testing passed"
-responseStatus=`curl -s -o /dev/null -w "%{http_code}" -X PATCH \
+responseStatus=`curl --connect-timeout 10 --max-time 30 -sS -o /dev/null -w "%{http_code}" -X PATCH \
     https://api.supertokens.io/0/frontend \
     -H 'Content-Type: application/json' \
     -H 'api-version: 0' \

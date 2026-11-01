@@ -28,12 +28,9 @@ import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URL;
 import java.util.AbstractCollection;
-import java.util.Arrays;
-import java.util.Date;
-import java.util.HashMap;
 import java.util.Iterator;
-import java.util.Locale;
 import java.util.Map;
+import java.util.Locale;
 
 import okhttp3.Response;
 
@@ -117,7 +114,7 @@ public class Utils {
         }
 
         static String sessionScopeHelper(String sessionScope) throws MalformedURLException {
-            String trimmedSessionScope = sessionScope.trim().toLowerCase();
+            String trimmedSessionScope = sessionScope.trim().toLowerCase(Locale.US);
 
             // first we convert it to a URL so that we can use the URL class
             if (trimmedSessionScope.startsWith(".")) {
@@ -145,7 +142,7 @@ public class Utils {
         }
 
         private static String normaliseSessionScopeOrThrowError(String sessionScope) throws MalformedURLException {
-            sessionScope = sessionScope.trim().toLowerCase();
+            sessionScope = sessionScope.trim().toLowerCase(Locale.US);
             String noDotNormalised = sessionScopeHelper(sessionScope);
 
             if (noDotNormalised.equals("localhost") || NormalisedURLDomain.isAnIpAddress(noDotNormalised)) {
@@ -169,6 +166,11 @@ public class Utils {
                 @Nullable CustomHeaderProvider customHeaderProvider,
                 @Nullable EventHandler eventHandler) throws MalformedURLException {
             String _apiDomain = new NormalisedURLDomain(apiDomain).getAsStringDangerous();
+            URL origin = new URL(_apiDomain);
+            int port = origin.getPort();
+            if (port == origin.getDefaultPort()) port = -1;
+            _apiDomain = origin.getProtocol().toLowerCase(Locale.US) + "://"
+                    + origin.getHost().toLowerCase(Locale.US) + (port < 0 ? "" : ":" + port);
             String _apiBasePath = new NormalisedURLPath("/auth").getAsStringDangerous();
 
             if (apiBasePath != null) {
@@ -183,6 +185,9 @@ public class Utils {
             int _maxRetryAttemptsForSessionRefresh = 10;
             if (maxRetryAttemptsForSessionRefresh != null) {
                 _maxRetryAttemptsForSessionRefresh = maxRetryAttemptsForSessionRefresh;
+            }
+            if (_maxRetryAttemptsForSessionRefresh < 0) {
+                _maxRetryAttemptsForSessionRefresh = 0;
             }
 
             String _sessionTokenBackendDomain = null;
@@ -203,7 +208,7 @@ public class Utils {
             String _tokenTransferMethod = "header";
 
             if (tokenTransferMethod != null && tokenTransferMethod.equalsIgnoreCase("cookie")) {
-                _tokenTransferMethod = tokenTransferMethod;
+                _tokenTransferMethod = "cookie";
             }
 
             return new NormalisedInputType(_apiDomain, _apiBasePath, _sessionExpiredStatusCode, _maxRetryAttemptsForSessionRefresh,
@@ -211,38 +216,42 @@ public class Utils {
         }
     }
 
+    /** @deprecated Raw writes are not atomic session transitions. */
+    @Deprecated
     public static void storeInStorage(String name, String value, Context context) {
-        String storageKey = "st-storage-item-" + name;
-        SharedPreferences sharedPreferences = getSharedPreferences(context);
-
-        if (value.isEmpty()) {
-            SharedPreferences.Editor editor = sharedPreferences.edit();
-            editor.remove(storageKey);
-            editor.apply();
-            return;
-        }
-
-        SharedPreferences.Editor editor = sharedPreferences.edit();
-        editor.putString(storageKey, value)
-                .apply();
+        LegacyEventBatch events = SessionState.editLegacy(context,
+                new SessionStorage.LegacyEdit(new String[]{"st-storage-item-" + name},
+                        new String[]{value.isEmpty() ? null : value}), false);
+        SessionState.dispatch(events);
     }
 
+    @Deprecated
     public static void saveLastAccessTokenUpdate(Context context) {
         String now = "" + System.currentTimeMillis();
 
-        storeInStorage(Constants.LAST_ACCESS_TOKEN_UPDATE_PREFS_KEY, now, context);
-        storeInStorage("sIRTFrontend", "", context);
+        SessionState.dispatch(SessionState.editLegacy(context,
+                new SessionStorage.LegacyEdit(new String[]{"st-storage-item-" + Constants.LAST_ACCESS_TOKEN_UPDATE_PREFS_KEY,
+                        "st-storage-item-sIRTFrontend"}, new String[]{now, null}), false));
     }
 
     public static String getFromStorage(String name, Context context) {
+        if (SessionState.isProjectedKey(name)) {
+            return SessionState.storedValue(context, name);
+        }
         return getSharedPreferences(context).getString("st-storage-item-" + name, null);
     }
 
     public static LocalSessionState getLocalSessionState(Context context) {
-        String lastAccessTokenUpdate = getFromStorage(Constants.LAST_ACCESS_TOKEN_UPDATE_PREFS_KEY, context);
-        boolean frontTokenExists = FrontToken.doesTokenExist(context);
-
-        if (frontTokenExists && lastAccessTokenUpdate != null) {
+        if (!SuperTokens.isInitCalled) {
+            String marker = getFromStorage(Constants.LAST_ACCESS_TOKEN_UPDATE_PREFS_KEY, context);
+            // Pre-init uses published marker presence, not the importer's synthesized evidence.
+            boolean exists = FrontToken.doesTokenExist(context) && marker != null;
+            return new LocalSessionState(exists ? LocalSessionStateStatus.EXISTS : LocalSessionStateStatus.NOT_EXISTS,
+                    exists ? marker : null);
+        }
+        SessionSnapshot snapshot = SessionState.snapshot();
+        String lastAccessTokenUpdate = SessionState.lastAccessTokenUpdate(snapshot.getOwner());
+        if (snapshot.getStatus() == SessionSnapshot.Status.AVAILABLE && lastAccessTokenUpdate != null) {
             return new LocalSessionState(LocalSessionStateStatus.EXISTS, lastAccessTokenUpdate);
         }
 
@@ -257,11 +266,13 @@ public class Utils {
         return Constants.REFRESH_TOKEN_PREFS_KEY;
     }
 
+    @Deprecated
     public static void setToken(TokenType tokenType, String value, Context context) {
         String name = getStorageName(tokenType);
         storeInStorage(name, value, context);
     }
 
+    @Deprecated
     public static void saveTokenFromHeaders(SuperTokensCustomHttpURLConnection connection, Context context) {
         String refreshToken = connection.getHeaderField(Constants.REFRESH_TOKEN_HEADER_KEY);
 
@@ -283,11 +294,11 @@ public class Utils {
 
         String antiCSRF = connection.getHeaderField(Constants.CSRF_HEADER_KEY);
         if (antiCSRF != null) {
-            LocalSessionState localSessionState = getLocalSessionState(context);
-            AntiCSRF.setToken(context, localSessionState.lastAccessTokenUpdate, antiCSRF);
+            AntiCSRF.setToken(context, getFromStorage(Constants.LAST_ACCESS_TOKEN_UPDATE_PREFS_KEY, context), antiCSRF);
         }
     }
 
+    @Deprecated
     public static void saveTokenFromHeaders(Response response, Context context) {
         String refreshToken = response.header(Constants.REFRESH_TOKEN_HEADER_KEY);
 
@@ -309,14 +320,15 @@ public class Utils {
 
         String antiCSRF = response.header(Constants.CSRF_HEADER_KEY);
         if (antiCSRF != null) {
-            LocalSessionState localSessionState = getLocalSessionState(context);
-            AntiCSRF.setToken(context, localSessionState.lastAccessTokenUpdate, antiCSRF);
+            AntiCSRF.setToken(context, getFromStorage(Constants.LAST_ACCESS_TOKEN_UPDATE_PREFS_KEY, context), antiCSRF);
         }
     }
 
     public static String getTokenForHeaderAuth(TokenType tokenType, Context context) {
-        String name = getStorageName(tokenType);
-        return getFromStorage(name, context);
+        if (!SuperTokens.isInitCalled) return getFromStorage(getStorageName(tokenType), context);
+        SessionTokens tokens = SessionState.snapshot().getTokens();
+        if (tokens == null) return null;
+        return tokenType == TokenType.ACCESS ? tokens.getAccessToken() : tokens.getRefreshToken();
     }
 
     // Checks if a key exists in a map regardless of case
@@ -335,8 +347,10 @@ public class Utils {
         // users to continue these sessions.
         // The new session preference should be applied at the start of the next
         // session, if the backend allows it.
-        String accessToken = getTokenForHeaderAuth(TokenType.ACCESS, context);
-        String refreshToken = getTokenForHeaderAuth(TokenType.REFRESH, context);
+        if (!SuperTokens.isInitCalled) return null;
+        SessionTokens tokens = SessionState.snapshot().getTokens();
+        String accessToken = tokens == null ? null : tokens.getAccessToken();
+        String refreshToken = tokens == null ? null : tokens.getRefreshToken();
 
         // We don't always need the refresh token because that's only required by the
         // refresh call
@@ -352,6 +366,7 @@ public class Utils {
         return null;
     }
 
+    @Deprecated
     public static void fireSessionUpdateEventsIfNecessary(
             boolean wasLoggedIn,
             int status,
@@ -368,20 +383,21 @@ public class Utils {
         }
 
         boolean frontTokenExistsAfter = !frontTokenHeaderFromResponse.equalsIgnoreCase("remove");
+        NormalisedInputType captured = SuperTokens.config;
 
         if (wasLoggedIn) {
             // we check for wasLoggedIn cause we don't want to fire an event
             // unnecessarily on first app load or if the user tried
             // to query an API that returned 401 while the user was not logged in...
             if (!frontTokenExistsAfter) {
-                if (status == SuperTokens.config.sessionExpiredStatusCode) {
-                    SuperTokens.config.eventHandler.handleEvent(EventHandler.EventType.UNAUTHORISED);
+                if (status == captured.sessionExpiredStatusCode) {
+                    new LegacyEventBatch(captured.eventHandler, EventHandler.EventType.UNAUTHORISED).deliver();
                 } else {
-                    SuperTokens.config.eventHandler.handleEvent(EventHandler.EventType.SIGN_OUT);
+                    new LegacyEventBatch(captured.eventHandler, EventHandler.EventType.SIGN_OUT).deliver();
                 }
             }
         } else if (frontTokenExistsAfter) {
-            SuperTokens.config.eventHandler.handleEvent(EventHandler.EventType.SESSION_CREATED);
+            new LegacyEventBatch(captured.eventHandler, EventHandler.EventType.SESSION_CREATED).deliver();
         }
     }
 
@@ -434,7 +450,7 @@ public class Utils {
         if (!apiDomain.equals("")) {
             String _apiDomain = new NormalisedURLDomain(apiDomain).getAsStringDangerous();
             URL apiDomainUrlObj = new URL(_apiDomain);
-            apiDomainAndInputDomainMatch = apiDomainUrlObj.getHost().equals(domain);
+            apiDomainAndInputDomainMatch = apiDomainUrlObj.getHost().equalsIgnoreCase(domain);
         }
 
         if (cookieDomain == null || apiDomainAndInputDomainMatch) {

@@ -1,0 +1,26 @@
+import groovy.json.JsonOutput
+
+gradle.projectsEvaluated {
+    allprojects {
+        tasks.withType(Test).all { task ->
+            def directory = new File(System.getenv('ST_MATRIX_REPORTS'), task.name)
+            def cases = []
+            task.reports.junitXml.destination = new File(directory, 'xml')
+            task.reports.html.destination = new File(directory, 'html')
+            task.afterTest { descriptor, result ->
+                cases.add([name: descriptor.name, className: descriptor.className, result: result.resultType.toString()])
+            }
+            task.afterSuite { descriptor, result ->
+                if (descriptor.parent == null) {
+                    directory.mkdirs()
+                    new File(directory, 'result.json').text = JsonOutput.prettyPrint(JsonOutput.toJson([
+                        tests: result.testCount, passed: result.successfulTestCount, skipped: result.skippedTestCount,
+                        failed: result.failedTestCount, cases: cases, tasks: gradle.taskGraph.allTasks*.path,
+                        requested: gradle.startParameter.taskNames, excluded: gradle.startParameter.excludedTaskNames,
+                        classpath: task.classpath.files*.absolutePath
+                    ]))
+                }
+            }
+        }
+    }
+}
