@@ -70,7 +70,7 @@ import retrofit2.converter.gson.GsonConverterFactory;
 @SuppressWarnings({"CatchMayIgnoreException", "FieldCanBeLocal"})
 @RunWith(MockitoJUnitRunner.class)
 public class SuperTokensRetrofitTest {
-    private final String testBaseURL = "http://127.0.0.1:8080/";
+    private final String testBaseURL = Constants.apiDomain + "/";
     private final String refreshTokenEndpoint = testBaseURL + "/refresh";
     private final String loginAPIURL = testBaseURL + "/login";
     private final String userInfoAPIURL = testBaseURL + "/";
@@ -576,7 +576,7 @@ public class SuperTokensRetrofitTest {
 
     @Test
     public void retrofit_testThatOldSessionsStillWorkAfterRefreshing() throws Exception {
-        com.example.TestUtils.startST(30);
+        com.example.TestUtils.startST(1);
         new SuperTokens.Builder(context, Constants.apiDomain)
                 .tokenTransferMethod("cookie")
                 .build();
@@ -598,7 +598,7 @@ public class SuperTokensRetrofitTest {
         HttpUrl httpUrl = new HttpUrl.Builder()
                 .scheme("http")
                 .host("127.0.0.1")
-                .port(8080)
+                .port(okhttp3.HttpUrl.parse(Constants.apiDomain).port())
                 .build();
         List<Cookie> cookies = new ArrayList<>();
         cookies.add(idRefreshToken);
@@ -623,7 +623,7 @@ public class SuperTokensRetrofitTest {
 
     @Test
     public void retrofit_testThatRefreshingOldSessionsWorksFineWithExpiredAccessToken() throws Exception {
-        com.example.TestUtils.startST(30);
+        com.example.TestUtils.startST(1);
         new SuperTokens.Builder(context, Constants.apiDomain)
                 .tokenTransferMethod("cookie")
                 .build();
@@ -653,7 +653,7 @@ public class SuperTokensRetrofitTest {
         HttpUrl httpUrl = new HttpUrl.Builder()
                 .scheme("http")
                 .host("127.0.0.1")
-                .port(8080)
+                .port(okhttp3.HttpUrl.parse(Constants.apiDomain).port())
                 .build();
 
         List<Cookie> cookies = new ArrayList<>();
@@ -679,8 +679,8 @@ public class SuperTokensRetrofitTest {
     }
 
     @Test
-    public void retrofit_transferMethodChangeClearsSessionAndRequiresNewLogin() throws Exception {
-        com.example.TestUtils.startST(30);
+    public void retrofit_testThatOldSessionsStillWorkWhenUsingHeaders() throws Exception {
+        com.example.TestUtils.startST(1);
         new SuperTokens.Builder(context, Constants.apiDomain)
                 .tokenTransferMethod("cookie")
                 .build();
@@ -708,28 +708,36 @@ public class SuperTokensRetrofitTest {
         HttpUrl httpUrl = new HttpUrl.Builder()
                 .scheme("http")
                 .host("127.0.0.1")
-                .port(8080)
+                .port(okhttp3.HttpUrl.parse(Constants.apiDomain).port())
                 .build();
         cookieJar.saveFromResponse(httpUrl, cookies);
 
-        new SuperTokens.Builder(context, Constants.apiDomain).tokenTransferMethod("header").reconfigure();
-        assert !SuperTokens.doesSessionExist(context);
-        assert SuperTokens.getAccessToken(context) == null;
-        int refreshesBeforeRequest = com.example.TestUtils.getRefreshTokenCounter();
+        SuperTokens.setTokenTransferMethod("header");
 
         Response<ResponseBody> userInfoResponse = retrofitTestAPIService.userInfo().execute();
-        assert userInfoResponse.code() == 401;
-        if (userInfoResponse.errorBody() != null) userInfoResponse.errorBody().close();
-        assert com.example.TestUtils.getRefreshTokenCounter() == refreshesBeforeRequest;
-        assert !SuperTokens.doesSessionExist(context);
+        if (userInfoResponse.code() != 200) {
+            throw new Exception("User info API failed even after calling refresh");
+        }
+
+        List<Cookie> newCookies = cookieJar.loadForRequest(httpUrl);
+        Cookie idRefreshTokenCookie = null;
+
+        for (Cookie _cookie : newCookies) {
+            if (_cookie.name().equals("sIdRefreshToken")) {
+                idRefreshTokenCookie = _cookie;
+            }
+        }
+
+        assert idRefreshTokenCookie == null;
 
         accessToken = SuperTokens.getAccessToken(context);
 
         assert accessToken == null;
 
         Response<Void> logoutResponse = retrofitTestAPIService.logout().execute();
-        assert logoutResponse.code() == 401;
-        if (logoutResponse.errorBody() != null) logoutResponse.errorBody().close();
+        if (logoutResponse.code() != 200){
+            throw new Exception("logout failed");
+        }
 
         body = new JsonObject();
         body.addProperty("userId", Constants.userId);
@@ -760,7 +768,7 @@ public class SuperTokensRetrofitTest {
         try {
             Response<ResponseBody> userInfoResponse = retrofitTestAPIService.throw401().execute();
         } catch (IOException e) {
-            assert e.getMessage().equals("Received a 401 response from http://127.0.0.1:8080/throw-401. Attempted to refresh the session and retry the request with the updated session tokens 10 times, but each attempt resulted in a 401 error. The maximum session refresh limit has been reached. Please investigate your API. To increase the session refresh attempts, update maxRetryAttemptsForSessionRefresh in the config.");
+            assert e.getMessage().equals("Received a 401 response from " + Constants.apiDomain + "/throw-401. Attempted to refresh the session and retry the request with the updated session tokens 10 times, but each attempt resulted in a 401 error. The maximum session refresh limit has been reached. Please investigate your API. To increase the session refresh attempts, update maxRetryAttemptsForSessionRefresh in the config.");
         }
 
         int sessionRefreshCalledCount = com.example.TestUtils.getRefreshTokenCounter();
@@ -787,7 +795,7 @@ public class SuperTokensRetrofitTest {
         try {
             Response<ResponseBody> userInfoResponse = retrofitTestAPIService.throw401().execute();
         } catch (IOException e) {
-            assert e.getMessage().equals("Received a 401 response from http://127.0.0.1:8080/throw-401. Attempted to refresh the session and retry the request with the updated session tokens 5 times, but each attempt resulted in a 401 error. The maximum session refresh limit has been reached. Please investigate your API. To increase the session refresh attempts, update maxRetryAttemptsForSessionRefresh in the config.");
+            assert e.getMessage().equals("Received a 401 response from " + Constants.apiDomain + "/throw-401. Attempted to refresh the session and retry the request with the updated session tokens 5 times, but each attempt resulted in a 401 error. The maximum session refresh limit has been reached. Please investigate your API. To increase the session refresh attempts, update maxRetryAttemptsForSessionRefresh in the config.");
         }
 
         int sessionRefreshCalledCount = com.example.TestUtils.getRefreshTokenCounter();
@@ -814,7 +822,7 @@ public class SuperTokensRetrofitTest {
         try {
             Response<ResponseBody> userInfoResponse = retrofitTestAPIService.throw401().execute();
         } catch (IOException e) {
-            assert e.getMessage().equals("Received a 401 response from http://127.0.0.1:8080/throw-401. Attempted to refresh the session and retry the request with the updated session tokens 0 times, but each attempt resulted in a 401 error. The maximum session refresh limit has been reached. Please investigate your API. To increase the session refresh attempts, update maxRetryAttemptsForSessionRefresh in the config.");
+            assert e.getMessage().equals("Received a 401 response from " + Constants.apiDomain + "/throw-401. Attempted to refresh the session and retry the request with the updated session tokens 0 times, but each attempt resulted in a 401 error. The maximum session refresh limit has been reached. Please investigate your API. To increase the session refresh attempts, update maxRetryAttemptsForSessionRefresh in the config.");
         }
 
         int sessionRefreshCalledCount = com.example.TestUtils.getRefreshTokenCounter();

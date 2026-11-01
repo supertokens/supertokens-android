@@ -127,6 +127,13 @@ public class SessionStorageRestartTest {
             try {
                 while (finish.getCount() != 0) {
                     SessionSnapshot snapshot = SuperTokens.getSessionSnapshot(context);
+                    // Replacement persistence exposes a tokenless view rather than blocking readers.
+                    if (snapshot.getStatus() == SessionSnapshot.Status.UNAVAILABLE) {
+                        assertNull(snapshot.getTokens());
+                        assertNull(snapshot.getFrontToken());
+                        assertNull(snapshot.getAccessTokenPayload());
+                        continue;
+                    }
                     assertEquals(SessionSnapshot.Status.AVAILABLE, snapshot.getStatus());
                     assertEquals(snapshot.getTokens().getFrontToken(),
                             tokens().getFrontToken());

@@ -42,23 +42,25 @@ public class SessionRedirectBoundaryTest extends SessionTestFixture {
         outside(false, new MockResponse().setResponseCode(401));
     }
 
-    @Test public void sameOriginOutsidePathCannotAdoptSession() throws Exception {
-        outside(true, rotation(tokens("attacker", "outside-path")));
+    @Test public void crossHostTupleCannotAdoptSession() throws Exception {
+        outside(true, rotation(tokens("attacker", "foreign-host")));
     }
 
-    @Test public void sameOriginOutsidePathCannotClearOrRefreshSession() throws Exception {
+    @Test public void crossHostRemovalCannotClearOrRefreshSession() throws Exception {
         outside(true, new MockResponse().setResponseCode(401).addHeader("front-token", "remove"));
     }
 
-    private void outside(boolean sameOrigin, MockResponse response) throws Exception {
+    private void outside(boolean crossHost, MockResponse response) throws Exception {
         assertTrue(new SuperTokens.Builder(context, server.url("/managed").toString())
                 .tokenTransferMethod("header").maxRetryAttemptsForSessionRefresh(0).reconfigure().isSuccess());
         SessionSnapshot before = present ? install("victim", "initial") : SuperTokens.getSessionSnapshot(context);
         SessionRequestTag tag = tagged ? SuperTokens.captureRequestTag(context) : null;
         try (MockWebServer foreign = new MockWebServer()) {
             foreign.start();
-            MockWebServer destination = sameOrigin ? server : foreign;
-            server.enqueue(new MockResponse().setResponseCode(302).addHeader("Location", destination.url("/outside")));
+            MockWebServer destination = foreign;
+            okhttp3.HttpUrl target = destination.url("/outside");
+            if (crossHost) target = target.newBuilder().host("127.0.0.1").build();
+            server.enqueue(new MockResponse().setResponseCode(302).addHeader("Location", target));
             destination.enqueue(response);
             try {
                 assertEquals(Integer.parseInt(response.getStatus().split(" ")[1]),
@@ -68,8 +70,8 @@ public class SessionRedirectBoundaryTest extends SessionTestFixture {
                 assertTrue("untagged response must remain readable", tagged);
                 assertTrue(expected.getMessage(), expected.getMessage().contains("outside captured session scope"));
             }
-            assertEquals(sameOrigin ? 2 : 1, server.getRequestCount());
-            assertEquals(sameOrigin ? 0 : 1, foreign.getRequestCount());
+            assertEquals(1, server.getRequestCount());
+            assertEquals(1, foreign.getRequestCount());
             assertEquals("/managed/start", server.takeRequest(1, TimeUnit.SECONDS).getPath());
             assertEquals("/outside", destination.takeRequest(1, TimeUnit.SECONDS).getPath());
             SessionSnapshot after = SuperTokens.getSessionSnapshot(context);
@@ -80,13 +82,24 @@ public class SessionRedirectBoundaryTest extends SessionTestFixture {
         }
     }
 
-    @Test public void sameOriginWithinPathAdoptsLegitimateAuthentication() throws Exception {
+    @Test public void sameOriginOutsideConfiguredPathRemovalIsAcceptedUnderD4() throws Exception {
+        assertTrue(new SuperTokens.Builder(context, server.url("/managed").toString()).reconfigure().isSuccess());
+        if (present) install("victim", "initial");
+        SessionRequestTag tag = tagged ? SuperTokens.captureRequestTag(context) : null;
+        server.enqueue(new MockResponse().setResponseCode(302).addHeader("Location", "/outside/logout"));
+        server.enqueue(new MockResponse().addHeader("front-token", "remove"));
+        assertEquals(200, request(urlConnection, tag, "/managed/start"));
+        assertEquals(SessionSnapshot.Status.ABSENT, SuperTokens.getSessionSnapshot(context).getStatus());
+        assertEquals(2, server.getRequestCount());
+    }
+
+    @Test public void sameOriginOutsideConfiguredPathAdoptsLegitimateAuthenticationUnderD4() throws Exception {
         assertTrue(new SuperTokens.Builder(context, server.url("/managed").toString())
                 .tokenTransferMethod("header").reconfigure().isSuccess());
         if (present) install("victim", "initial");
         SessionRequestTag tag = tagged ? SuperTokens.captureRequestTag(context) : null;
         SessionTokens accepted = tokens("legitimate", "redirect");
-        server.enqueue(new MockResponse().setResponseCode(302).addHeader("Location", server.url("/managed/callback")));
+        server.enqueue(new MockResponse().setResponseCode(302).addHeader("Location", server.url("/outside/callback")));
         server.enqueue(rotation(accepted));
         assertEquals(200, request(urlConnection, tag, "/managed/start"));
         assertEquals(accepted.getAccessToken(), SuperTokens.getSessionSnapshot(context).getTokens().getAccessToken());

@@ -1,0 +1,149 @@
+name: Device compatibility
+
+on:
+  pull_request:
+  push:
+    branches: ['[0-9]+.[0-9]+', 'test-cicd/**']
+    tags: ['dev-v*', 'v*']
+  workflow_dispatch:
+  schedule:
+    - cron: '41 3 * * *'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: device-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  restart:
+    name: Restart API ${{ matrix.api }}
+    runs-on: ubuntu-22.04
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        api: [21, 34]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+        with:
+          cmdline-tools-version: '11076708'
+      - run: sdkmanager 'platforms;android-32' 'build-tools;29.0.2'
+      - name: Enable KVM for runner user
+        run: sudo chmod 666 /dev/kvm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '11.0.25+9'
+      - name: Build and preserve test artifact
+        run: |
+          ./gradlew :app:assembleDebugAndroidTest --no-daemon --console=plain
+          mkdir -p "$RUNNER_TEMP/device-artifacts"
+          cp app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk "$RUNNER_TEMP/device-artifacts/test.apk"
+          sha256sum "$RUNNER_TEMP/device-artifacts/test.apk" > "$RUNNER_TEMP/device-artifacts/apk.sha256"
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Explicit restart pairs and supported StrictMode methods
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
+        with:
+          api-level: ${{ matrix.api }}
+          target: default
+          arch: x86_64
+          emulator-port: 5554
+          emulator-boot-timeout: 600
+          disable-linux-hw-accel: 'false'
+          script: |
+            test "$(adb -s emulator-5554 shell getprop ro.build.version.sdk | tr -d '\r')" = '${{ matrix.api }}'
+            sh testHelpers/device/restart-pairs.sh --serial emulator-5554 --apk "$RUNNER_TEMP/device-artifacts/test.apk" --output "$RUNNER_TEMP/device-artifacts/restart" --warmed-cache
+            if [ '${{ matrix.api }}' = 34 ]; then python3 testHelpers/device/selected-tests.py --serial emulator-5554 --api 34 --package com.supertokens.session.test --test-package com.supertokens.session.test --test-class com.supertokens.session.StrictModeMainThreadTest --method monitorDetectsActualMainThreadDiskWrite --method prewarmedEmptyStartupDoesNotWriteOnMainThread --method prewarmedCoherentStartupDoesNotWriteMetadataOnMainThread --output "$RUNNER_TEMP/device-artifacts/strictmode"; fi
+      - name: Record installed runtime and acceleration (including boot failures)
+        if: always()
+        run: bash testHelpers/device/runtime-provenance.sh '${{ matrix.api }}' x86_64 "$RUNNER_TEMP/device-artifacts/runtime"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: device-api${{ matrix.api }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/device-artifacts/
+          retention-days: 14
+
+  oldest-runtime:
+    name: Old runtime API ${{ matrix.api }}
+    # Old emulators are excluded from PRs for cost; every configured release push runs them.
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        api: [17, 19]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+        with:
+          cmdline-tools-version: '11076708'
+      - name: Require the exact obsolete image
+        run: |
+          mkdir -p "$RUNNER_TEMP/old-runtime"
+          sdkmanager --list --include_obsolete --channel=0 > "$RUNNER_TEMP/old-runtime/sdk-list.txt"
+          grep -F 'system-images;android-${{ matrix.api }};default;x86 ' "$RUNNER_TEMP/old-runtime/sdk-list.txt"
+          sdkmanager 'platforms;android-32' 'build-tools;29.0.2'
+          sudo chmod 666 /dev/kvm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '11.0.25+9'
+      - name: Fresh AAR receipt and compatible consumer variants
+        run: |
+          python3 testHelpers/upgradeapp/tools/build_provenance.py --output "$RUNNER_TEMP/old-runtime-build"
+          hash=$(sha256sum "$RUNNER_TEMP/old-runtime-build/candidate.aar" | cut -d' ' -f1)
+          ./gradlew -p testHelpers/upgradeapp --no-daemon --console=plain \
+            -PcandidateAar="$RUNNER_TEMP/old-runtime-build/candidate.aar" \
+            -PcandidateAarSha256="$hash" \
+            -PcandidateBuildProvenance="$RUNNER_TEMP/old-runtime-build/candidate-build.json" \
+            :app:assembleSdk054Debug :app:assembleSdk054DebugAndroidTest \
+            :app:assembleCandidateDebug :app:assembleCandidateDebugAndroidTest
+          cp -R testHelpers/upgradeapp/app/build/outputs/apk "$RUNNER_TEMP/old-runtime/apk"
+          find "$RUNNER_TEMP/old-runtime/apk" -name '*.apk' -exec sha256sum {} \; > "$RUNNER_TEMP/old-runtime/artifacts.sha256"
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Baseline and candidate on the exact old runtime
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
+        with:
+          api-level: ${{ matrix.api }}
+          target: default
+          arch: x86
+          emulator-port: 5554
+          emulator-boot-timeout: 600
+          disable-linux-hw-accel: 'false'
+          script: |
+            python3 testHelpers/device/selected-tests.py --serial emulator-5554 --api '${{ matrix.api }}' --package com.supertokens.upgrade --test-package com.supertokens.upgrade.test --test-class com.supertokens.upgrade.OldRuntimeTest --expected-sdk-name sdk054 --method legacyNoArgumentAndApplicationTag --apk "$RUNNER_TEMP/old-runtime/apk/sdk054/debug/app-sdk054-debug.apk" --apk "$RUNNER_TEMP/old-runtime/apk/androidTest/sdk054/debug/app-sdk054-debug-androidTest.apk" --output "$RUNNER_TEMP/old-runtime/baseline"
+            python3 testHelpers/device/selected-tests.py --serial emulator-5554 --api '${{ matrix.api }}' --package com.supertokens.upgrade --test-package com.supertokens.upgrade.test --test-class com.supertokens.upgrade.OldRuntimeTest --expected-sdk-name candidate --method legacyNoArgumentAndApplicationTag --method candidateUntypedSessionTag --method candidateOwnedConstructorRejectsOldRuntime --apk "$RUNNER_TEMP/old-runtime/apk/candidate/debug/app-candidate-debug.apk" --apk "$RUNNER_TEMP/old-runtime/apk/androidTest/candidate/debug/app-candidate-debug-androidTest.apk" --output "$RUNNER_TEMP/old-runtime/candidate"
+      - name: Record installed runtime and acceleration (including boot failures)
+        if: always()
+        run: bash testHelpers/device/runtime-provenance.sh '${{ matrix.api }}' x86 "$RUNNER_TEMP/old-runtime/runtime"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: old-runtime-api${{ matrix.api }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/old-runtime/
+            ${{ runner.temp }}/old-runtime-build/
+          retention-days: 14

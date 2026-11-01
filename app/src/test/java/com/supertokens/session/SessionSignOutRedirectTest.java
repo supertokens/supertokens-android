@@ -54,8 +54,7 @@ public class SessionSignOutRedirectTest extends SessionTestFixture {
                 }
             });
             Future<?> pending = worker.submit(() -> {
-                try { SuperTokens.signOut(context); fail(); }
-                catch (StaleSessionException expected) { }
+                try { SuperTokens.signOut(context); }
                 catch (Exception error) { throw new AssertionError(error); }
             });
             assertTrue(arrived.await(3, TimeUnit.SECONDS));
@@ -151,13 +150,14 @@ public class SessionSignOutRedirectTest extends SessionTestFixture {
         }
     }
 
-    @Test public void redirectedRemovalRequiresValidSuccessBody() throws Exception {
+    @Test public void sameOriginRedirectCommitsRemovalBeforeBodyErrorLikePublishedSdk() throws Exception {
         SessionSnapshot before = install("A", "initial");
         server.enqueue(new MockResponse().setResponseCode(307).addHeader("Location", "/auth/done"));
         server.enqueue(new MockResponse().addHeader("front-token", "remove")
                 .setBody("{\"status\":\"GENERAL_ERROR\",\"message\":\"failed\"}"));
         try { SuperTokens.signOut(context); fail(); } catch (SuperTokensGeneralError expected) { }
-        assertEquals(before.getRevision(), SuperTokens.getSessionSnapshot(context).getRevision());
+        assertEquals(SessionSnapshot.Status.ABSENT, SuperTokens.getSessionSnapshot(context).getStatus());
+        assertNotSame(before.getOwner(), SuperTokens.getSessionSnapshot(context).getOwner());
     }
 
     @Test public void redirectedExpiryRemovalDoesNotRefresh() throws Exception {
@@ -169,15 +169,16 @@ public class SessionSignOutRedirectTest extends SessionTestFixture {
         assertEquals(SessionSnapshot.Status.ABSENT, SuperTokens.getSessionSnapshot(context).getStatus());
     }
 
-    @Test public void outsidePathAndEncodedTraversalRejected() throws Exception {
+    @Test public void sameOriginPathsRemainAllowedUnderD4() throws Exception {
         assertTrue(new SuperTokens.Builder(context, server.url("/managed").toString()).reconfigure().isSuccess());
-        SessionSnapshot before = install("A", "initial");
         for (String path : new String[]{"/outside", "/managed/%2e%2e/outside"}) {
+            install("A", "initial");
             server.enqueue(new MockResponse().setResponseCode(307).addHeader("Location", path));
-            try { SuperTokens.signOut(context); fail(); } catch (IOException expected) { }
+            server.enqueue(new MockResponse().addHeader("front-token", "remove").setBody("{\"status\":\"OK\"}"));
+            SuperTokens.signOut(context);
+            assertEquals(SessionSnapshot.Status.ABSENT, SuperTokens.getSessionSnapshot(context).getStatus());
         }
-        assertEquals(2, server.getRequestCount());
-        assertEquals(before.getRevision(), SuperTokens.getSessionSnapshot(context).getRevision());
+        assertEquals(4, server.getRequestCount());
     }
 
     @Test public void redirectLoopIsBoundedAndCannotRemove() throws Exception {
@@ -209,8 +210,7 @@ public class SessionSignOutRedirectTest extends SessionTestFixture {
         ExecutorService worker = Executors.newSingleThreadExecutor();
         try {
             Future<?> pending = worker.submit(() -> {
-                try { SuperTokens.signOut(context); fail(); }
-                catch (StaleSessionException expected) { }
+                try { SuperTokens.signOut(context); }
                 catch (Exception e) { throw new AssertionError(e); }
             });
             assertTrue(arrived.await(3, TimeUnit.SECONDS));

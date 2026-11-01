@@ -61,8 +61,7 @@ public class SessionSignOutRefreshTest extends SessionTestFixture {
         ExecutorService worker = Executors.newSingleThreadExecutor();
         try {
             Future<?> pending = worker.submit(() -> {
-                try { SuperTokens.signOut(context); fail("replacement owner accepted by signout"); }
-                catch (StaleSessionException expected) { }
+                try { SuperTokens.signOut(context); }
                 catch (Exception error) { throw new AssertionError(error); }
             });
             assertTrue("signout did not reach expected wire", arrived.await(3, TimeUnit.SECONDS));
@@ -108,7 +107,7 @@ public class SessionSignOutRefreshTest extends SessionTestFixture {
         assertEquals(initial.getRevision(), SuperTokens.getSessionSnapshot(context).getRevision());
     }
 
-    @Test public void retryStillValidatesBodyBeforeAcceptingRemoval() throws Exception {
+    @Test public void retryCommitsRemovalBeforeSurfacingBodyErrorLikePublishedSdk() throws Exception {
         SessionSnapshot initial = install("A", "initial");
         SessionTokens refreshed = tokens("A", "refreshed");
         server.enqueue(new MockResponse().setResponseCode(401));
@@ -118,8 +117,8 @@ public class SessionSignOutRefreshTest extends SessionTestFixture {
         try { SuperTokens.signOut(context); fail("invalid signout accepted"); }
         catch (SuperTokensGeneralError expected) { assertEquals("cannot sign out", expected.getMessage()); }
         assertEquals(3, server.getRequestCount());
-        assertSame(initial.getOwner(), SuperTokens.getSessionSnapshot(context).getOwner());
-        assertEquals(refreshed.getRefreshToken(), SuperTokens.getSessionSnapshot(context).getTokens().getRefreshToken());
+        assertEquals(SessionSnapshot.Status.ABSENT, SuperTokens.getSessionSnapshot(context).getStatus());
+        assertNotSame(initial.getOwner(), SuperTokens.getSessionSnapshot(context).getOwner());
     }
 
     @Test public void expiryWithExplicitRemovalDoesNotRefresh() throws Exception {

@@ -12,6 +12,7 @@ function optionalRecipe(path) {
 }
 
 const optionalRecipes = [
+    optionalRecipe("supertokens-node/lib/build/recipe/thirdparty/recipe"),
     optionalRecipe("supertokens-node/lib/build/recipe/multitenancy/recipe"),
     optionalRecipe("supertokens-node/lib/build/recipe/usermetadata/recipe"),
     optionalRecipe("supertokens-node/lib/build/recipe/accountlinking/recipe")

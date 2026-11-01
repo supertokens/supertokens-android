@@ -1,2 +1,4 @@
-# use: ./testHelpers/startServer ../../../com-root
-(cd testHelpers/server && TEST_MODE=testing INSTALL_PATH=../../$1 NODE_PORT=$2 node .)
+#!/bin/sh
+set -eu
+echo 'Direct server startup is unsupported. Use node testHelpers/server/runOrdinary.js CORE_SOURCE EVIDENCE_DIR BACKEND_PORT CORE_PORT COMMAND [ARGS...]; see testHelpers/testapp/RUNNING.md.' >&2
+exit 2

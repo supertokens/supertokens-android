@@ -4,7 +4,15 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "node resetRecipes.test.js && node legacySession.test.js"
+    "test:entrypoints": "node ../testapp/entrypoint.test.js && node ownedEntrypoints.test.js && node ownedHistoricalUpgrade.test.js && node matrixAcceptance.test.js && node ownedProxyQualification.test.js && node ownedCompletion.test.js",
+    "test:qualification-proxy": "node qualificationProxy.test.js",
+    "qualification-proxy": "node runQualificationProxy.js",
+    "test": "node resetRecipes.test.js && node legacySession.test.js && node coreProtocol.test.js && node coreProtocol.responseCleanup.test.js && node findFixtureTenant.test.js && node fixtureOwners.test.js && node accountLinking.test.js && node runtimeIdentity.test.js && node ciCleanup.test.js && node evidencePublication.test.js && node --test accountLinkingPositive.test.js nativeEvidence.test.js",
+    "test:native-upgrade": "node --test nativeEvidence.test.js nativeUpgradeControl.test.js nativeExecutor.test.js runOwnedNativeUpgrade.test.js ../testapp/upgradeTerminal.test.js ../../.circleci/nativeUpgradeEvidence.test.js && PYTHONDONTWRITEBYTECODE=1 python3 -m unittest test_native_lease",
+    "test:core": "npm run test:account-linking-gate && node coreProtocol.live.test.js",
+    "test:core-cleanup": "node fixtureOwners.live.test.js",
+    "test:account-linking": "node accountLinking.live.test.js",
+    "test:account-linking-gate": "node accountLinking.gate.js"
   },
   "author": "",
   "license": "ISC",

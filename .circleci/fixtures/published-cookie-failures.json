@@ -1,0 +1,30 @@
+{
+  "candidateAarSha256": "aa1ca82d327e3d749bb13ee0a126d23e70f904c623cca28de79b2e285f634377",
+  "observedAt": "2026-10-30",
+  "COOKIE": {
+    "source": "testHelpers/testapp/app/build/integration-receipts/6e6c6ecdd36c6b033f9210da078ce203dff82cf0d930c84b/reports/upgradeLiveTest.json",
+    "sourceSha256": "e71641f462bdf2a96f73866779a497926933e025e8f3f84f8920518a4553ea87",
+    "report": {
+      "tests": 4, "passed": 2, "failed": 2, "skipped": 0,
+      "cases": [
+        {"className": "com.example.example.PublishedUpgradeLiveTest", "name": "publishedSessionContinuesAgainstConfiguredFdiMember[COOKIE-LOGIN-/login]", "result": "SUCCESS"},
+        {"className": "com.example.example.PublishedUpgradeLiveTest", "name": "publishedSessionContinuesAgainstConfiguredFdiMember[COOKIE-REFRESH-/login]", "result": "FAILURE"},
+        {"className": "com.example.example.PublishedUpgradeLiveTest", "name": "publishedSessionContinuesAgainstConfiguredFdiMember[COOKIE-SIGN_OUT-/login]", "result": "FAILURE"},
+        {"className": "com.example.example.PublishedUpgradeLiveTest", "name": "publishedSessionContinuesAgainstConfiguredFdiMember[COOKIE-PAYLOAD_UPDATE-/login]", "result": "SUCCESS"}
+      ]
+    }
+  },
+  "EXPOSED_COOKIE": {
+    "source": "testHelpers/testapp/app/build/integration-receipts/4643ee4000935f22182b423139bc432522a3307ea38edb12/reports/upgradeLiveTest.json",
+    "sourceSha256": "b97433dbe15db9a03854f013ee53b631cf54b6e1d8823578f36d36b77296d4d4",
+    "report": {
+      "tests": 4, "passed": 2, "failed": 2, "skipped": 0,
+      "cases": [
+        {"className": "com.example.example.PublishedUpgradeLiveTest", "name": "publishedSessionContinuesAgainstConfiguredFdiMember[EXPOSED_COOKIE-LOGIN-/login]", "result": "SUCCESS"},
+        {"className": "com.example.example.PublishedUpgradeLiveTest", "name": "publishedSessionContinuesAgainstConfiguredFdiMember[EXPOSED_COOKIE-REFRESH-/login]", "result": "FAILURE"},
+        {"className": "com.example.example.PublishedUpgradeLiveTest", "name": "publishedSessionContinuesAgainstConfiguredFdiMember[EXPOSED_COOKIE-SIGN_OUT-/login]", "result": "FAILURE"},
+        {"className": "com.example.example.PublishedUpgradeLiveTest", "name": "publishedSessionContinuesAgainstConfiguredFdiMember[EXPOSED_COOKIE-PAYLOAD_UPDATE-/login]", "result": "SUCCESS"}
+      ]
+    }
+  }
+}

@@ -1,0 +1,1216 @@
+{
+  "schema": 1,
+  "sourceEvidenceRoot": "/private/var/folders/5r/6bl83v_92vg_zgq58303jlc00000gn/T/opencode/upgrade-activation-5oxbst6c",
+  "transform": "app/src/test/compatibility/upgrade/sanitize_captures.py",
+  "transformSha256": "e06afad8242d11fcac7116f2066b7f79b4e6b1d623dc325485a15543583f038c",
+  "shiftSeconds": 2309157068,
+  "candidateAarSha256": "9d4aaaaf43e6a72d4ab3f5d2621c157301b3da600a9128341cc6503747921ac1",
+  "publishedAarSha256": "2f3b4a94a036d21ced610f9c41707d7e1ccf7c9c0256e47e5686c1c76b8224b9",
+  "sanitizedNotBitIdentical": true,
+  "historicalReceiptDigests": 6,
+  "cases": [
+    {
+      "scenario": "login-b",
+      "phase": "seed",
+      "folder": "0.5.4/login-b/seed",
+      "files": {
+        "supertokens-android-shared-preferences": {
+          "source": "device-login-b/login-b-seed-supertokens-android-shared-preferences.xml",
+          "sourceSha256": "392e2112a2b56708af12c81d2babe5e8efd00d0c8261cb853c943715488cb2c0",
+          "sanitizedSha256": "1791c77ba70a0f57b185a7aa6b516778df17fe5bc6f0fa744c7d4e2946a1d8ae",
+          "apkSha256": "c5599478e4b5211ba0c26782f020590fad5a41e7e04a2c7fd5536aa71912c73e",
+          "types": {
+            "st-storage-item-st-last-access-token-update": "string",
+            "st-storage-item-st-access-token": "string",
+            "supertokens-android-fronttoken-key": "string",
+            "st-storage-item-st-refresh-token": "string"
+          }
+        },
+        "upgrade-receipt": {
+          "source": "device-login-b/login-b-seed-upgrade-receipt.xml",
+          "sourceSha256": "79a8fce794df9667bf96d5f99123051494de73e3e29ca943dfc68160a81228e4",
+          "sanitizedSha256": "d305335301acbaaa68f5d18890880bb33f518239bf48ab4971eee048483f321a",
+          "apkSha256": "c5599478e4b5211ba0c26782f020590fad5a41e7e04a2c7fd5536aa71912c73e",
+          "types": {
+            "phase": "string",
+            "process": "string",
+            "fixtureId": "string",
+            "available": "boolean",
+            "owners": "string",
+            "handle": "string",
+            "refreshDigest": "string",
+            "userId": "string",
+            "accessDigest": "string",
+            "scenario": "string",
+            "backend": "string",
+            "runId": "string",
+            "cleanupDone": "boolean",
+            "lastRequestId": "string"
+          }
+        }
+      },
+      "available": true,
+      "originalEvidence": "missing",
+      "expectedValidation": "legacy",
+      "expectedInitialWrites": 1,
+      "userId": "fixture-id-0002",
+      "expiry": 4102448400000,
+      "tokenVersion": "5",
+      "handle": "00000000-0000-0000-0000-000000000003"
+    },
+    {
+      "scenario": "login-b",
+      "phase": "check-initial",
+      "folder": "candidate/login-b/check-initial",
+      "files": {
+        "supertokens-android-shared-preferences": {
+          "source": "device-login-b/login-b-check-initial-supertokens-android-shared-preferences.xml",
+          "sourceSha256": "ae3896e8995eff3c135060907b348c2e9ad68e50a5cbd496f361c6b58e973048",
+          "sanitizedSha256": "b276f811aee922e832b9a6436c058bbefb8d9bfeda0d1b781ed40ec8722acd3e",
+          "apkSha256": "14b8a219ab90081a86466aa7d2cab2197813787c060e567f98b8e2bf9a23cec7",
+          "types": {
+            "supertokens-android-session-status": "string",
+            "supertokens-android-session-revision": "string",
+            "supertokens-android-session-handle": "string",
+            "st-storage-item-st-refresh-token": "string",
+            "supertokens-android-session-adoption": "string",
+            "supertokens-android-session-access-revision": "string",
+            "supertokens-android-fronttoken-key": "string",
+            "supertokens-android-session-legacy-marker": "string",
+            "st-storage-item-st-last-access-token-update": "string",
+            "supertokens-android-session-user": "string",
+            "supertokens-android-session-refresh-revision": "string",
+            "supertokens-android-session-tenant": "string",
+            "supertokens-android-session-expiry": "string",
+            "supertokens-android-session-validation": "string",
+            "st-storage-item-st-access-token": "string",
+            "supertokens-android-session-configuration": "string",
+            "supertokens-android-session-schema": "string",
+            "supertokens-android-session-fingerprint": "string"
+          }
+        },
+        "upgrade-receipt": {
+          "source": "device-login-b/login-b-check-initial-upgrade-receipt.xml",
+          "sourceSha256": "871a364e027928a3c739d74d865b110f12ad82d8b2ef2ee8a94a8d06b6e80d46",
+          "sanitizedSha256": "879ed987f6085ddf17d2bd3dfd5780c340ef9e420651824ff160a1109c38a459",
+          "apkSha256": "14b8a219ab90081a86466aa7d2cab2197813787c060e567f98b8e2bf9a23cec7",
+          "types": {
+            "phase": "string",
+            "process": "string",
+            "fixtureId": "string",
+            "available": "boolean",
+            "owners": "string",
+            "handle": "string",
+            "refreshDigest": "string",
+            "userId": "string",
+            "accessDigest": "string",
+            "scenario": "string",
+            "backend": "string",
+            "runId": "string",
+            "cleanupDone": "boolean",
+            "lastRequestId": "string"
+          }
+        }
+      },
+      "available": true,
+      "originalEvidence": "coherent",
+      "expectedValidation": "legacy",
+      "expectedInitialWrites": 0,
+      "userId": "fixture-id-0002",
+      "expiry": 4102448401000,
+      "tokenVersion": "5",
+      "handle": "00000000-0000-0000-0000-000000000003"
+    },
+    {
+      "scenario": "login-b",
+      "phase": "mutate",
+      "folder": "0.5.4/login-b/mutate",
+      "files": {
+        "supertokens-android-shared-preferences": {
+          "source": "device-login-b/login-b-mutate-supertokens-android-shared-preferences.xml",
+          "sourceSha256": "09afcf4574d6cba3f4dc239652b395e442c4eb2c94b35cc0e01feb937bee0b87",
+          "sanitizedSha256": "e0b549eeef20cac49a8f3587611903ed90dbfad41f94f6a3a0f14b8681926885",
+          "apkSha256": "c5599478e4b5211ba0c26782f020590fad5a41e7e04a2c7fd5536aa71912c73e",
+          "types": {
+            "supertokens-android-session-status": "string",
+            "supertokens-android-session-revision": "string",
+            "supertokens-android-session-handle": "string",
+            "st-storage-item-st-refresh-token": "string",
+            "supertokens-android-session-adoption": "string",
+            "supertokens-android-session-access-revision": "string",
+            "supertokens-android-fronttoken-key": "string",
+            "supertokens-android-session-legacy-marker": "string",
+            "st-storage-item-st-last-access-token-update": "string",
+            "supertokens-android-session-user": "string",
+            "supertokens-android-session-refresh-revision": "string",
+            "supertokens-android-session-tenant": "string",
+            "supertokens-android-session-expiry": "string",
+            "supertokens-android-session-validation": "string",
+            "st-storage-item-st-access-token": "string",
+            "supertokens-android-session-configuration": "string",
+            "supertokens-android-session-schema": "string",
+            "supertokens-android-session-fingerprint": "string"
+          }
+        },
+        "upgrade-receipt": {
+          "source": "device-login-b/login-b-mutate-upgrade-receipt.xml",
+          "sourceSha256": "889d680710913ad725b90390851ffb66f9b76aaa2b54f7bef2cb461e42da5961",
+          "sanitizedSha256": "3650e98ae7abb2268acc11198f786dd61540ddc08d03a5e476fdc2330548fda8",
+          "apkSha256": "c5599478e4b5211ba0c26782f020590fad5a41e7e04a2c7fd5536aa71912c73e",
+          "types": {
+            "phase": "string",
+            "process": "string",
+            "fixtureId": "string",
+            "available": "boolean",
+            "owners": "string",
+            "handle": "string",
+            "refreshDigest": "string",
+            "userId": "string",
+            "accessDigest": "string",
+            "scenario": "string",
+            "backend": "string",
+            "runId": "string",
+            "cleanupDone": "boolean",
+            "lastRequestId": "string"
+          }
+        }
+      },
+      "available": true,
+      "originalEvidence": "stale",
+      "expectedValidation": "legacy",
+      "expectedInitialWrites": 1,
+      "userId": "fixture-id-0009",
+      "expiry": 4102448402000,
+      "tokenVersion": "5",
+      "handle": "00000000-0000-0000-0000-00000000000a"
+    },
+    {
+      "scenario": "login-b",
+      "phase": "check-final",
+      "folder": "candidate/login-b/check-final",
+      "files": {
+        "supertokens-android-shared-preferences": {
+          "source": "device-login-b/login-b-check-final-supertokens-android-shared-preferences.xml",
+          "sourceSha256": "0038b431132cc77293ff3aa6e1619ac6e2291e7b412c29ffc31a70f4a83a33a8",
+          "sanitizedSha256": "62dea9062788b4102f9d7e48087895c3e99137d7f8e793f583d451b967718f80",
+          "apkSha256": "14b8a219ab90081a86466aa7d2cab2197813787c060e567f98b8e2bf9a23cec7",
+          "types": {
+            "supertokens-android-session-status": "string",
+            "supertokens-android-session-revision": "string",
+            "supertokens-android-session-handle": "string",
+            "st-storage-item-st-refresh-token": "string",
+            "supertokens-android-session-adoption": "string",
+            "supertokens-android-session-access-revision": "string",
+            "supertokens-android-fronttoken-key": "string",
+            "supertokens-android-session-legacy-marker": "string",
+            "st-storage-item-st-last-access-token-update": "string",
+            "supertokens-android-session-user": "string",
+            "supertokens-android-session-refresh-revision": "string",
+            "supertokens-android-session-tenant": "string",
+            "supertokens-android-session-expiry": "string",
+            "supertokens-android-session-validation": "string",
+            "st-storage-item-st-access-token": "string",
+            "supertokens-android-session-configuration": "string",
+            "supertokens-android-session-schema": "string",
+            "supertokens-android-session-fingerprint": "string"
+          }
+        },
+        "upgrade-receipt": {
+          "source": "device-login-b/login-b-check-final-upgrade-receipt.xml",
+          "sourceSha256": "a8521c4407a8086d9e7d7b57393a3435f7bfd54df583b04fcdb9f3de228fcf28",
+          "sanitizedSha256": "0634317bf1f186ae9806b8eede3bb28c69e739ced87a63249469b2ec2bf5fd2f",
+          "apkSha256": "14b8a219ab90081a86466aa7d2cab2197813787c060e567f98b8e2bf9a23cec7",
+          "types": {
+            "phase": "string",
+            "process": "string",
+            "fixtureId": "string",
+            "available": "boolean",
+            "owners": "string",
+            "handle": "string",
+            "refreshDigest": "string",
+            "userId": "string",
+            "accessDigest": "string",
+            "scenario": "string",
+            "backend": "string",
+            "runId": "string",
+            "cleanupDone": "boolean",
+            "lastRequestId": "string"
+          }
+        }
+      },
+      "available": true,
+      "originalEvidence": "coherent",
+      "expectedValidation": "legacy",
+      "expectedInitialWrites": 0,
+      "userId": "fixture-id-0009",
+      "expiry": 4102448403000,
+      "tokenVersion": "5",
+      "handle": "00000000-0000-0000-0000-00000000000a"
+    },
+    {
+      "scenario": "login-b",
+      "phase": "cleanup",
+      "folder": "candidate/login-b/cleanup",
+      "files": {
+        "supertokens-android-shared-preferences": {
+          "source": "device-login-b/login-b-cleanup-supertokens-android-shared-preferences.xml",
+          "sourceSha256": "a4adb3cf8dab34acefd47543b641585fdaeb36cf8fe89241da1285887b298aef",
+          "sanitizedSha256": "a4488e6f05674250994772026c671e5f6e3c0da531a1737503221c550be0d127",
+          "apkSha256": "14b8a219ab90081a86466aa7d2cab2197813787c060e567f98b8e2bf9a23cec7",
+          "types": {
+            "supertokens-android-session-status": "string",
+            "supertokens-android-session-revision": "string",
+            "supertokens-android-session-adoption": "string",
+            "supertokens-android-session-access-revision": "string",
+            "supertokens-android-session-refresh-revision": "string",
+            "supertokens-android-session-expiry": "string",
+            "supertokens-android-session-validation": "string",
+            "supertokens-android-session-configuration": "string",
+            "supertokens-android-session-schema": "string",
+            "supertokens-android-session-fingerprint": "string"
+          }
+        },
+        "upgrade-receipt": {
+          "source": "device-login-b/login-b-cleanup-upgrade-receipt.xml",
+          "sourceSha256": "f586c2e044fda325736d81ef7c5b83e146996930a620ef89193a00e6dab25b80",
+          "sanitizedSha256": "fd4478904526624da3d4ac51cdea37960358e4a13ef2963b56133dd35c35a596",
+          "apkSha256": "14b8a219ab90081a86466aa7d2cab2197813787c060e567f98b8e2bf9a23cec7",
+          "types": {
+            "phase": "string",
+            "process": "string",
+            "fixtureId": "string",
+            "available": "boolean",
+            "owners": "string",
+            "handle": "string",
+            "refreshDigest": "string",
+            "userId": "string",
+            "accessDigest": "string",
+            "scenario": "string",
+            "backend": "string",
+            "runId": "string",
+            "cleanupDone": "boolean",
+            "lastRequestId": "string"
+          }
+        }
+      },
+      "available": false,
+      "originalEvidence": "coherent",
+      "expectedValidation": "strict",
+      "expectedInitialWrites": 0
+    },
+    {
+      "scenario": "refresh",
+      "phase": "seed",
+      "folder": "0.5.4/refresh/seed",
+      "files": {
+        "supertokens-android-shared-preferences": {
+          "source": "device-refresh/refresh-seed-supertokens-android-shared-preferences.xml",
+          "sourceSha256": "4b6b6ed6c995a55715d3cd6021d71ffec5ee8a5acd6bf8cc87917909e5585c1b",
+          "sanitizedSha256": "b3adc99ea1fd091073296dc17833d216e1efc611541e2f278e1317567eaa5f0d",
+          "apkSha256": "c5599478e4b5211ba0c26782f020590fad5a41e7e04a2c7fd5536aa71912c73e",
+          "types": {
+            "supertokens-android-session-status": "string",
+            "supertokens-android-session-revision": "string",
+            "supertokens-android-session-adoption": "string",
+            "st-storage-item-st-refresh-token": "string",
+            "supertokens-android-session-access-revision": "string",
+            "supertokens-android-fronttoken-key": "string",
+            "st-storage-item-st-last-access-token-update": "string",
+            "supertokens-android-session-refresh-revision": "string",
+            "supertokens-android-session-expiry": "string",
+            "supertokens-android-session-validation": "string",
+            "supertokens-android-session-configuration": "string",
+            "st-storage-item-st-access-token": "string",
+            "supertokens-android-session-schema": "string",
+            "supertokens-android-session-fingerprint": "string"
+          }
+        },
+        "upgrade-receipt": {
+          "source": "device-refresh/refresh-seed-upgrade-receipt.xml",
+          "sourceSha256": "5a899e767f762b32d01b842c218bb67cb333136a5ec3534e3a9c2bbce3eac420",
+          "sanitizedSha256": "6764bfe7cbc7f39b8b8d8e912e9f4b602cd81ef272d6fd73b039b3fc632cb11d",
+          "apkSha256": "c5599478e4b5211ba0c26782f020590fad5a41e7e04a2c7fd5536aa71912c73e",
+          "types": {
+            "phase": "string",
+            "process": "string",
+            "fixtureId": "string",
+            "available": "boolean",
+            "owners": "string",
+            "handle": "string",
+            "refreshDigest": "string",
+            "userId": "string",
+            "accessDigest": "string",
+            "scenario": "string",
+            "backend": "string",
+            "runId": "string",
+            "cleanupDone": "boolean",
+            "lastRequestId": "string"
+          }
+        }
+      },
+      "available": true,
+      "originalEvidence": "stale",
+      "expectedValidation": "legacy",
+      "expectedInitialWrites": 1,
+      "userId": "fixture-id-0017",
+      "expiry": 4102448419000,
+      "tokenVersion": "5",
+      "handle": "00000000-0000-0000-0000-000000000012"
+    },
+    {
+      "scenario": "refresh",
+      "phase": "check-initial",
+      "folder": "candidate/refresh/check-initial",
+      "files": {
+        "supertokens-android-shared-preferences": {
+          "source": "device-refresh/refresh-check-initial-supertokens-android-shared-preferences.xml",
+          "sourceSha256": "741af4310c6d8261761f4c91da3a86304be24ded9c786fc622d7bc948274c599",
+          "sanitizedSha256": "13d9363b388f4acb24d832bb2d9d51b137d920996fe360dd4e3020fed4691d4c",
+          "apkSha256": "14b8a219ab90081a86466aa7d2cab2197813787c060e567f98b8e2bf9a23cec7",
+          "types": {
+            "supertokens-android-session-status": "string",
+            "supertokens-android-session-revision": "string",
+            "supertokens-android-session-handle": "string",
+            "supertokens-android-session-adoption": "string",
+            "st-storage-item-st-refresh-token": "string",
+            "supertokens-android-session-access-revision": "string",
+            "supertokens-android-fronttoken-key": "string",
+            "supertokens-android-session-legacy-marker": "string",
+            "st-storage-item-st-last-access-token-update": "string",
+            "supertokens-android-session-user": "string",
+            "supertokens-android-session-refresh-revision": "string",
+            "supertokens-android-session-tenant": "string",
+            "supertokens-android-session-expiry": "string",
+            "supertokens-android-session-validation": "string",
+            "supertokens-android-session-configuration": "string",
+            "st-storage-item-st-access-token": "string",
+            "supertokens-android-session-schema": "string",
+            "supertokens-android-session-fingerprint": "string"
+          }
+        },
+        "upgrade-receipt": {
+          "source": "device-refresh/refresh-check-initial-upgrade-receipt.xml",
+          "sourceSha256": "d35d42bf67c5b5e12e823c6831d52f63799682aba9d4b3adc0b028b5c5eb0753",
+          "sanitizedSha256": "9a01f96d6a89ca5f03a895fe0d01d42af415216a43e51c94590dce9e2a3fbe70",
+          "apkSha256": "14b8a219ab90081a86466aa7d2cab2197813787c060e567f98b8e2bf9a23cec7",
+          "types": {
+            "phase": "string",
+            "process": "string",
+            "fixtureId": "string",
+            "available": "boolean",
+            "owners": "string",
+            "handle": "string",
+            "refreshDigest": "string",
+            "userId": "string",
+            "accessDigest": "string",
+            "scenario": "string",
+            "backend": "string",
+            "runId": "string",
+            "cleanupDone": "boolean",
+            "lastRequestId": "string"
+          }
+        }
+      },
+      "available": true,
+      "originalEvidence": "coherent",
+      "expectedValidation": "legacy",
+      "expectedInitialWrites": 0,
+      "userId": "fixture-id-0017",
+      "expiry": 4102448420000,
+      "tokenVersion": "5",
+      "handle": "00000000-0000-0000-0000-000000000012"
+    },
+    {
+      "scenario": "refresh",
+      "phase": "mutate",
+      "folder": "0.5.4/refresh/mutate",
+      "files": {
+        "supertokens-android-shared-preferences": {
+          "source": "device-refresh/refresh-mutate-supertokens-android-shared-preferences.xml",
+          "sourceSha256": "b403d742c4e9e0ac6d31ecd160bddbbfa1a502d5d41a8925b115f39412d6133f",
+          "sanitizedSha256": "19ba4188636b460d3f82f0dc8efa5e57ab4b2030cda2bd5fe6ff501ae647e496",
+          "apkSha256": "c5599478e4b5211ba0c26782f020590fad5a41e7e04a2c7fd5536aa71912c73e",
+          "types": {
+            "supertokens-android-session-status": "string",
+            "supertokens-android-session-revision": "string",
+            "supertokens-android-session-handle": "string",
+            "supertokens-android-session-adoption": "string",
+            "st-storage-item-st-refresh-token": "string",
+            "supertokens-android-session-access-revision": "string",
+            "supertokens-android-fronttoken-key": "string",
+            "supertokens-android-session-legacy-marker": "string",
+            "st-storage-item-st-last-access-token-update": "string",
+            "supertokens-android-session-user": "string",
+            "supertokens-android-session-refresh-revision": "string",
+            "supertokens-android-session-tenant": "string",
+            "supertokens-android-session-expiry": "string",
+            "supertokens-android-session-validation": "string",
+            "supertokens-android-session-configuration": "string",
+            "st-storage-item-st-access-token": "string",
+            "supertokens-android-session-schema": "string",
+            "supertokens-android-session-fingerprint": "string"
+          }
+        },
+        "upgrade-receipt": {
+          "source": "device-refresh/refresh-mutate-upgrade-receipt.xml",
+          "sourceSha256": "8db362c4884830dcf1f59afedf7c84c81ac12037d6f312fbd41851d86ed2cc53",
+          "sanitizedSha256": "94c4ca01abdf26c14a0113290be7a43f9373765a130b3742cfd5690334196aec",
+          "apkSha256": "c5599478e4b5211ba0c26782f020590fad5a41e7e04a2c7fd5536aa71912c73e",
+          "types": {
+            "phase": "string",
+            "process": "string",
+            "fixtureId": "string",
+            "available": "boolean",
+            "owners": "string",
+            "handle": "string",
+            "refreshDigest": "string",
+            "userId": "string",
+            "accessDigest": "string",
+            "scenario": "string",
+            "backend": "string",
+            "runId": "string",
+            "cleanupDone": "boolean",
+            "lastRequestId": "string"
+          }
+        }
+      },
+      "available": true,
+      "originalEvidence": "stale",
+      "expectedValidation": "legacy",
+      "expectedInitialWrites": 1,
+      "userId": "fixture-id-0017",
+      "expiry": 4102448421000,
+      "tokenVersion": "5",
+      "handle": "00000000-0000-0000-0000-000000000012"
+    },
+    {
+      "scenario": "refresh",
+      "phase": "check-final",
+      "folder": "candidate/refresh/check-final",
+      "files": {
+        "supertokens-android-shared-preferences": {
+          "source": "device-refresh/refresh-check-final-supertokens-android-shared-preferences.xml",
+          "sourceSha256": "b625d7f1bb2a8bd4e4b48764ced081b1da83564beef1b12d26cfc8c4ce29b62b",
+          "sanitizedSha256": "fb46024648d1b2535b3b503303c278b8d0b63c3a197544115c6fec09a86b77af",
+          "apkSha256": "14b8a219ab90081a86466aa7d2cab2197813787c060e567f98b8e2bf9a23cec7",
+          "types": {
+            "supertokens-android-session-status": "string",
+            "supertokens-android-session-revision": "string",
+            "supertokens-android-session-handle": "string",
+            "supertokens-android-session-adoption": "string",
+            "st-storage-item-st-refresh-token": "string",
+            "supertokens-android-session-access-revision": "string",
+            "supertokens-android-fronttoken-key": "string",
+            "supertokens-android-session-legacy-marker": "string",
+            "st-storage-item-st-last-access-token-update": "string",
+            "supertokens-android-session-user": "string",
+            "supertokens-android-session-refresh-revision": "string",
+            "supertokens-android-session-tenant": "string",
+            "supertokens-android-session-expiry": "string",
+            "supertokens-android-session-validation": "string",
+            "supertokens-android-session-configuration": "string",
+            "st-storage-item-st-access-token": "string",
+            "supertokens-android-session-schema": "string",
+            "supertokens-android-session-fingerprint": "string"
+          }
+        },
+        "upgrade-receipt": {
+          "source": "device-refresh/refresh-check-final-upgrade-receipt.xml",
+          "sourceSha256": "b1e7300c1021f8c6c6de266c302b0c002ab9534613e8c791148c0086d9906623",
+          "sanitizedSha256": "248a584313c07766082d4f7ad35c96744f7f0253d90bbc645463f1ecaaaf4e95",
+          "apkSha256": "14b8a219ab90081a86466aa7d2cab2197813787c060e567f98b8e2bf9a23cec7",
+          "types": {
+            "phase": "string",
+            "process": "string",
+            "fixtureId": "string",
+            "available": "boolean",
+            "owners": "string",
+            "handle": "string",
+            "refreshDigest": "string",
+            "userId": "string",
+            "accessDigest": "string",
+            "scenario": "string",
+            "backend": "string",
+            "runId": "string",
+            "cleanupDone": "boolean",
+            "lastRequestId": "string"
+          }
+        }
+      },
+      "available": true,
+      "originalEvidence": "coherent",
+      "expectedValidation": "legacy",
+      "expectedInitialWrites": 0,
+      "userId": "fixture-id-0017",
+      "expiry": 4102448422000,
+      "tokenVersion": "5",
+      "handle": "00000000-0000-0000-0000-000000000012"
+    },
+    {
+      "scenario": "refresh",
+      "phase": "cleanup",
+      "folder": "candidate/refresh/cleanup",
+      "files": {
+        "supertokens-android-shared-preferences": {
+          "source": "device-refresh/refresh-cleanup-supertokens-android-shared-preferences.xml",
+          "sourceSha256": "2f4a32a31800f4e213672f299ab8f446b56f5ec91aa35d528b18144ba9003c44",
+          "sanitizedSha256": "1db4d4f343424ea915c21df80a4695b4e4970203cb4f2fd6b28dd8e15d0d4b0d",
+          "apkSha256": "14b8a219ab90081a86466aa7d2cab2197813787c060e567f98b8e2bf9a23cec7",
+          "types": {
+            "supertokens-android-session-status": "string",
+            "supertokens-android-session-revision": "string",
+            "supertokens-android-session-adoption": "string",
+            "supertokens-android-session-access-revision": "string",
+            "supertokens-android-session-refresh-revision": "string",
+            "supertokens-android-session-expiry": "string",
+            "supertokens-android-session-validation": "string",
+            "supertokens-android-session-configuration": "string",
+            "supertokens-android-session-schema": "string",
+            "supertokens-android-session-fingerprint": "string"
+          }
+        },
+        "upgrade-receipt": {
+          "source": "device-refresh/refresh-cleanup-upgrade-receipt.xml",
+          "sourceSha256": "279a68c8e11d0d6b6da62ff2b7bb7692a2749f48cdea7b968964aa0fb78cbd50",
+          "sanitizedSha256": "6cc8e255860a3467a3a03c9adf4ec71bc569da1ddfcd61d0e0d8eb060a2466dc",
+          "apkSha256": "14b8a219ab90081a86466aa7d2cab2197813787c060e567f98b8e2bf9a23cec7",
+          "types": {
+            "phase": "string",
+            "process": "string",
+            "fixtureId": "string",
+            "available": "boolean",
+            "owners": "string",
+            "handle": "string",
+            "refreshDigest": "string",
+            "userId": "string",
+            "accessDigest": "string",
+            "scenario": "string",
+            "backend": "string",
+            "runId": "string",
+            "cleanupDone": "boolean",
+            "lastRequestId": "string"
+          }
+        }
+      },
+      "available": false,
+      "originalEvidence": "coherent",
+      "expectedValidation": "strict",
+      "expectedInitialWrites": 0
+    },
+    {
+      "scenario": "logout",
+      "phase": "seed",
+      "folder": "0.5.4/logout/seed",
+      "files": {
+        "supertokens-android-shared-preferences": {
+          "source": "device-logout/logout-seed-supertokens-android-shared-preferences.xml",
+          "sourceSha256": "5058c62c761a5c82a76dbbd846287388b36d75f8dfc7a18d7ecd0d17ddaa759f",
+          "sanitizedSha256": "003e2b6a993d0e9daa376a528e0c0c477a7b904448958c703ed588dbaa36dc91",
+          "apkSha256": "c5599478e4b5211ba0c26782f020590fad5a41e7e04a2c7fd5536aa71912c73e",
+          "types": {
+            "supertokens-android-session-status": "string",
+            "supertokens-android-session-revision": "string",
+            "supertokens-android-session-adoption": "string",
+            "st-storage-item-st-refresh-token": "string",
+            "supertokens-android-session-access-revision": "string",
+            "supertokens-android-fronttoken-key": "string",
+            "st-storage-item-st-last-access-token-update": "string",
+            "supertokens-android-session-refresh-revision": "string",
+            "supertokens-android-session-expiry": "string",
+            "supertokens-android-session-validation": "string",
+            "supertokens-android-session-configuration": "string",
+            "st-storage-item-st-access-token": "string",
+            "supertokens-android-session-schema": "string",
+            "supertokens-android-session-fingerprint": "string"
+          }
+        },
+        "upgrade-receipt": {
+          "source": "device-logout/logout-seed-upgrade-receipt.xml",
+          "sourceSha256": "02ae79c9d5696812160319f5f3b6870adceca1421dec4119647c93eef712cc3c",
+          "sanitizedSha256": "cfdcb1bc7e004b30ca2ed582fab3358a557ff93037ad6af56615f3897f71aebb",
+          "apkSha256": "c5599478e4b5211ba0c26782f020590fad5a41e7e04a2c7fd5536aa71912c73e",
+          "types": {
+            "phase": "string",
+            "process": "string",
+            "fixtureId": "string",
+            "available": "boolean",
+            "owners": "string",
+            "handle": "string",
+            "refreshDigest": "string",
+            "userId": "string",
+            "accessDigest": "string",
+            "scenario": "string",
+            "backend": "string",
+            "runId": "string",
+            "cleanupDone": "boolean",
+            "lastRequestId": "string"
+          }
+        }
+      },
+      "available": true,
+      "originalEvidence": "stale",
+      "expectedValidation": "legacy",
+      "expectedInitialWrites": 1,
+      "userId": "fixture-id-0029",
+      "expiry": 4102448425000,
+      "tokenVersion": "5",
+      "handle": "00000000-0000-0000-0000-00000000001e"
+    },
+    {
+      "scenario": "logout",
+      "phase": "check-initial",
+      "folder": "candidate/logout/check-initial",
+      "files": {
+        "supertokens-android-shared-preferences": {
+          "source": "device-logout/logout-check-initial-supertokens-android-shared-preferences.xml",
+          "sourceSha256": "74d9e277eff6cef11d8a32e19c883fa609180d2a818ebb63fd2d6dffbbefddaa",
+          "sanitizedSha256": "bb2fd6e9ca351d17a2978e9f918ded66465268b8036f2a53cb2c2be223d00ae4",
+          "apkSha256": "14b8a219ab90081a86466aa7d2cab2197813787c060e567f98b8e2bf9a23cec7",
+          "types": {
+            "supertokens-android-session-status": "string",
+            "supertokens-android-session-revision": "string",
+            "supertokens-android-session-handle": "string",
+            "supertokens-android-session-adoption": "string",
+            "st-storage-item-st-refresh-token": "string",
+            "supertokens-android-session-access-revision": "string",
+            "supertokens-android-fronttoken-key": "string",
+            "supertokens-android-session-legacy-marker": "string",
+            "st-storage-item-st-last-access-token-update": "string",
+            "supertokens-android-session-user": "string",
+            "supertokens-android-session-refresh-revision": "string",
+            "supertokens-android-session-tenant": "string",
+            "supertokens-android-session-expiry": "string",
+            "supertokens-android-session-validation": "string",
+            "supertokens-android-session-configuration": "string",
+            "st-storage-item-st-access-token": "string",
+            "supertokens-android-session-schema": "string",
+            "supertokens-android-session-fingerprint": "string"
+          }
+        },
+        "upgrade-receipt": {
+          "source": "device-logout/logout-check-initial-upgrade-receipt.xml",
+          "sourceSha256": "1c5a57881ffd8cfb8eede68f658c8317c610c2822621c8010352377c8977bb38",
+          "sanitizedSha256": "9290a74a830ceb20e93d7ba8c6ed737a0c58a00898de565d16a5dc443e304263",
+          "apkSha256": "14b8a219ab90081a86466aa7d2cab2197813787c060e567f98b8e2bf9a23cec7",
+          "types": {
+            "phase": "string",
+            "process": "string",
+            "fixtureId": "string",
+            "available": "boolean",
+            "owners": "string",
+            "handle": "string",
+            "refreshDigest": "string",
+            "userId": "string",
+            "accessDigest": "string",
+            "scenario": "string",
+            "backend": "string",
+            "runId": "string",
+            "cleanupDone": "boolean",
+            "lastRequestId": "string"
+          }
+        }
+      },
+      "available": true,
+      "originalEvidence": "coherent",
+      "expectedValidation": "legacy",
+      "expectedInitialWrites": 0,
+      "userId": "fixture-id-0029",
+      "expiry": 4102448426000,
+      "tokenVersion": "5",
+      "handle": "00000000-0000-0000-0000-00000000001e"
+    },
+    {
+      "scenario": "logout",
+      "phase": "mutate",
+      "folder": "0.5.4/logout/mutate",
+      "files": {
+        "supertokens-android-shared-preferences": {
+          "source": "device-logout/logout-mutate-supertokens-android-shared-preferences.xml",
+          "sourceSha256": "8d721265715827c9a1e24e4a72ca3890ff516560e1062b08bd6a4ef7f401d665",
+          "sanitizedSha256": "36bdb9594f9bda41ba8962b5b7c85c004103492047bccbe94227a87ef06d4276",
+          "apkSha256": "c5599478e4b5211ba0c26782f020590fad5a41e7e04a2c7fd5536aa71912c73e",
+          "types": {
+            "supertokens-android-session-status": "string",
+            "supertokens-android-session-revision": "string",
+            "supertokens-android-session-handle": "string",
+            "supertokens-android-session-adoption": "string",
+            "supertokens-android-session-access-revision": "string",
+            "supertokens-android-session-legacy-marker": "string",
+            "st-storage-item-st-last-access-token-update": "string",
+            "supertokens-android-session-user": "string",
+            "supertokens-android-session-refresh-revision": "string",
+            "supertokens-android-session-tenant": "string",
+            "supertokens-android-session-expiry": "string",
+            "supertokens-android-session-validation": "string",
+            "supertokens-android-session-configuration": "string",
+            "supertokens-android-session-schema": "string",
+            "supertokens-android-session-fingerprint": "string"
+          }
+        },
+        "upgrade-receipt": {
+          "source": "device-logout/logout-mutate-upgrade-receipt.xml",
+          "sourceSha256": "091afe2e87a52d84c12a8e75483f7dc0e94285e73de84ae5687283ddc84f6558",
+          "sanitizedSha256": "2e213aa4e9fb940a2281fbc1ca2cf09f770413609f4c686ddef9fe459d842542",
+          "apkSha256": "c5599478e4b5211ba0c26782f020590fad5a41e7e04a2c7fd5536aa71912c73e",
+          "types": {
+            "phase": "string",
+            "process": "string",
+            "fixtureId": "string",
+            "available": "boolean",
+            "owners": "string",
+            "handle": "string",
+            "refreshDigest": "string",
+            "userId": "string",
+            "accessDigest": "string",
+            "scenario": "string",
+            "backend": "string",
+            "runId": "string",
+            "cleanupDone": "boolean",
+            "lastRequestId": "string"
+          }
+        }
+      },
+      "available": false,
+      "originalEvidence": "stale",
+      "expectedValidation": "strict",
+      "expectedInitialWrites": 1
+    },
+    {
+      "scenario": "logout",
+      "phase": "check-final",
+      "folder": "candidate/logout/check-final",
+      "files": {
+        "supertokens-android-shared-preferences": {
+          "source": "device-logout/logout-check-final-supertokens-android-shared-preferences.xml",
+          "sourceSha256": "648e1ec503ee03e5c63fc0ceef765bf4f85232cf483519c18fddbaf49abfa220",
+          "sanitizedSha256": "79c16c8c3cb59e96bda7edd0779cd64bf1a3e25d0b5e8d0eaf2d2769fb6250cb",
+          "apkSha256": "14b8a219ab90081a86466aa7d2cab2197813787c060e567f98b8e2bf9a23cec7",
+          "types": {
+            "supertokens-android-session-status": "string",
+            "supertokens-android-session-revision": "string",
+            "supertokens-android-session-adoption": "string",
+            "supertokens-android-session-access-revision": "string",
+            "supertokens-android-session-refresh-revision": "string",
+            "supertokens-android-session-expiry": "string",
+            "supertokens-android-session-validation": "string",
+            "supertokens-android-session-configuration": "string",
+            "supertokens-android-session-schema": "string",
+            "supertokens-android-session-fingerprint": "string"
+          }
+        },
+        "upgrade-receipt": {
+          "source": "device-logout/logout-check-final-upgrade-receipt.xml",
+          "sourceSha256": "efce34ef4cb8b1e53f7773e6bafe1da8fd9992ae84f5e4a4d0bf93caa5ef8fb0",
+          "sanitizedSha256": "ad4cbf2b0656ec566159dd051dc9f7d0bcbb30c5f810a9ded1000d26a511a919",
+          "apkSha256": "14b8a219ab90081a86466aa7d2cab2197813787c060e567f98b8e2bf9a23cec7",
+          "types": {
+            "phase": "string",
+            "process": "string",
+            "fixtureId": "string",
+            "available": "boolean",
+            "owners": "string",
+            "handle": "string",
+            "refreshDigest": "string",
+            "userId": "string",
+            "accessDigest": "string",
+            "scenario": "string",
+            "backend": "string",
+            "runId": "string",
+            "cleanupDone": "boolean",
+            "lastRequestId": "string"
+          }
+        }
+      },
+      "available": false,
+      "originalEvidence": "coherent",
+      "expectedValidation": "strict",
+      "expectedInitialWrites": 0
+    },
+    {
+      "scenario": "logout",
+      "phase": "cleanup",
+      "folder": "candidate/logout/cleanup",
+      "files": {
+        "supertokens-android-shared-preferences": {
+          "source": "device-logout/logout-cleanup-supertokens-android-shared-preferences.xml",
+          "sourceSha256": "648e1ec503ee03e5c63fc0ceef765bf4f85232cf483519c18fddbaf49abfa220",
+          "sanitizedSha256": "79c16c8c3cb59e96bda7edd0779cd64bf1a3e25d0b5e8d0eaf2d2769fb6250cb",
+          "apkSha256": "14b8a219ab90081a86466aa7d2cab2197813787c060e567f98b8e2bf9a23cec7",
+          "types": {
+            "supertokens-android-session-status": "string",
+            "supertokens-android-session-revision": "string",
+            "supertokens-android-session-adoption": "string",
+            "supertokens-android-session-access-revision": "string",
+            "supertokens-android-session-refresh-revision": "string",
+            "supertokens-android-session-expiry": "string",
+            "supertokens-android-session-validation": "string",
+            "supertokens-android-session-configuration": "string",
+            "supertokens-android-session-schema": "string",
+            "supertokens-android-session-fingerprint": "string"
+          }
+        },
+        "upgrade-receipt": {
+          "source": "device-logout/logout-cleanup-upgrade-receipt.xml",
+          "sourceSha256": "8cfb06d9913da8596542f975787fce62e51fae43748575496eb11756a961c5e5",
+          "sanitizedSha256": "a989689ed5cd71ba433fb2a208a6a7a0976100d5b8fc2f3a73a7bd2c41bef0b9",
+          "apkSha256": "14b8a219ab90081a86466aa7d2cab2197813787c060e567f98b8e2bf9a23cec7",
+          "types": {
+            "phase": "string",
+            "process": "string",
+            "fixtureId": "string",
+            "available": "boolean",
+            "owners": "string",
+            "handle": "string",
+            "refreshDigest": "string",
+            "userId": "string",
+            "accessDigest": "string",
+            "scenario": "string",
+            "backend": "string",
+            "runId": "string",
+            "cleanupDone": "boolean",
+            "lastRequestId": "string"
+          }
+        }
+      },
+      "available": false,
+      "originalEvidence": "coherent",
+      "expectedValidation": "strict",
+      "expectedInitialWrites": 0
+    },
+    {
+      "scenario": "cookie",
+      "phase": "seed",
+      "folder": "0.5.4/cookie/seed",
+      "files": {
+        "supertokens-android-shared-preferences": {
+          "source": "device-cookie/cookie-seed-supertokens-android-shared-preferences.xml",
+          "sourceSha256": "007a2780917d26c0cbfb163e831bd62cd947fffcd0af2c145c5483626491b039",
+          "sanitizedSha256": "a25e35cdd968d7bb41bc132070758193303d223482c4b82006b6c87a63314be4",
+          "apkSha256": "c5599478e4b5211ba0c26782f020590fad5a41e7e04a2c7fd5536aa71912c73e",
+          "types": {
+            "st-storage-item-st-last-access-token-update": "string",
+            "supertokens-android-session-status": "string",
+            "supertokens-android-session-revision": "string",
+            "supertokens-android-session-refresh-revision": "string",
+            "supertokens-android-session-adoption": "string",
+            "supertokens-android-session-expiry": "string",
+            "supertokens-android-session-validation": "string",
+            "supertokens-android-session-configuration": "string",
+            "supertokens-android-session-access-revision": "string",
+            "supertokens-android-fronttoken-key": "string",
+            "supertokens-android-session-schema": "string",
+            "supertokens-android-session-fingerprint": "string"
+          }
+        },
+        "upgrade-receipt": {
+          "source": "device-cookie/cookie-seed-upgrade-receipt.xml",
+          "sourceSha256": "ebb3cd389222af8b516baef42de27fa9c082d06b4d114de0bad064908b391daa",
+          "sanitizedSha256": "4d8717af4519947ce82775714352f451aaef1de163c7a3acd8de84c4fdc6f784",
+          "apkSha256": "c5599478e4b5211ba0c26782f020590fad5a41e7e04a2c7fd5536aa71912c73e",
+          "types": {
+            "phase": "string",
+            "process": "string",
+            "fixtureId": "string",
+            "available": "boolean",
+            "owners": "string",
+            "handle": "string",
+            "refreshDigest": "string",
+            "userId": "string",
+            "accessDigest": "string",
+            "scenario": "string",
+            "backend": "string",
+            "runId": "string",
+            "cleanupDone": "boolean",
+            "lastRequestId": "string"
+          }
+        },
+        "supertokens-cookie-shared-prefs": {
+          "source": "device-cookie/cookie-seed-supertokens-cookie-shared-prefs.xml",
+          "sourceSha256": "85c5997d2a2a12f73ca20534ea8407e373327388b609669f93eafc2533d0d93b",
+          "sanitizedSha256": "46f2c32686554014c792959e34a75aee0d438a8c58a5173f548aec847fa77f55",
+          "apkSha256": "c5599478e4b5211ba0c26782f020590fad5a41e7e04a2c7fd5536aa71912c73e",
+          "types": {
+            "http://10.0.2.2/|sAccessToken": "string",
+            "http://10.0.2.2/auth/session/refresh|sRefreshToken": "string"
+          }
+        }
+      },
+      "available": true,
+      "originalEvidence": "stale",
+      "expectedValidation": "legacy",
+      "expectedInitialWrites": 1,
+      "userId": "fixture-id-0040",
+      "expiry": 4102448432000,
+      "tokenVersion": "5",
+      "handle": "00000000-0000-0000-0000-000000000029"
+    },
+    {
+      "scenario": "cookie",
+      "phase": "check-initial",
+      "folder": "candidate/cookie/check-initial",
+      "files": {
+        "supertokens-android-shared-preferences": {
+          "source": "device-cookie/cookie-check-initial-supertokens-android-shared-preferences.xml",
+          "sourceSha256": "096dd00e65d84278389e3c600ffa19c457dc1496ab4a6d42b3438330c49d0ac4",
+          "sanitizedSha256": "7381c587b4b18a9b9b492db06e6a388f17c3440fe494f49b17bd10a2a4980cfe",
+          "apkSha256": "14b8a219ab90081a86466aa7d2cab2197813787c060e567f98b8e2bf9a23cec7",
+          "types": {
+            "supertokens-android-session-status": "string",
+            "supertokens-android-session-revision": "string",
+            "supertokens-android-session-adoption": "string",
+            "supertokens-android-session-access-revision": "string",
+            "supertokens-android-fronttoken-key": "string",
+            "supertokens-android-session-legacy-marker": "string",
+            "st-storage-item-st-last-access-token-update": "string",
+            "supertokens-android-session-user": "string",
+            "supertokens-android-session-refresh-revision": "string",
+            "supertokens-android-session-tenant": "string",
+            "supertokens-android-session-expiry": "string",
+            "supertokens-android-session-validation": "string",
+            "supertokens-android-session-configuration": "string",
+            "supertokens-android-session-schema": "string",
+            "supertokens-android-session-fingerprint": "string"
+          }
+        },
+        "upgrade-receipt": {
+          "source": "device-cookie/cookie-check-initial-upgrade-receipt.xml",
+          "sourceSha256": "24f4f07b0337033d7c49de6c3d5f872ede1c94599705060cc1650c986481a1e5",
+          "sanitizedSha256": "4bf6cc401d38b9784aea0e04ac4fdc794af8b2a07b59c20a13170c50e3f91422",
+          "apkSha256": "14b8a219ab90081a86466aa7d2cab2197813787c060e567f98b8e2bf9a23cec7",
+          "types": {
+            "phase": "string",
+            "process": "string",
+            "fixtureId": "string",
+            "available": "boolean",
+            "owners": "string",
+            "handle": "string",
+            "refreshDigest": "string",
+            "userId": "string",
+            "accessDigest": "string",
+            "scenario": "string",
+            "backend": "string",
+            "runId": "string",
+            "cleanupDone": "boolean",
+            "lastRequestId": "string"
+          }
+        },
+        "supertokens-cookie-shared-prefs": {
+          "source": "device-cookie/cookie-check-initial-supertokens-cookie-shared-prefs.xml",
+          "sourceSha256": "5e5f15afd3e34bde99a48cb6d40e7bd3dd87e7111419e471e067b27c42109c18",
+          "sanitizedSha256": "8e76b4af108b0af4ec72b808a2ed483fedb1363f00e57bb5f8f0fc0500050b30",
+          "apkSha256": "14b8a219ab90081a86466aa7d2cab2197813787c060e567f98b8e2bf9a23cec7",
+          "types": {
+            "http://10.0.2.2/auth/session/refresh|sRefreshToken": "string",
+            "http://10.0.2.2/|sAccessToken": "string"
+          }
+        }
+      },
+      "available": true,
+      "originalEvidence": "coherent",
+      "expectedValidation": "legacy",
+      "expectedInitialWrites": 0,
+      "userId": "fixture-id-0040",
+      "expiry": 4102448433000,
+      "tokenVersion": "5",
+      "handle": "00000000-0000-0000-0000-000000000029"
+    },
+    {
+      "scenario": "cookie",
+      "phase": "mutate",
+      "folder": "0.5.4/cookie/mutate",
+      "files": {
+        "supertokens-android-shared-preferences": {
+          "source": "device-cookie/cookie-mutate-supertokens-android-shared-preferences.xml",
+          "sourceSha256": "5d16b507b7304078a1d5d8eaf8ead80de42fa6031a1d792ea25d5467668ffce2",
+          "sanitizedSha256": "f5aefa3bcf0194769c551c56d0fcfd8d323dabba2a9c71f94097b68c7d005aea",
+          "apkSha256": "c5599478e4b5211ba0c26782f020590fad5a41e7e04a2c7fd5536aa71912c73e",
+          "types": {
+            "supertokens-android-session-status": "string",
+            "supertokens-android-session-revision": "string",
+            "supertokens-android-session-adoption": "string",
+            "supertokens-android-session-access-revision": "string",
+            "supertokens-android-fronttoken-key": "string",
+            "supertokens-android-session-legacy-marker": "string",
+            "st-storage-item-st-last-access-token-update": "string",
+            "supertokens-android-session-user": "string",
+            "supertokens-android-session-refresh-revision": "string",
+            "supertokens-android-session-tenant": "string",
+            "supertokens-android-session-expiry": "string",
+            "supertokens-android-session-validation": "string",
+            "supertokens-android-session-configuration": "string",
+            "supertokens-android-session-schema": "string",
+            "supertokens-android-session-fingerprint": "string"
+          }
+        },
+        "upgrade-receipt": {
+          "source": "device-cookie/cookie-mutate-upgrade-receipt.xml",
+          "sourceSha256": "552a8ccda4ba4b947bb287eeb7f828febd76a49ba8a3853282590e0ebce8ac36",
+          "sanitizedSha256": "9bbdb6be90b7be68c02c7a5ac38ec2f9d770062a09d458b6ae2d30705e89cde7",
+          "apkSha256": "c5599478e4b5211ba0c26782f020590fad5a41e7e04a2c7fd5536aa71912c73e",
+          "types": {
+            "phase": "string",
+            "process": "string",
+            "fixtureId": "string",
+            "available": "boolean",
+            "owners": "string",
+            "handle": "string",
+            "refreshDigest": "string",
+            "userId": "string",
+            "accessDigest": "string",
+            "scenario": "string",
+            "backend": "string",
+            "runId": "string",
+            "cleanupDone": "boolean",
+            "lastRequestId": "string"
+          }
+        },
+        "supertokens-cookie-shared-prefs": {
+          "source": "device-cookie/cookie-mutate-supertokens-cookie-shared-prefs.xml",
+          "sourceSha256": "b4590bb522ee15a0e4d92ee1cc909d1276cdc1d80bc557964d44fcff61527f2d",
+          "sanitizedSha256": "d773151a7d825e8738013fd5ce0347c89962c267776d3e5eac3ae746d50c376e",
+          "apkSha256": "c5599478e4b5211ba0c26782f020590fad5a41e7e04a2c7fd5536aa71912c73e",
+          "types": {
+            "http://10.0.2.2/auth/session/refresh|sRefreshToken": "string",
+            "http://10.0.2.2/|sAccessToken": "string"
+          }
+        }
+      },
+      "available": true,
+      "originalEvidence": "stale",
+      "expectedValidation": "legacy",
+      "expectedInitialWrites": 1,
+      "userId": "fixture-id-0047",
+      "expiry": 4102448434000,
+      "tokenVersion": "5",
+      "handle": "00000000-0000-0000-0000-000000000030"
+    },
+    {
+      "scenario": "cookie",
+      "phase": "check-final",
+      "folder": "candidate/cookie/check-final",
+      "files": {
+        "supertokens-android-shared-preferences": {
+          "source": "device-cookie/cookie-check-final-supertokens-android-shared-preferences.xml",
+          "sourceSha256": "12649db635c9d5a9f348aa5ccc2ba530085bc4846063ed6170d3ae23b8beb7e2",
+          "sanitizedSha256": "bbfd6d4641cb852634474e2cca04b40f42efa1fa5e2ff3963f2ef671042712fe",
+          "apkSha256": "14b8a219ab90081a86466aa7d2cab2197813787c060e567f98b8e2bf9a23cec7",
+          "types": {
+            "supertokens-android-session-status": "string",
+            "supertokens-android-session-revision": "string",
+            "supertokens-android-session-adoption": "string",
+            "supertokens-android-session-access-revision": "string",
+            "supertokens-android-fronttoken-key": "string",
+            "supertokens-android-session-legacy-marker": "string",
+            "st-storage-item-st-last-access-token-update": "string",
+            "supertokens-android-session-user": "string",
+            "supertokens-android-session-refresh-revision": "string",
+            "supertokens-android-session-tenant": "string",
+            "supertokens-android-session-expiry": "string",
+            "supertokens-android-session-validation": "string",
+            "supertokens-android-session-configuration": "string",
+            "supertokens-android-session-schema": "string",
+            "supertokens-android-session-fingerprint": "string"
+          }
+        },
+        "upgrade-receipt": {
+          "source": "device-cookie/cookie-check-final-upgrade-receipt.xml",
+          "sourceSha256": "fbec0c1edceb7b20b10f4f49d87cd636931d0fe1cd08983a40124e6fedf0f7d0",
+          "sanitizedSha256": "e62e1362f13430be0944f465b956f3cef64bad569d774b755523635029de5ec8",
+          "apkSha256": "14b8a219ab90081a86466aa7d2cab2197813787c060e567f98b8e2bf9a23cec7",
+          "types": {
+            "phase": "string",
+            "process": "string",
+            "fixtureId": "string",
+            "available": "boolean",
+            "owners": "string",
+            "handle": "string",
+            "refreshDigest": "string",
+            "userId": "string",
+            "accessDigest": "string",
+            "scenario": "string",
+            "backend": "string",
+            "runId": "string",
+            "cleanupDone": "boolean",
+            "lastRequestId": "string"
+          }
+        },
+        "supertokens-cookie-shared-prefs": {
+          "source": "device-cookie/cookie-check-final-supertokens-cookie-shared-prefs.xml",
+          "sourceSha256": "089a284456771fbf2f2dcac32e5d2a60c3d7948ed8fb3f76afbe5dca2f623166",
+          "sanitizedSha256": "3b249e7fe223ef4c9925263724b4b87fb2a25544d02ead7f97a18cbdba95ffe1",
+          "apkSha256": "14b8a219ab90081a86466aa7d2cab2197813787c060e567f98b8e2bf9a23cec7",
+          "types": {
+            "http://10.0.2.2/auth/session/refresh|sRefreshToken": "string",
+            "http://10.0.2.2/|sAccessToken": "string"
+          }
+        }
+      },
+      "available": true,
+      "originalEvidence": "coherent",
+      "expectedValidation": "legacy",
+      "expectedInitialWrites": 0,
+      "userId": "fixture-id-0047",
+      "expiry": 4102448435000,
+      "tokenVersion": "5",
+      "handle": "00000000-0000-0000-0000-000000000030"
+    },
+    {
+      "scenario": "cookie",
+      "phase": "cleanup",
+      "folder": "candidate/cookie/cleanup",
+      "files": {
+        "supertokens-android-shared-preferences": {
+          "source": "device-cookie/cookie-cleanup-supertokens-android-shared-preferences.xml",
+          "sourceSha256": "58217ae84a171e891d8d1170488564be66e69168243884002f1868835f226338",
+          "sanitizedSha256": "054f0b9e179254b60256d4b281d0ebfe676502478f88a966dae7d6d5ee427786",
+          "apkSha256": "14b8a219ab90081a86466aa7d2cab2197813787c060e567f98b8e2bf9a23cec7",
+          "types": {
+            "supertokens-android-session-status": "string",
+            "supertokens-android-session-revision": "string",
+            "supertokens-android-session-adoption": "string",
+            "supertokens-android-session-access-revision": "string",
+            "supertokens-android-session-refresh-revision": "string",
+            "supertokens-android-session-expiry": "string",
+            "supertokens-android-session-validation": "string",
+            "supertokens-android-session-configuration": "string",
+            "supertokens-android-session-schema": "string",
+            "supertokens-android-session-fingerprint": "string"
+          }
+        },
+        "upgrade-receipt": {
+          "source": "device-cookie/cookie-cleanup-upgrade-receipt.xml",
+          "sourceSha256": "009c21fd54a3328b7058c727f9caa4478aec1b74c39a189163734aa6888b6806",
+          "sanitizedSha256": "09d9c8deb6d7f92a69cc68e3bae164693aaceb7333e349b5bc04a0f14b07ac02",
+          "apkSha256": "14b8a219ab90081a86466aa7d2cab2197813787c060e567f98b8e2bf9a23cec7",
+          "types": {
+            "phase": "string",
+            "process": "string",
+            "fixtureId": "string",
+            "available": "boolean",
+            "owners": "string",
+            "handle": "string",
+            "refreshDigest": "string",
+            "userId": "string",
+            "accessDigest": "string",
+            "scenario": "string",
+            "backend": "string",
+            "runId": "string",
+            "cleanupDone": "boolean",
+            "lastRequestId": "string"
+          }
+        },
+        "supertokens-cookie-shared-prefs": {
+          "source": "device-cookie/cookie-cleanup-supertokens-cookie-shared-prefs.xml",
+          "sourceSha256": "3325d2a819fdd8062c2cdc48a09b995c9b012915bcdf88b1cf9742a7f057c793",
+          "sanitizedSha256": "e592ed1c4bf129170ef578175e65dc7a116d21acd6e36159b8762aa6c805788e",
+          "apkSha256": "14b8a219ab90081a86466aa7d2cab2197813787c060e567f98b8e2bf9a23cec7",
+          "types": {}
+        }
+      },
+      "available": false,
+      "originalEvidence": "coherent",
+      "expectedValidation": "strict",
+      "expectedInitialWrites": 0
+    }
+  ]
+}

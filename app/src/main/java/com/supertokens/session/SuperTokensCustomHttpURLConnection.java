@@ -39,6 +39,8 @@ public class SuperTokensCustomHttpURLConnection extends HttpURLConnection {
     private SessionRequestTag wire;
     private boolean tagged;
     private boolean dispatched;
+    private boolean retry;
+    private StaleSessionException staleDispatch;
     private String authorization;
 
     public SuperTokensCustomHttpURLConnection(HttpURLConnection original, Context applicationContext) {
@@ -60,25 +62,45 @@ public class SuperTokensCustomHttpURLConnection extends HttpURLConnection {
 
     SuperTokensCustomHttpURLConnection(HttpURLConnection original, Context context,
                                        SessionRequestTag logical, SessionRequestTag wire,
-                                       boolean tagged) {
+                                       boolean tagged, boolean retry) {
         this(original, context);
         this.logical = logical;
         this.wire = wire;
         this.tagged = tagged;
+        this.retry = retry;
     }
 
     boolean isManagedAuthorization() {
-        return wire == null || SessionTransport.matches(authorization,
-                SessionTransport.authorization(wire.getSnapshot(), false));
+        return wire == null || SessionTransport.authorizationPolicy(authorization, wire.getSnapshot())
+                != SessionTransport.AuthorizationPolicy.FOREIGN_BEARER;
     }
 
     private void beforeDispatch() throws IOException {
         if (dispatched || logical == null) return;
-        SessionTransport.requireCurrent(logical);
+        // This check authorizes dispatch; a later owner change cannot cancel an already-started request.
+        if (!SessionState.isCurrent(logical.getOwner(), logical.configuration)) {
+            if (tagged || retry) {
+                if (staleDispatch == null) staleDispatch = new StaleSessionException();
+                throw staleDispatch;
+            }
+            if (SessionTransport.authorizationPolicy(authorization, wire.getSnapshot())
+                    == SessionTransport.AuthorizationPolicy.SDK_BEARER && authorization != null) {
+                setRequestPropertyIgnoringOverride("Authorization", null);
+            }
+            String anti = SessionTransport.antiCSRF(wire.getSnapshot());
+            if (anti != null && anti.equals(original.getRequestProperty(Constants.CSRF_HEADER_KEY))) {
+                original.setRequestProperty(Constants.CSRF_HEADER_KEY, null);
+            }
+        }
         if (tagged && !isManagedAuthorization()) {
             throw new IOException("Authorization does not match the captured session");
         }
         dispatched = true;
+    }
+
+    boolean rejectedStaleDispatch(Exception error) {
+        return staleDispatch != null && (error == staleDispatch
+                || (error instanceof IllegalStateException && error.getCause() == staleDispatch));
     }
 
     private void beforeRead() {

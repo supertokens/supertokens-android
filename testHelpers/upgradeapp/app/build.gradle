@@ -1,0 +1,156 @@
+apply plugin: 'com.android.application'
+
+def candidatePath = project.findProperty('candidateAar')
+def candidateHash = project.findProperty('candidateAarSha256')
+if (!candidatePath || !(candidateHash ==~ /[0-9a-f]{64}/)) {
+    throw new GradleException('Supply -PcandidateAar=/absolute/fresh.aar and -PcandidateAarSha256=<verified SHA-256>')
+}
+def candidateAar = file(candidatePath)
+def pin = rootProject.file('../../app/src/test/compatibility/legacy054.sha256')
+def publishedHash = pin.text.trim()
+if (candidateHash == publishedHash) throw new GradleException('Candidate must differ from published 0.5.4')
+def provenancePath = project.findProperty('candidateBuildProvenance')
+if (!provenancePath) throw new GradleException('Supply -PcandidateBuildProvenance=/absolute/candidate-build.json')
+def buildReceipt = new groovy.json.JsonSlurper().parse(file(provenancePath))
+if (buildReceipt.schema == 2) {
+    def producer = new groovy.json.JsonSlurper().parseText(buildReceipt.producerProvenanceJson)
+    def textHash = { String text -> java.security.MessageDigest.getInstance('SHA-256').digest(text.getBytes('UTF-8')).encodeHex().toString() }
+    if (buildReceipt.kind != 'archived-build' || buildReceipt.aarSha256 != candidateHash ||
+            producer.artifacts[buildReceipt.variant]?.sha256 != candidateHash ||
+            buildReceipt.source?.gitRevision != producer.gitHead || buildReceipt.source?.dirty != producer.uncommitted ||
+            buildReceipt.source?.sourceBuildManifestSha256 != producer.sourceBuildManifestSha256 ||
+            textHash(buildReceipt.sourceBuildManifestJson) != producer.sourceBuildManifestSha256 ||
+            textHash(buildReceipt.producerProvenanceJson) != buildReceipt.source?.provenanceSha256 ||
+            textHash(buildReceipt.producerResultMarkdown) != buildReceipt.source?.resultSha256) {
+        throw new GradleException('Archived candidate source/artifact evidence mismatch')
+    }
+} else if (buildReceipt.schema != 1 || buildReceipt.aarSha256 != candidateHash || buildReceipt.exitCode != 0 ||
+        !(buildReceipt.source?.gitRevision ==~ /[0-9a-f]{40}/) ||
+        !(buildReceipt.source?.dirtyDiffSha256 ==~ /[0-9a-f]{64}/) ||
+        !(buildReceipt.source?.untrackedSha256 ==~ /[0-9a-f]{64}/) ||
+        !(buildReceipt.source?.dirty instanceof Boolean) ||
+        buildReceipt.command != ['./gradlew', ':app:assembleDebug', '--rerun-tasks'] ||
+        !buildReceipt.startedAt || !buildReceipt.finishedAt || !buildReceipt.buildLogSha256) {
+    throw new GradleException('Invalid candidate build/source receipt')
+}
+
+configurations { publishedSdk { transitive = false } }
+dependencies { publishedSdk 'com.github.supertokens:supertokens-android:0.5.4@aar' }
+
+def digest = { File artifact ->
+    def hash = java.security.MessageDigest.getInstance('SHA-256')
+    artifact.withInputStream { stream ->
+        byte[] buffer = new byte[8192]
+        int count
+        while ((count = stream.read(buffer)) != -1) hash.update(buffer, 0, count)
+    }
+    hash.digest().encodeHex().toString()
+}
+
+task verifyUpgradeInputs {
+    doLast {
+        if (!candidateAar.isFile() || digest(candidateAar) != candidateHash) {
+            throw new GradleException('Candidate AAR missing or SHA-256 mismatch')
+        }
+        if (digest(configurations.publishedSdk.singleFile) != publishedHash) {
+            throw new GradleException('Published 0.5.4 AAR SHA-256 mismatch')
+        }
+    }
+}
+
+android {
+    compileSdkVersion 32
+    defaultConfig {
+        applicationId 'com.supertokens.upgrade'
+        testApplicationId 'com.supertokens.upgrade.test'
+        minSdkVersion 17
+        targetSdkVersion 32
+        versionCode 1
+        versionName '1'
+        testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_7
+        targetCompatibility JavaVersion.VERSION_1_7
+    }
+    flavorDimensions 'sdk'
+    productFlavors {
+        sdk054 {
+            dimension 'sdk'
+            buildConfigField 'String', 'SDK_NAME', '"sdk054"'
+        }
+        candidate {
+            dimension 'sdk'
+            buildConfigField 'String', 'SDK_NAME', '"candidate"'
+        }
+    }
+    buildTypes {
+        debug { minifyEnabled false }
+        release {
+            minifyEnabled project.hasProperty('r8Smoke')
+            if (project.hasProperty('r8Smoke')) {
+                signingConfig signingConfigs.debug
+                def mapping = project.findProperty('r8Mapping') ?: 'a'
+                if (!(mapping in ['a', 'b'])) throw new GradleException('r8Mapping must be a or b')
+                proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'),
+                        'r8-smoke.pro', "r8-mapping-${mapping}.pro"
+            }
+        }
+    }
+    if (project.hasProperty('r8Smoke')) {
+        testBuildType project.findProperty('r8TestBuildType') ?: 'release'
+        sourceSets.main.java.srcDir 'src/r8Smoke/java'
+        sourceSets.androidTest.java {
+            srcDirs = ['src/r8SmokeTest/java']
+        }
+    }
+}
+
+dependencies {
+    sdk054Implementation files(configurations.publishedSdk)
+    candidateImplementation files(candidateAar)
+    implementation 'androidx.appcompat:appcompat:1.1.0'
+    implementation('com.squareup.okhttp3:okhttp:3.3.0') { version { strictly '3.3.0' } }
+    implementation('com.squareup.okio:okio:1.8.0') { version { strictly '1.8.0' } }
+    androidTestImplementation 'androidx.test:runner:1.4.0'
+    androidTestImplementation 'junit:junit:4.13.2'
+}
+
+if (!project.hasProperty('r8Smoke')) {
+    def nativeAssets = file("$buildDir/generated/native-test-provenance")
+    def nativeInputs = files(fileTree('src') { include '**/*.java', '**/AndroidManifest.xml' },
+            file('build.gradle'), rootProject.file('build.gradle'), rootProject.file('settings.gradle'), rootProject.file('gradle.properties'))
+    def generation = tasks.create('generateNativeTestProvenance') {
+        dependsOn verifyUpgradeInputs
+        inputs.files nativeInputs
+        outputs.dir nativeAssets
+        doLast {
+            def sources = new TreeMap<String, String>()
+            nativeInputs.files.each { input ->
+                sources['testHelpers/upgradeapp/' + rootProject.projectDir.toPath().relativize(input.toPath()).toString().replace('\\', '/')] = digest(input)
+            }
+            nativeAssets.mkdirs()
+            new File(nativeAssets, 'native-test-provenance.json').text = groovy.json.JsonOutput.toJson([schema: 1, sources: sources])
+        }
+    }
+    android.sourceSets.androidTest.assets.srcDir nativeAssets
+    tasks.named('preBuild').configure { dependsOn generation }
+}
+
+['sdk054': publishedHash, 'candidate': candidateHash].each { flavor, hash ->
+    def assets = file("$buildDir/generated/provenance/$flavor")
+    def generation = tasks.create("generate${flavor.capitalize()}Provenance") {
+        dependsOn verifyUpgradeInputs
+        inputs.property 'sdkHash', hash
+        inputs.file file(provenancePath)
+        outputs.dir assets
+        doLast {
+            assets.mkdirs()
+            def provenance = [sdk: flavor, aarSha256: hash, applicationId: 'com.supertokens.upgrade', versionCode: 1]
+            if (flavor == 'candidate') provenance.candidateBuild = buildReceipt
+            new File(assets, 'sdk-provenance.json').text = groovy.json.JsonOutput.toJson(provenance)
+        }
+    }
+    android.sourceSets.getByName(flavor).assets.srcDir assets
+    tasks.named('preBuild').configure { dependsOn generation }
+}

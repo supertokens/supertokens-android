@@ -830,7 +830,7 @@ public class SuperTokensOkHttpTest {
 
     @Test
     public void okhttp_testThatOldSessionsStillWorkAfterRefreshing() throws Exception {
-        com.example.TestUtils.startST(30);
+        com.example.TestUtils.startST(1);
         new SuperTokens.Builder(context, Constants.apiDomain)
                 .tokenTransferMethod("cookie")
                 .build();
@@ -860,7 +860,7 @@ public class SuperTokensOkHttpTest {
         HttpUrl httpUrl = new HttpUrl.Builder()
                 .scheme("http")
                 .host("127.0.0.1")
-                .port(8080)
+                .port(okhttp3.HttpUrl.parse(Constants.apiDomain).port())
                 .build();
         List<Cookie> cookies = new ArrayList<>();
         cookies.add(idRefreshToken);
@@ -904,7 +904,7 @@ public class SuperTokensOkHttpTest {
 
     @Test
     public void okhttp_testThatRefreshingOldSessionsWorksFineWithExpiredAccessToken() throws Exception {
-        com.example.TestUtils.startST(30);
+        com.example.TestUtils.startST(1);
         new SuperTokens.Builder(context, Constants.apiDomain)
                 .tokenTransferMethod("cookie")
                 .build();
@@ -942,7 +942,7 @@ public class SuperTokensOkHttpTest {
         HttpUrl httpUrl = new HttpUrl.Builder()
                 .scheme("http")
                 .host("127.0.0.1")
-                .port(8080)
+                .port(okhttp3.HttpUrl.parse(Constants.apiDomain).port())
                 .build();
 
         List<Cookie> cookies = new ArrayList<>();
@@ -971,8 +971,8 @@ public class SuperTokensOkHttpTest {
     }
 
     @Test
-    public void okhttp_transferMethodChangeClearsSessionAndRequiresNewLogin() throws Exception {
-        com.example.TestUtils.startST(30);
+    public void okhttp_testThatOldSessionsStillWorkWhenUsingHeaders() throws Exception {
+        com.example.TestUtils.startST(1);
         new SuperTokens.Builder(context, Constants.apiDomain)
                 .tokenTransferMethod("cookie")
                 .build();
@@ -1008,23 +1008,30 @@ public class SuperTokensOkHttpTest {
         HttpUrl httpUrl = new HttpUrl.Builder()
                 .scheme("http")
                 .host("127.0.0.1")
-                .port(8080)
+                .port(okhttp3.HttpUrl.parse(Constants.apiDomain).port())
                 .build();
         cookieJar.saveFromResponse(httpUrl, cookies);
 
-        new SuperTokens.Builder(context, Constants.apiDomain).tokenTransferMethod("header").reconfigure();
-        assert !SuperTokens.doesSessionExist(context);
-        assert SuperTokens.getAccessToken(context) == null;
-        int refreshesBeforeRequest = com.example.TestUtils.getRefreshTokenCounter();
+        SuperTokens.setTokenTransferMethod("header");
 
         Request userInfoRequest = new Request.Builder()
                 .url(userInfoAPIURL)
                 .build();
         Response userInfoResponse = okHttpClient.newCall(userInfoRequest).execute();
-        assert userInfoResponse.code() == 401;
-        userInfoResponse.close();
-        assert com.example.TestUtils.getRefreshTokenCounter() == refreshesBeforeRequest;
-        assert !SuperTokens.doesSessionExist(context);
+        if (userInfoResponse.code() != 200) {
+            throw new Exception("User info API failed even after calling refresh");
+        }
+
+        List<Cookie> newCookies = cookieJar.loadForRequest(httpUrl);
+        Cookie idRefreshTokenCookie = null;
+
+        for (Cookie _cookie : newCookies) {
+            if (_cookie.name().equals("sIdRefreshToken")) {
+                idRefreshTokenCookie = _cookie;
+            }
+        }
+
+        assert idRefreshTokenCookie == null;
 
         accessToken = SuperTokens.getAccessToken(context);
 
@@ -1037,7 +1044,9 @@ public class SuperTokensOkHttpTest {
                 .build();
         Response logoutResponse = okHttpClient.newCall(request).execute();
 
-        assert logoutResponse.code() == 401;
+        if (logoutResponse.code() != 200) {
+            throw new Exception("Error making logout request");
+        }
         logoutResponse.close();
 
         bodyJson = new JsonObject();
@@ -1089,7 +1098,7 @@ public class SuperTokensOkHttpTest {
             okHttpClient.newCall(throw401Request).execute();
             throw new Exception("Expected the request to throw an error");
         } catch (IOException e) {
-            assert e.getMessage().equals("Received a 401 response from http://127.0.0.1:8080/throw-401. Attempted to refresh the session and retry the request with the updated session tokens 10 times, but each attempt resulted in a 401 error. The maximum session refresh limit has been reached. Please investigate your API. To increase the session refresh attempts, update maxRetryAttemptsForSessionRefresh in the config.");
+            assert e.getMessage().equals("Received a 401 response from " + Constants.apiDomain + "/throw-401. Attempted to refresh the session and retry the request with the updated session tokens 10 times, but each attempt resulted in a 401 error. The maximum session refresh limit has been reached. Please investigate your API. To increase the session refresh attempts, update maxRetryAttemptsForSessionRefresh in the config.");
         }
 
         int sessionRefreshCalledCount = com.example.TestUtils.getRefreshTokenCounter();
@@ -1128,7 +1137,7 @@ public class SuperTokensOkHttpTest {
             okHttpClient.newCall(throw401Request).execute();
             throw new Exception("Expected the request to throw an error");
         } catch (IOException e) {
-            assert e.getMessage().equals("Received a 401 response from http://127.0.0.1:8080/throw-401. Attempted to refresh the session and retry the request with the updated session tokens 5 times, but each attempt resulted in a 401 error. The maximum session refresh limit has been reached. Please investigate your API. To increase the session refresh attempts, update maxRetryAttemptsForSessionRefresh in the config.");
+            assert e.getMessage().equals("Received a 401 response from " + Constants.apiDomain + "/throw-401. Attempted to refresh the session and retry the request with the updated session tokens 5 times, but each attempt resulted in a 401 error. The maximum session refresh limit has been reached. Please investigate your API. To increase the session refresh attempts, update maxRetryAttemptsForSessionRefresh in the config.");
         }
 
         int sessionRefreshCalledCount = com.example.TestUtils.getRefreshTokenCounter();
@@ -1167,7 +1176,7 @@ public class SuperTokensOkHttpTest {
             okHttpClient.newCall(throw401Request).execute();
             throw new Exception("Expected the request to throw an error");
         } catch (IOException e) {
-            assert e.getMessage().equals("Received a 401 response from http://127.0.0.1:8080/throw-401. Attempted to refresh the session and retry the request with the updated session tokens 0 times, but each attempt resulted in a 401 error. The maximum session refresh limit has been reached. Please investigate your API. To increase the session refresh attempts, update maxRetryAttemptsForSessionRefresh in the config.");
+            assert e.getMessage().equals("Received a 401 response from " + Constants.apiDomain + "/throw-401. Attempted to refresh the session and retry the request with the updated session tokens 0 times, but each attempt resulted in a 401 error. The maximum session refresh limit has been reached. Please investigate your API. To increase the session refresh attempts, update maxRetryAttemptsForSessionRefresh in the config.");
         }
 
         int sessionRefreshCalledCount = com.example.TestUtils.getRefreshTokenCounter();

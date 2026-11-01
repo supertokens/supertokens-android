@@ -18,7 +18,8 @@ public final class SessionSubscription implements Closeable {
     SessionSubscription(SessionSnapshot initialSnapshot, SessionObserver observer) {
         this.initialSnapshot = initialSnapshot;
         this.observer = observer;
-        this.lastOfferedRevision = initialSnapshot.getRevision();
+        this.lastOfferedRevision = initialSnapshot.getStatus() == SessionSnapshot.Status.UNAVAILABLE
+                ? initialSnapshot.getRevision() - 1 : initialSnapshot.getRevision();
     }
 
     public SessionSnapshot getInitialSnapshot() {

@@ -171,14 +171,6 @@ public class Utils {
             if (port == origin.getDefaultPort()) port = -1;
             _apiDomain = origin.getProtocol().toLowerCase(Locale.US) + "://"
                     + origin.getHost().toLowerCase(Locale.US) + (port < 0 ? "" : ":" + port);
-            URL supplied = new URL(apiDomain.trim().contains("://") ? apiDomain.trim()
-                    : origin.getProtocol() + "://" + apiDomain.trim());
-            if (supplied.getUserInfo() != null || supplied.getQuery() != null || supplied.getRef() != null) {
-                throw new MalformedURLException("API domain cannot contain credentials, query or fragment");
-            }
-            String domainPath = supplied.getPath();
-            while (domainPath.endsWith("/")) domainPath = domainPath.substring(0, domainPath.length() - 1);
-            _apiDomain += domainPath;
             String _apiBasePath = new NormalisedURLPath("/auth").getAsStringDangerous();
 
             if (apiBasePath != null) {
@@ -195,7 +187,7 @@ public class Utils {
                 _maxRetryAttemptsForSessionRefresh = maxRetryAttemptsForSessionRefresh;
             }
             if (_maxRetryAttemptsForSessionRefresh < 0) {
-                throw new IllegalArgumentException("Refresh retry limit cannot be negative");
+                _maxRetryAttemptsForSessionRefresh = 0;
             }
 
             String _sessionTokenBackendDomain = null;
@@ -227,39 +219,36 @@ public class Utils {
     /** @deprecated Raw writes are not atomic session transitions. */
     @Deprecated
     public static void storeInStorage(String name, String value, Context context) {
-        String storageKey = "st-storage-item-" + name;
-        SharedPreferences sharedPreferences = getSharedPreferences(context);
-
-        if (value.isEmpty()) {
-            SharedPreferences.Editor editor = sharedPreferences.edit();
-            editor.remove(storageKey);
-            editor.apply();
-            SessionState.legacyStorageChanged(context);
-            SessionState.dispatch();
-            return;
-        }
-
-        SharedPreferences.Editor editor = sharedPreferences.edit();
-        editor.putString(storageKey, value)
-                .apply();
-        SessionState.legacyStorageChanged(context);
-        SessionState.dispatch();
+        LegacyEventBatch events = SessionState.editLegacy(context,
+                new SessionStorage.LegacyEdit(new String[]{"st-storage-item-" + name},
+                        new String[]{value.isEmpty() ? null : value}), false);
+        SessionState.dispatch(events);
     }
 
     @Deprecated
     public static void saveLastAccessTokenUpdate(Context context) {
         String now = "" + System.currentTimeMillis();
 
-        storeInStorage(Constants.LAST_ACCESS_TOKEN_UPDATE_PREFS_KEY, now, context);
-        storeInStorage("sIRTFrontend", "", context);
+        SessionState.dispatch(SessionState.editLegacy(context,
+                new SessionStorage.LegacyEdit(new String[]{"st-storage-item-" + Constants.LAST_ACCESS_TOKEN_UPDATE_PREFS_KEY,
+                        "st-storage-item-sIRTFrontend"}, new String[]{now, null}), false));
     }
 
     public static String getFromStorage(String name, Context context) {
+        if (SessionState.isProjectedKey(name)) {
+            return SessionState.storedValue(context, name);
+        }
         return getSharedPreferences(context).getString("st-storage-item-" + name, null);
     }
 
     public static LocalSessionState getLocalSessionState(Context context) {
-        if (!SuperTokens.isInitCalled) return new LocalSessionState(LocalSessionStateStatus.NOT_EXISTS, null);
+        if (!SuperTokens.isInitCalled) {
+            String marker = getFromStorage(Constants.LAST_ACCESS_TOKEN_UPDATE_PREFS_KEY, context);
+            // Pre-init uses published marker presence, not the importer's synthesized evidence.
+            boolean exists = FrontToken.doesTokenExist(context) && marker != null;
+            return new LocalSessionState(exists ? LocalSessionStateStatus.EXISTS : LocalSessionStateStatus.NOT_EXISTS,
+                    exists ? marker : null);
+        }
         SessionSnapshot snapshot = SessionState.snapshot();
         String lastAccessTokenUpdate = SessionState.lastAccessTokenUpdate(snapshot.getOwner());
         if (snapshot.getStatus() == SessionSnapshot.Status.AVAILABLE && lastAccessTokenUpdate != null) {
@@ -336,7 +325,7 @@ public class Utils {
     }
 
     public static String getTokenForHeaderAuth(TokenType tokenType, Context context) {
-        if (!SuperTokens.isInitCalled) return null;
+        if (!SuperTokens.isInitCalled) return getFromStorage(getStorageName(tokenType), context);
         SessionTokens tokens = SessionState.snapshot().getTokens();
         if (tokens == null) return null;
         return tokenType == TokenType.ACCESS ? tokens.getAccessToken() : tokens.getRefreshToken();
@@ -394,20 +383,21 @@ public class Utils {
         }
 
         boolean frontTokenExistsAfter = !frontTokenHeaderFromResponse.equalsIgnoreCase("remove");
+        NormalisedInputType captured = SuperTokens.config;
 
         if (wasLoggedIn) {
             // we check for wasLoggedIn cause we don't want to fire an event
             // unnecessarily on first app load or if the user tried
             // to query an API that returned 401 while the user was not logged in...
             if (!frontTokenExistsAfter) {
-                if (status == SuperTokens.config.sessionExpiredStatusCode) {
-                    SuperTokens.config.eventHandler.handleEvent(EventHandler.EventType.UNAUTHORISED);
+                if (status == captured.sessionExpiredStatusCode) {
+                    new LegacyEventBatch(captured.eventHandler, EventHandler.EventType.UNAUTHORISED).deliver();
                 } else {
-                    SuperTokens.config.eventHandler.handleEvent(EventHandler.EventType.SIGN_OUT);
+                    new LegacyEventBatch(captured.eventHandler, EventHandler.EventType.SIGN_OUT).deliver();
                 }
             }
         } else if (frontTokenExistsAfter) {
-            SuperTokens.config.eventHandler.handleEvent(EventHandler.EventType.SESSION_CREATED);
+            new LegacyEventBatch(captured.eventHandler, EventHandler.EventType.SESSION_CREATED).deliver();
         }
     }
 
@@ -460,15 +450,6 @@ public class Utils {
         if (!apiDomain.equals("")) {
             String _apiDomain = new NormalisedURLDomain(apiDomain).getAsStringDangerous();
             URL apiDomainUrlObj = new URL(_apiDomain);
-            int expectedPort = apiDomainUrlObj.getPort() < 0 ? apiDomainUrlObj.getDefaultPort() : apiDomainUrlObj.getPort();
-            int actualPort = url.getPort() < 0 ? url.getDefaultPort() : url.getPort();
-            if (!apiDomainUrlObj.getProtocol().equalsIgnoreCase(url.getProtocol()) || expectedPort != actualPort) {
-                return false;
-            }
-            String configuredPath = new NormalisedURLPath(apiDomain).getAsStringDangerous();
-            String requestPath = new NormalisedURLPath(toCheckUrl).getAsStringDangerous();
-            if (!configuredPath.isEmpty() && !requestPath.equals(configuredPath)
-                    && !requestPath.startsWith(configuredPath + "/")) return false;
             apiDomainAndInputDomainMatch = apiDomainUrlObj.getHost().equalsIgnoreCase(domain);
         }
 

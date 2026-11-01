@@ -27,25 +27,27 @@ We're so excited you're interested in helping with SuperTokens! We are happy to 
 2. You can start modifying the code.
 
 ## Testing
-1. Navigate to the `supertokens-root` repository
-2. Start the testing environment
-   ```
-   ./startTestingEnv --wait
-   ```
-3. In a new terminal, navigate to the `supertokens-android` repository.
-4. Install dependencies required for testing
+1. Build the selected Core/plugin artifacts in the sibling `supertokens-root` repository.
+2. From the Android repository, install the selected Node SDK and run host tests:
    ```
    cd ./testHelpers/server/
    npm i -d
    npm i git+https://github.com:supertokens/supertokens-node.git
    cd ../../
-   ./testHelpers/startServer ../supertokens-root
+    (cd testHelpers/server && npm test)
    ```
-5. Run all tests
+3. Run the full standalone suite through an owned instance:
    ```
-   (cd testHelpers/testapp && ./gradlew test)
+    mkdir -p owned-integration-evidence
+    JAVA_HOME=/path/to/jdk11 ST_TEST_JAVA=/path/to/core-jdk/bin/java \
+    node testHelpers/server/runOrdinary.js ../supertokens-root \
+      "$PWD/owned-integration-evidence" 18081 19001 \
+      node "$PWD/testHelpers/server/runOwnedTests.js" ordinary "$PWD"
    ```
-6. If all tests pass the output should be:
+4. Repeat with `retrofit`. See [integration entrypoints](testHelpers/testapp/RUNNING.md)
+   for exact-pair qualification, the six-method mutation lane and receipt validation.
+   Direct testapp Gradle and the old `startServer` command are unsupported.
+   If all tests pass the output should be:
 
    <img src="https://github.com/supertokens/supertokens-logo/blob/master/images/supertokens-android-tests-passing.png" alt="Android tests passing" width="500px">
 

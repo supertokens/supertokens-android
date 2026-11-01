@@ -20,8 +20,6 @@ import android.content.Context;
 import org.jetbrains.annotations.NotNull;
 import java.io.IOException;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
-import okhttp3.Authenticator;
 import okhttp3.Interceptor;
 import okhttp3.MediaType;
 import okhttp3.OkHttpClient;
@@ -33,6 +31,7 @@ import okio.BufferedSink;
 @SuppressWarnings("unused")
 public class SuperTokensInterceptor implements Interceptor {
     private final OkHttpClient refreshClient;
+    Runnable beforeDispatchForTests;
 
     public SuperTokensInterceptor() {
         refreshClient = null;
@@ -40,56 +39,74 @@ public class SuperTokensInterceptor implements Interceptor {
 
     public SuperTokensInterceptor(OkHttpClient refreshClient) {
         if (refreshClient == null) throw new NullPointerException("refreshClient");
-        OkHttpClient.Builder builder = refreshClient.newBuilder()
-                .retryOnConnectionFailure(false).followRedirects(false).followSslRedirects(false)
-                .authenticator(Authenticator.NONE).proxyAuthenticator(Authenticator.NONE).cache(null)
-                .callTimeout(RefreshCoordinator.NETWORK_TIMEOUT_MS, TimeUnit.MILLISECONDS)
-                .connectTimeout(RefreshCoordinator.NETWORK_TIMEOUT_MS, TimeUnit.MILLISECONDS)
-                .readTimeout(RefreshCoordinator.NETWORK_TIMEOUT_MS, TimeUnit.MILLISECONDS)
-                .writeTimeout(RefreshCoordinator.NETWORK_TIMEOUT_MS, TimeUnit.MILLISECONDS);
-        builder.interceptors().clear();
-        builder.networkInterceptors().clear();
-        this.refreshClient = builder.build();
+        this.refreshClient = OwnedOkHttpRefresh.createClient(refreshClient);
     }
 
     @NotNull
     @Override
-    public Response intercept(@NotNull Chain chain) throws IOException {
+    public Response intercept(@NotNull final Chain chain) throws IOException {
         if (!SuperTokens.isInitCalled) throw new IOException("SuperTokens.init function needs to be called before using interceptors");
         Context context = SuperTokens.contextWeakReference.get();
         if (context == null) throw new IOException("Context is null");
         Request original = chain.request();
-        SessionRequestTag supplied = original.tag(SessionRequestTag.class);
+        SessionRequestTag supplied = OkHttpSessionTags.get(original);
         SessionRequestTag logical = supplied == null ? SessionState.capture() : supplied;
-        SessionState.Configuration config = logical.configuration;
+        final SessionState.Configuration config = logical.configuration;
         String url = original.url().toString();
         if (!Utils.shouldDoInterceptionBasedOnUrl(url, config.values.apiDomain,
                 config.values.sessionTokenBackendDomain) || url.equals(config.refreshTokenUrl)) {
             return chain.proceed(original);
         }
-        SessionTransport.requireCurrent(logical);
+        if (supplied != null) SessionTransport.requireCurrent(logical);
         String explicit = original.header("Authorization");
-        boolean managed = explicit == null || (original.headers("Authorization").size() == 1
-                && SessionTransport.matches(explicit, SessionTransport.authorization(logical.getSnapshot(), false)));
+        SessionTransport.AuthorizationPolicy authPolicy = SessionTransport.authorizationPolicy(explicit, logical.getSnapshot());
+        boolean managed = original.headers("Authorization").size() <= 1
+                && authPolicy != SessionTransport.AuthorizationPolicy.FOREIGN_BEARER;
         if (!managed && supplied != null) throw new IOException("Authorization does not match the captured session");
         SessionRequestTag wire = new SessionRequestTag(logical.getSnapshot(), config);
         int attempts = 0;
+        Response previous = null;
         while (true) {
-            SessionTransport.requireCurrent(logical);
+            if (!SessionState.isCurrent(logical.getOwner(), config)) {
+                if (supplied == null && previous != null) return previous;
+                if (previous != null) previous.close();
+                if (supplied != null) SessionTransport.requireCurrent(logical);
+            }
             Request.Builder builder = original.newBuilder().header("st-auth-mode", config.values.tokenTransferMethod);
             if (original.header("rid") == null) builder.header("rid", "anti-csrf");
             if (managed) {
-                builder.removeHeader("Authorization");
-                String auth = SessionTransport.authorization(wire.getSnapshot(), false);
-                if (auth != null) builder.header("Authorization", auth);
+                if (authPolicy == SessionTransport.AuthorizationPolicy.SDK_BEARER) {
+                    builder.removeHeader("Authorization");
+                    String auth = SessionTransport.authorization(wire.getSnapshot(), false);
+                    if (auth != null) builder.header("Authorization", auth);
+                }
                 String anti = SessionTransport.antiCSRF(wire.getSnapshot());
                 if (anti != null) builder.header(Constants.CSRF_HEADER_KEY, anti);
             }
             Request request = builder.build();
-            SessionTransport.requireCurrent(logical);
+            try {
+                if (beforeDispatchForTests != null) beforeDispatchForTests.run();
+            } catch (RuntimeException | Error error) {
+                if (previous != null) previous.close();
+                throw error;
+            }
+            // Dispatch linearizes here, before handing the request to downstream interceptors.
+            if (!SessionState.isCurrent(logical.getOwner(), config)) {
+                if (supplied == null && previous != null) return previous;
+                if (previous != null) previous.close();
+                if (supplied != null) throw new StaleSessionException();
+                if (managed) {
+                    Request.Builder stale = request.newBuilder().removeHeader(Constants.CSRF_HEADER_KEY);
+                    if (authPolicy == SessionTransport.AuthorizationPolicy.SDK_BEARER) stale.removeHeader("Authorization");
+                    request = stale.build();
+                }
+                return chain.proceed(request);
+            }
+            if (previous != null) previous.close();
             Response response = chain.proceed(request);
             try {
-                if (!SessionTransport.isResponseInScope(response.request().url().toString(), config)) {
+                if (!SessionTransport.isResponseInScope(request.url().toString(),
+                        response.request().url().toString(), config)) {
                     if (supplied != null) throw new IOException("Response URL is outside captured session scope");
                     return response;
                 }
@@ -104,49 +121,55 @@ public class SuperTokensInterceptor implements Interceptor {
                 boolean current = SessionTransport.apply(context, logical, wire,
                         SessionResponse.fromOkHttp(response), supplied != null);
                 if (!current || response.code() != config.values.sessionExpiredStatusCode) return response;
-                if (!SessionState.isCurrent(logical.getOwner(), config)) return response;
+                if (supplied == null && SessionTransport.isRecovering(wire.getSnapshot())) return response;
+                if (!SessionState.isCurrent(logical.getOwner(), config)) {
+                    if (supplied != null) throw new StaleSessionException();
+                    return response;
+                }
                 if (attempts >= config.values.maxRetryAttemptsForSessionRefresh) {
                     throw new IOException(SessionTransport.retryLimitMessage(url,
                             config.values.maxRetryAttemptsForSessionRefresh));
                 }
                 if (refreshClient == null && response.body() != null) {
                     // The legacy chain cannot proceed again while its prior response is open.
-                    okhttp3.ResponseBody saved = response.peekBody(1024 * 1024 + 1);
-                    if (saved.contentLength() > 1024 * 1024) {
-                        saved.close();
-                        throw new IOException("Session-expired response body is too large to retain for refresh");
-                    }
+                    okhttp3.ResponseBody saved = response.peekBody(Long.MAX_VALUE);
                     Response buffered = response.newBuilder().body(saved).build();
                     response.close();
                     response = buffered;
                 }
                 SessionResolution resolution = RefreshCoordinator.resolve(context, logical.getOwner(),
                         SessionTransport.access(wire.getSnapshot()) == null,
-                        SessionTransport.access(wire.getSnapshot()), (ctx, configuration, captured) -> {
-                            if (configuration != config) throw new StaleSessionException();
-                            return refresh(chain, configuration, captured);
-                        }, wire.getSnapshot().getRefreshTokenRevision());
+                        SessionTransport.access(wire.getSnapshot()), new RefreshCoordinator.Transport() {
+                            @Override public SessionResponse execute(Context ctx,
+                                    SessionState.Configuration configuration, SessionSnapshot captured)
+                                    throws IOException {
+                                if (configuration != config) throw new StaleSessionException();
+                                return refresh(chain, configuration, captured);
+                            }
+                        }, wire.getSnapshot().getRefreshTokenRevision(), supplied == null);
                 if (!resolution.isSuccess()) {
+                    if (supplied == null && resolution.getStatus() == SessionResolution.Status.STALE_OWNER) return response;
                     if (resolution.getError() != null) throw resolution.getError();
                     return response;
                 }
-                wire = SessionTransport.nextWire(logical);
+                wire = SessionTransport.nextWire(logical, supplied != null);
+                if (wire == null) return response;
                 attempts++;
             } catch (IOException | RuntimeException e) {
                 response.close();
                 throw e;
             }
-            response.close();
+            previous = response;
         }
     }
 
     private SessionResponse refresh(Chain chain, SessionState.Configuration configuration,
                                     SessionSnapshot captured) throws IOException {
-        RefreshDeadline deadline = new RefreshDeadline();
+        RefreshDeadline deadline = refreshClient == null ? null : new RefreshDeadline();
         SessionRequestTag tag = new SessionRequestTag(captured, configuration);
         SessionTransport.requireCurrent(tag);
         RequestBody body = new RequestBody() {
-            @Override public MediaType contentType() { return MediaType.get("application/x-www-form-urlencoded"); }
+            @Override public MediaType contentType() { return MediaType.parse("application/x-www-form-urlencoded"); }
             @Override public long contentLength() { return 0; }
             @Override public boolean isOneShot() { return true; }
             @Override public void writeTo(BufferedSink sink) {}
@@ -168,12 +191,18 @@ public class SuperTokensInterceptor implements Interceptor {
             throw new RefreshCoordinator.ConfigurationException("Refresh callback changed authorization");
         }
         SessionTransport.requireCurrent(tag);
-        okhttp3.Call refreshCall = refreshClient == null ? chain.call() : refreshClient.newCall(request);
-        if (refreshClient != null) refreshCall.timeout().timeout(deadline.remainingMillis(), TimeUnit.MILLISECONDS);
-        java.util.concurrent.ScheduledFuture<?> timeout = deadline.cancelAfterDeadline(refreshCall::cancel);
+        final okhttp3.Call refreshCall = refreshClient == null ? null : refreshClient.newCall(request);
+        java.util.concurrent.ScheduledFuture<?> timeout = null;
+        if (refreshCall != null) {
+            OwnedOkHttpRefresh.setTimeout(refreshCall, deadline.remainingMillis());
+            timeout = deadline.cancelAfterDeadline(new Runnable() {
+                @Override public void run() { refreshCall.cancel(); }
+            });
+        }
         try (Response response = refreshClient == null ? chain.proceed(request) : refreshCall.execute()) {
-            deadline.remainingMillis();
-            if (!SessionTransport.isResponseInScope(response.request().url().toString(), configuration)) {
+            if (deadline != null) deadline.remainingMillis();
+            if (!SessionTransport.isResponseInScope(request.url().toString(),
+                    response.request().url().toString(), configuration)) {
                 throw new RefreshCoordinator.ConfigurationException("Refresh response URL is outside captured session scope");
             }
             if (response.request().headers("Authorization").size() > 1
@@ -182,7 +211,7 @@ public class SuperTokensInterceptor implements Interceptor {
             }
             return SessionResponse.fromOkHttp(response);
         } finally {
-            RefreshDeadline.finished(timeout);
+            if (timeout != null) RefreshDeadline.finished(timeout);
         }
     }
 }

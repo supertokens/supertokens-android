@@ -1,0 +1,21 @@
+<?xml version='1.0' encoding='utf-8'?>
+<map>
+  <string name="supertokens-android-session-status">available</string>
+  <string name="supertokens-android-session-revision">3</string>
+  <string name="supertokens-android-session-handle">00000000-0000-0000-0000-000000000003</string>
+  <string name="st-storage-item-st-refresh-token">INVALID-FIXTURE-SECRET-0007</string>
+  <string name="supertokens-android-session-adoption">00000000-0000-0000-0000-000000000007</string>
+  <string name="supertokens-android-session-access-revision">3</string>
+  <string name="supertokens-android-fronttoken-key">eyJ1aWQiOiJmaXh0dXJlLWlkLTAwMDkiLCJhdGUiOjQxMDI0NDg0MDIwMDAsInVwIjp7ImlhdCI6NDEwMjQ0NDgwMiwiZXhwIjo0MTAyNDQ4NDAyLCJzdWIiOiJmaXh0dXJlLWlkLTAwMDkiLCJ0SWQiOiJwdWJsaWMiLCJyc3ViIjoiZml4dHVyZS1pZC0wMDA5Iiwic2Vzc2lvbkhhbmRsZSI6IjAwMDAwMDAwLTAwMDAtMDAwMC0wMDAwLTAwMDAwMDAwMDAwYSIsInJlZnJlc2hUb2tlbkhhc2gxIjoiMzIyMDgxNjk3M2Q1ZGE1YWU5N2YzNjg5MTFjYzE4YTM4ODJhNTdiZDc3ODczYzAxZDJiODNkNzllZjI3Yzc4ZSIsInBhcmVudFJlZnJlc2hUb2tlbkhhc2gxIjpudWxsLCJhbnRpQ3NyZlRva2VuIjpudWxsLCJpc3MiOiJodHRwOi8vZml4dHVyZS5pbnZhbGlkIn19</string>
+  <string name="supertokens-android-session-legacy-marker">4102444799707</string>
+  <string name="st-storage-item-st-last-access-token-update">4102444801042</string>
+  <string name="supertokens-android-session-user">fixture-id-0002</string>
+  <string name="supertokens-android-session-refresh-revision">2</string>
+  <string name="supertokens-android-session-tenant">public</string>
+  <string name="supertokens-android-session-expiry">4102448401000</string>
+  <string name="supertokens-android-session-validation">legacy</string>
+  <string name="st-storage-item-st-access-token">eyJraWQiOiJmaXh0dXJlLWlkLTAwMDEiLCJ0eXAiOiJKV1QiLCJ2ZXJzaW9uIjoiNSIsImFsZyI6IlJTMjU2In0.eyJpYXQiOjQxMDI0NDQ4MDIsImV4cCI6NDEwMjQ0ODQwMiwic3ViIjoiZml4dHVyZS1pZC0wMDA5IiwidElkIjoicHVibGljIiwicnN1YiI6ImZpeHR1cmUtaWQtMDAwOSIsInNlc3Npb25IYW5kbGUiOiIwMDAwMDAwMC0wMDAwLTAwMDAtMDAwMC0wMDAwMDAwMDAwMGEiLCJyZWZyZXNoVG9rZW5IYXNoMSI6IjMyMjA4MTY5NzNkNWRhNWFlOTdmMzY4OTExY2MxOGEzODgyYTU3YmQ3Nzg3M2MwMWQyYjgzZDc5ZWYyN2M3OGUiLCJwYXJlbnRSZWZyZXNoVG9rZW5IYXNoMSI6bnVsbCwiYW50aUNzcmZUb2tlbiI6bnVsbCwiaXNzIjoiaHR0cDovL2ZpeHR1cmUuaW52YWxpZCJ9.SU5WQUxJRC1GSVhUVVJFLVNFQ1JFVC0wMDA5</string>
+  <string name="supertokens-android-session-configuration">1daf86fe5d3e59891d14e708772b52bff82f53020a008ea86d0419cacfbf5ae7</string>
+  <string name="supertokens-android-session-schema">1</string>
+  <string name="supertokens-android-session-fingerprint">64091723c31bac41c3acaded04e5e2787d2d1fe17bd781e080d50b967336a58f</string>
+</map>

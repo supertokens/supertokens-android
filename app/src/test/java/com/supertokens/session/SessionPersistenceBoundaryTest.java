@@ -32,7 +32,8 @@ public class SessionPersistenceBoundaryTest extends SessionTestFixture {
         SessionSnapshot original = install("before", "config");
         AtomicInteger commits = new AtomicInteger();
         failCommits(commits);
-        SessionCommitResult result = new SuperTokens.Builder(context, server.url("/changed").toString()).reconfigure();
+        SessionCommitResult result = new SuperTokens.Builder(context, server.url("/").toString())
+                .apiBasePath("/changed").reconfigure();
         assertEquals(SessionCommitResult.Status.PERSISTENCE_FAILED, result.getStatus());
         assertNotNull(result.getPersistenceError());
         assertFalse(original.isCurrent());
@@ -58,6 +59,11 @@ public class SessionPersistenceBoundaryTest extends SessionTestFixture {
         assertNull(SuperTokens.getSessionSnapshot(context).getTokens());
         assertTrue("Original disk tuple remains uncertain", disk.contains("st-storage-item-" + Constants.ACCESS_TOKEN_PREFS_KEY));
         assertEquals(2, commits.get());
+        when(context.getSharedPreferences(anyString(), anyInt())).thenReturn(disk);
+        server.enqueue(rotation(tokens("later-login", "recovered")));
+        assertEquals(200, request(false, null, "/login"));
+        restart(false);
+        assertTrue(SuperTokens.doesSessionExist(context));
     }
 
     @Test public void tokenlessResolutionAndSnapshotsNeverReadOrWriteDiskAfterInitialization() {

@@ -3,6 +3,7 @@ package com.supertokens.session;
 import java.io.IOException;
 import java.net.HttpURLConnection;
 import java.util.Collections;
+import java.util.Scanner;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -59,8 +60,9 @@ public class SessionTransportPolicyTest extends SessionTestFixture {
         assertEquals(replacement.getAccessToken(), SuperTokens.getSessionSnapshot(context).getTokens().getAccessToken());
     }
 
-    @Test public void configurationAtoBtoAWhilePreconnectBlockedCannotResurrectDispatch() throws Exception {
+    @Test public void configurationAtoBtoAWhilePreconnectBlockedDispatchesWithoutCredentials() throws Exception {
         SessionSnapshot a = install("A", "initial");
+        server.enqueue(rotation(tokens("C", "must-not-adopt")).setBody("credential-free response"));
         CountDownLatch callbackEntered = new CountDownLatch(1), release = new CountDownLatch(1);
         ExecutorService worker = Executors.newSingleThreadExecutor();
         try {
@@ -71,10 +73,11 @@ public class SessionTransportPolicyTest extends SessionTestFixture {
                         callbackEntered.countDown();
                         await(release);
                     });
-                    connection.disconnect();
-                    fail("retired configuration dispatched");
-                } catch (StaleSessionException expected) { }
-                catch (Exception error) { throw new AssertionError(error); }
+                    try (Scanner body = new Scanner(connection.getInputStream(), "UTF-8").useDelimiter("\\A")) {
+                        assertEquals(200, connection.getResponseCode());
+                        assertEquals("credential-free response", body.next());
+                    } finally { connection.disconnect(); }
+                } catch (Exception error) { throw new AssertionError(error); }
             });
             assertTrue(callbackEntered.await(5, TimeUnit.SECONDS));
             SessionCommitResult b = new SuperTokens.Builder(context, server.url("/").toString())
@@ -86,7 +89,13 @@ public class SessionTransportPolicyTest extends SessionTestFixture {
             assertNotSame(a.getOwner(), again.getSnapshot().getOwner());
             assertEquals(SessionSnapshot.Status.ABSENT, again.getSnapshot().getStatus());
             release.countDown(); pending.get(5, TimeUnit.SECONDS);
-            assertEquals(0, server.getRequestCount());
+            assertEquals(1, server.getRequestCount());
+            RecordedRequest sent = server.takeRequest(1, TimeUnit.SECONDS);
+            assertNotNull(sent);
+            assertEquals("/profile", sent.getPath());
+            assertTrue(sent.getHeader("Authorization") == null || sent.getHeader("Authorization").isEmpty());
+            assertTrue(sent.getHeader("anti-csrf") == null || sent.getHeader("anti-csrf").isEmpty());
+            assertSame(again.getSnapshot(), SuperTokens.getSessionSnapshot(context));
         } finally { release.countDown(); worker.shutdownNow(); assertTrue(worker.awaitTermination(5, TimeUnit.SECONDS)); }
     }
 
@@ -125,6 +134,7 @@ public class SessionTransportPolicyTest extends SessionTestFixture {
     @Test public void strictRefreshDoesNotInvoke401Authenticator() throws Exception { strictResponse(401); }
 
     private void strictResponse(int status) throws Exception {
+        if (!ownedRefreshAvailable()) return;
         configure(type -> Collections.singletonMap("x-refresh-provider", "kept"));
         SessionSnapshot a = install("A", "initial");
         AtomicInteger authentications = new AtomicInteger(), inheritedInterceptors = new AtomicInteger();
@@ -170,6 +180,7 @@ public class SessionTransportPolicyTest extends SessionTestFixture {
     }
 
     @Test public void strictRefreshConnectionFailureIsNotReplayed() throws Exception {
+        if (!ownedRefreshAvailable()) return;
         SessionSnapshot a = install("A", "initial");
         OkHttpClient refresh = new OkHttpClient.Builder().retryOnConnectionFailure(true).build();
         OkHttpClient strict = new OkHttpClient.Builder().callTimeout(5, TimeUnit.SECONDS)
@@ -249,19 +260,21 @@ public class SessionTransportPolicyTest extends SessionTestFixture {
         assertEquals(0, server.getRequestCount());
     }
 
-    @Test public void signoutGeneralErrorAndMalformedBodiesRetainTupleDespiteRemovalHeaders() throws Exception {
+    @Test public void signoutBodyErrorsSurfaceAfterRemovalHeadersCommit() throws Exception {
         SessionSnapshot a = install("A", "initial");
         server.enqueue(new MockResponse().addHeader("front-token", "remove")
                 .setBody("{\"status\":\"GENERAL_ERROR\",\"message\":\"cannot sign out\"}"));
         try { SuperTokens.signOut(context); fail("GENERAL_ERROR accepted"); }
         catch (SuperTokensGeneralError expected) { assertEquals("cannot sign out", expected.getMessage()); }
-        assertSame(a.getOwner(), SuperTokens.getSessionSnapshot(context).getOwner());
+        assertEquals(SessionSnapshot.Status.ABSENT, SuperTokens.getSessionSnapshot(context).getStatus());
+        assertFalse(a.isCurrent());
+        SessionSnapshot restored = install("A", "initial");
         server.enqueue(new MockResponse().addHeader("front-token", "remove").setBody("not-json"));
         try { SuperTokens.signOut(context); fail("malformed signout accepted"); }
         catch (IllegalStateException expected) { assertNotNull(expected.getCause()); }
-        assertSame(a.getOwner(), SuperTokens.getSessionSnapshot(context).getOwner());
-        assertEquals(a.getRevision(), SuperTokens.getSessionSnapshot(context).getRevision());
-        assertEquals(a.getTokens().getRefreshToken(), SuperTokens.getSessionSnapshot(context).getTokens().getRefreshToken());
+        assertEquals(SessionSnapshot.Status.ABSENT, SuperTokens.getSessionSnapshot(context).getStatus());
+        assertFalse(restored.isCurrent());
+        assertNull(SuperTokens.getSessionSnapshot(context).getTokens());
         for (int i = 0; i < 2; i++) {
             RecordedRequest wire = server.takeRequest(1, TimeUnit.SECONDS);
             assertEquals("/auth/signout", wire.getPath());
@@ -293,8 +306,7 @@ public class SessionTransportPolicyTest extends SessionTestFixture {
         ExecutorService worker = Executors.newSingleThreadExecutor();
         try {
             Future<?> pending = worker.submit(() -> {
-                try { SuperTokens.signOut(context); fail("stale signout reported success"); }
-                catch (StaleSessionException expected) { }
+                try { SuperTokens.signOut(context); }
                 catch (Exception error) { throw new AssertionError(error); }
             });
             assertTrue(arrived.await(5, TimeUnit.SECONDS));

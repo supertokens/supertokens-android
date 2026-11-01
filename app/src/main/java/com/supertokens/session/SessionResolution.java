@@ -15,12 +15,26 @@ public final class SessionResolution {
     private final SessionSnapshot snapshot;
     @Nullable
     private final IOException error;
+    final boolean legacyHandlerFailure;
+    final boolean pendingReplacement;
 
     SessionResolution(Status status, @Nullable SessionSnapshot snapshot,
                       @Nullable IOException error) {
+        this(status, snapshot, error, false);
+    }
+
+    SessionResolution(Status status, @Nullable SessionSnapshot snapshot,
+                      @Nullable IOException error, boolean legacyHandlerFailure) {
+        this(status, snapshot, error, legacyHandlerFailure, false);
+    }
+
+    SessionResolution(Status status, @Nullable SessionSnapshot snapshot,
+                      @Nullable IOException error, boolean legacyHandlerFailure, boolean pendingReplacement) {
         this.status = status;
         this.snapshot = snapshot;
         this.error = error;
+        this.legacyHandlerFailure = legacyHandlerFailure;
+        this.pendingReplacement = pendingReplacement;
     }
 
     public Status getStatus() {

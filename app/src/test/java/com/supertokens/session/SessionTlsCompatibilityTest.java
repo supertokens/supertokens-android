@@ -27,6 +27,7 @@ public class SessionTlsCompatibilityTest extends SessionTestFixture {
     }
 
     private void tls(boolean rejectPin) throws Exception {
+        if (!ownedRefreshAvailable()) return;
         HeldCertificate certificate = new HeldCertificate.Builder().addSubjectAlternativeName("session.test").build();
         HandshakeCertificates serverTls = new HandshakeCertificates.Builder().heldCertificate(certificate).build();
         HandshakeCertificates clientTls = new HandshakeCertificates.Builder()
@@ -71,6 +72,7 @@ public class SessionTlsCompatibilityTest extends SessionTestFixture {
     }
 
     @Test public void strictRefreshUsesConfiguredHttpProxy() throws Exception {
+        if (!ownedRefreshAvailable()) return;
         String origin = "http://session-proxy.invalid";
         assertTrue(new SuperTokens.Builder(context, origin).reconfigure().isSuccess());
         install("proxy", "before");

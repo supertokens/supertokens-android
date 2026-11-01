@@ -1,0 +1,56 @@
+// Shared test-only artifact. Published driver compilation retains its isolated classpath.
+configurations {
+    upgradeHarnessDependencies
+    upgradeCookieArtifact { transitive = false }
+}
+dependencies {
+    upgradeHarnessDependencies 'com.squareup.okhttp3:okhttp:4.1.0'
+    upgradeHarnessDependencies 'org.json:json:20231013'
+    upgradeCookieArtifact 'com.github.franmontiel:PersistentCookieJar:v1.0.1@aar'
+}
+
+def cookieClasses = file("$buildDir/upgradeHarness/cookies/classes.jar")
+task extractUpgradeCookieClasses {
+    inputs.files configurations.upgradeCookieArtifact
+    outputs.file cookieClasses
+    doLast {
+        copy {
+            from zipTree(configurations.upgradeCookieArtifact.singleFile)
+            include 'classes.jar'
+            into cookieClasses.parentFile
+        }
+    }
+}
+
+task compileUpgradeHarness(type: JavaCompile, dependsOn: extractUpgradeCookieClasses) {
+    source = fileTree('src/upgradeHarness/java') { include '**/*.java' }
+    destinationDir = file("$buildDir/upgradeHarness/classes")
+    sourceCompatibility = '1.8'
+    targetCompatibility = '1.8'
+}
+
+task upgradeHarnessJar(type: Jar, dependsOn: compileUpgradeHarness) {
+    archiveName = 'upgrade-harness.jar'
+    destinationDir = file("$buildDir/upgradeHarness")
+    from compileUpgradeHarness.destinationDir
+}
+
+dependencies {
+    testImplementation files(upgradeHarnessJar)
+}
+
+// AGP 4.1 lint resolves test artifacts without carrying their producer dependencies.
+tasks.matching { it.name.startsWith('lint') }.configureEach {
+    dependsOn upgradeHarnessJar
+}
+
+afterEvaluate {
+    def candidate = tasks.getByName('compileDebugJavaWithJavac')
+    compileUpgradeHarness.dependsOn candidate
+    compileUpgradeHarness.classpath = files(android.bootClasspath, candidate.destinationDir, cookieClasses) + configurations.upgradeHarnessDependencies
+}
+
+task preparePublishedUpgradeArtifacts(dependsOn: ['assembleDebug', upgradeHarnessJar, compileLegacy054Driver]) {
+    description = 'Builds candidate AAR, shared upgrade harness and isolated checksum-pinned published driver.'
+    group = 'verification'
+}

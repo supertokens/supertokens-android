@@ -2,6 +2,7 @@ package com.supertokens.session;
 
 import android.content.Context;
 import java.io.IOException;
+import java.net.URL;
 
 /** Shared ownership policy; transport operations never hold the session lock. */
 final class SessionTransport {
@@ -12,9 +13,29 @@ final class SessionTransport {
 
     private SessionTransport() {}
 
-    static boolean isResponseInScope(String url, SessionState.Configuration configuration) throws IOException {
-        return Utils.shouldDoInterceptionBasedOnUrl(url, configuration.values.apiDomain,
-                configuration.values.sessionTokenBackendDomain);
+    enum AuthorizationPolicy { SDK_BEARER, CALLER_NON_BEARER, FOREIGN_BEARER }
+
+    static AuthorizationPolicy authorizationPolicy(String value, SessionSnapshot snapshot) {
+        if (value == null || matches(value, authorization(snapshot, false))) return AuthorizationPolicy.SDK_BEARER;
+        return isBearer(value) ? AuthorizationPolicy.FOREIGN_BEARER : AuthorizationPolicy.CALLER_NON_BEARER;
+    }
+
+    private static boolean isBearer(String value) {
+        return value != null && value.regionMatches(true, 0, "Bearer ", 0, 7);
+    }
+
+    static boolean isResponseInScope(String sentUrl, String finalUrl,
+                                     SessionState.Configuration configuration) throws IOException {
+        if (!Utils.shouldDoInterceptionBasedOnUrl(sentUrl, configuration.values.apiDomain,
+                configuration.values.sessionTokenBackendDomain)) return false;
+        URL sent = new URL(sentUrl);
+        URL received = new URL(finalUrl);
+        int sentPort = sent.getPort() < 0 ? sent.getDefaultPort() : sent.getPort();
+        int receivedPort = received.getPort() < 0 ? received.getDefaultPort() : received.getPort();
+        // Outbound compatibility trusts hosts; redirected responses additionally require the sent origin.
+        return sent.getProtocol().equalsIgnoreCase(received.getProtocol())
+                && sent.getHost().equalsIgnoreCase(received.getHost()) && sentPort == receivedPort
+                && received.getUserInfo() == null;
     }
 
     static void requireCurrent(SessionRequestTag tag) throws StaleSessionException {
@@ -22,16 +43,21 @@ final class SessionTransport {
     }
 
     static SessionRequestTag nextWire(SessionRequestTag logical) throws StaleSessionException {
+        return nextWire(logical, true);
+    }
+
+    static SessionRequestTag nextWire(SessionRequestTag logical, boolean tagged) throws StaleSessionException {
         SessionRequestTag wire = SessionState.capture();
         if (wire.getOwner() != logical.getOwner() || wire.configuration != logical.configuration) {
-            throw new StaleSessionException();
+            if (tagged) throw new StaleSessionException();
+            return null;
         }
         return wire;
     }
 
     static String authorization(SessionSnapshot snapshot, boolean refresh) {
         SessionTokens tokens = snapshot.getInternalTokens();
-        if (tokens == null) return null;
+        if (tokens == null || tokens.getAccessToken() == null || tokens.getRefreshToken() == null) return null;
         String token = refresh ? tokens.getRefreshToken() : tokens.getAccessToken();
         return token == null ? null : "Bearer " + token;
     }
@@ -48,19 +74,27 @@ final class SessionTransport {
 
     static boolean matches(String actual, String expected) {
         if (actual == null || expected == null) return actual == expected;
-        return actual.length() >= 7 && expected.length() >= 7
-                && actual.regionMatches(true, 0, "Bearer ", 0, 7)
-                && actual.substring(7).equals(expected.substring(7));
+        if (!isBearer(expected)) return actual.equals(expected);
+        return isBearer(actual) && actual.substring(7).equals(expected.substring(7));
+    }
+
+    static boolean isRecovering(SessionSnapshot snapshot) {
+        return snapshot.getStatus() == SessionSnapshot.Status.RECOVERY_REQUIRED
+                || snapshot.getStatus() == SessionSnapshot.Status.UNAVAILABLE;
     }
 
     static boolean apply(Context context, SessionRequestTag logical, SessionRequestTag wire,
                          SessionResponse response, boolean tagged) throws IOException {
-        SessionCommitResult result = SessionState.applyOrdinaryResponse(context, wire, response);
+        if (tagged && isRecovering(wire.getSnapshot())) {
+            requireCurrent(wire);
+            throw new IOException("Session storage recovery is required");
+        }
+        SessionCommitResult result = SessionState.applyOrdinaryResponse(context, wire, response, !tagged);
         SessionSnapshot accepted = wire.getAcceptedSnapshot();
         if (accepted != null) logical.markAccepted(accepted);
-        SessionState.dispatch();
+        SessionState.dispatch(result);
         if (result.getPersistenceError() != null) throw result.getPersistenceError();
-        if (result.getStatus() == SessionCommitResult.Status.RECOVERY_REQUIRED) {
+        if (tagged && result.getStatus() == SessionCommitResult.Status.RECOVERY_REQUIRED) {
             throw new IOException("Session storage recovery is required");
         }
         boolean current = SessionState.isCurrent(accepted == null ? logical.getOwner()

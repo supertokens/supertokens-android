@@ -15,12 +15,19 @@ public final class SessionCommitResult {
     private final SessionSnapshot snapshot;
     @Nullable
     private final IOException persistenceError;
+    final LegacyEventBatch events;
 
     SessionCommitResult(Status status, @Nullable SessionSnapshot snapshot,
                         @Nullable IOException persistenceError) {
+        this(status, snapshot, persistenceError, LegacyEventBatch.EMPTY);
+    }
+
+    SessionCommitResult(Status status, @Nullable SessionSnapshot snapshot,
+                        @Nullable IOException persistenceError, LegacyEventBatch events) {
         this.status = status;
         this.snapshot = snapshot;
         this.persistenceError = persistenceError;
+        this.events = events;
     }
 
     public Status getStatus() {

@@ -10,14 +10,15 @@ import org.junit.Test;
 import static org.junit.Assert.*;
 
 public class SessionConfigurationContractTest extends SessionTestFixture {
-    @Test public void crossPortRequestCannotDispatchManagedCredentialsOrPromoteSession() throws Exception {
+    @Test public void crossHostRequestCannotDispatchManagedCredentialsOrPromoteSession() throws Exception {
         SessionSnapshot original = install("configured-origin", "before");
         MockWebServer otherOrigin = new MockWebServer();
         otherOrigin.start();
         try {
             assertNotEquals(server.getPort(), otherOrigin.getPort());
             otherOrigin.enqueue(rotation(tokens("foreign-origin", "response")));
-            try (Response response = client.newCall(new Request.Builder().url(otherOrigin.url("/profile")).build()).execute()) {
+            okhttp3.HttpUrl outside = otherOrigin.url("/profile").newBuilder().host("127.0.0.1").build();
+            try (Response response = client.newCall(new Request.Builder().url(outside).build()).execute()) {
                 assertEquals(200, response.code());
             }
             RecordedRequest wire = otherOrigin.takeRequest(2, TimeUnit.SECONDS);
@@ -27,8 +28,8 @@ public class SessionConfigurationContractTest extends SessionTestFixture {
             assertNull(wire.getHeader("st-auth-mode"));
             assertSame(original, SuperTokens.getSessionSnapshot(context));
             try {
-                SuperTokensHttpURLConnection.newRequest(otherOrigin.url("/profile").url(), connection -> {});
-                fail("URLConnection must reject out-of-scope port before dispatch");
+                SuperTokensHttpURLConnection.newRequest(outside.url(), connection -> {});
+                fail("URLConnection must reject out-of-scope host before dispatch");
             } catch (IllegalAccessException expected) {
                 assertTrue(expected.getMessage().contains("cannot be handled"));
             }
@@ -40,7 +41,8 @@ public class SessionConfigurationContractTest extends SessionTestFixture {
     @Test public void transferModeChangesClearAndRetireOwnerAcrossHeaderCookieHeader() throws Exception {
         SessionSnapshot original = install("A", "before");
         SessionRequestTag originalTag = SuperTokens.captureRequestTag(context);
-        SuperTokens.setTokenTransferMethod("cookie");
+        assertTrue(new SuperTokens.Builder(context, server.url("/").toString())
+                .tokenTransferMethod("cookie").reconfigure().isSuccess());
         SessionSnapshot cookie = SuperTokens.getSessionSnapshot(context);
         assertEquals(SessionSnapshot.Status.ABSENT, cookie.getStatus());
         assertNull(cookie.getTokens());
@@ -48,7 +50,8 @@ public class SessionConfigurationContractTest extends SessionTestFixture {
         assertNotSame(original.getOwner(), cookie.getOwner());
         assertNotEquals(original.getAdoptionId(), cookie.getAdoptionId());
         assertTrue(cookie.getRevision() > original.getRevision());
-        SuperTokens.setTokenTransferMethod("header");
+        assertTrue(new SuperTokens.Builder(context, server.url("/").toString())
+                .tokenTransferMethod("header").reconfigure().isSuccess());
         SessionSnapshot restoredConfig = SuperTokens.getSessionSnapshot(context);
         assertEquals(original.getConfigurationId(), restoredConfig.getConfigurationId());
         assertEquals(SessionSnapshot.Status.ABSENT, restoredConfig.getStatus());

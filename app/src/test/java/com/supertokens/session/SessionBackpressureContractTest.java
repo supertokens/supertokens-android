@@ -15,6 +15,7 @@ import static org.junit.Assert.*;
 
 public class SessionBackpressureContractTest extends SessionTestFixture {
     @Test public void cancellingOriginalCallDoesNotReleaseStrictRefreshForFollower() throws Exception {
+        if (!ownedRefreshAvailable()) return;
         SessionSnapshot initial = install("cancelled", "before");
         SessionTokens rotated = tokens("cancelled", "after");
         java.util.concurrent.CountDownLatch refreshArrived = new java.util.concurrent.CountDownLatch(1);

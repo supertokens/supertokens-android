@@ -86,6 +86,17 @@ final class SessionResponse {
         return "remove".equalsIgnoreCase(frontValues.get(0));
     }
 
+    SessionResponse forSignOut() {
+        if (!isRemoval() || credentialIfPresent(Constants.ACCESS_TOKEN_HEADER_KEY) == null) return this;
+        // Session verification can regenerate access before sign-out adds its removal headers.
+        // Discard only that superseded credential; ordinary responses remain strictly validated.
+        Map<String, List<String>> removalHeaders = new HashMap<>(headers);
+        for (String name : headers.keySet()) {
+            if (name.equalsIgnoreCase(Constants.ACCESS_TOKEN_HEADER_KEY)) removalHeaders.remove(name);
+        }
+        return new SessionResponse(code, message, removalHeaders);
+    }
+
     @Nullable
     Candidate ordinaryCandidate() {
         if (!hasCredentialHeaders()) return null;
@@ -99,8 +110,8 @@ final class SessionResponse {
             return Candidate.removal();
         }
 
-        String access = singleIfPresent(Constants.ACCESS_TOKEN_HEADER_KEY);
-        String refresh = singleIfPresent(Constants.REFRESH_TOKEN_HEADER_KEY);
+        String access = credentialIfPresent(Constants.ACCESS_TOKEN_HEADER_KEY);
+        String refresh = credentialIfPresent(Constants.REFRESH_TOKEN_HEADER_KEY);
         String front = singleIfPresent(Constants.FRONT_TOKEN_HEADER_KEY);
         String anti = singleIfPresent(Constants.CSRF_HEADER_KEY);
         if (front == null || (access == null && refresh != null)) {
@@ -110,7 +121,7 @@ final class SessionResponse {
             return null;
         }
         return new Candidate(new SessionTokens(access, refresh, front, anti), false,
-                access != null && refresh != null, access != null, refresh != null);
+                access != null && refresh != null, access != null, has(Constants.REFRESH_TOKEN_HEADER_KEY));
     }
 
     Candidate refreshCandidate(SessionSnapshot captured) {
@@ -128,9 +139,6 @@ final class SessionResponse {
         String retainedRefresh = old == null ? null : old.getRefreshToken();
         if (refresh == null) {
             refresh = retainedRefresh;
-        }
-        if (access != null && refresh == null) {
-            throw new IllegalArgumentException("Refresh success has no refresh credential");
         }
         return new Candidate(new SessionTokens(access, refresh, front, anti), false,
                 access != null && refresh != null, access != null,
@@ -169,6 +177,15 @@ final class SessionResponse {
     @Nullable
     private String singleIfPresent(String name) {
         return has(name) ? single(name) : null;
+    }
+
+    @Nullable
+    private String credentialIfPresent(String name) {
+        if (!has(name)) return null;
+        List<String> values = values(name);
+        if (values.size() != 1) throw new IllegalArgumentException("Duplicate session header: " + name);
+        if ("".equals(values.get(0))) return null;
+        return single(name);
     }
 
     @Nullable

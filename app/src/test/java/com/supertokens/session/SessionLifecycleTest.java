@@ -68,10 +68,8 @@ public class SessionLifecycleTest extends SessionTestFixture {
         SessionSnapshot a = install("A", "configured");
         new SuperTokens.Builder(context, server.url("/").toString()).apiBasePath("/auth/").tokenTransferMethod("header").build();
         assertSame(a.getOwner(), SuperTokens.getSessionSnapshot(context).getOwner());
-        try {
-            new SuperTokens.Builder(context, server.url("/").toString()).apiBasePath("/other").tokenTransferMethod("header").build();
-            fail("configuration replacement needs explicit reconfigure");
-        } catch (IllegalStateException expected) { }
+        // D5: legacy build is a no-op; replacement requires explicit reconfigure.
+        new SuperTokens.Builder(context, server.url("/").toString()).apiBasePath("/other").tokenTransferMethod("header").build();
         assertSame(a.getOwner(), SuperTokens.getSessionSnapshot(context).getOwner());
         SessionCommitResult result = new SuperTokens.Builder(context, server.url("/").toString())
                 .apiBasePath("/other").tokenTransferMethod("header").reconfigure();

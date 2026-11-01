@@ -986,7 +986,7 @@ public class SuperTokensHttpURLConnectionTest {
             });
             throw new Exception("Expected the request to throw an error");
         } catch (IllegalAccessException e) {
-            assert e.getMessage().equals("Received a 401 response from http://127.0.0.1:8080/throw-401. Attempted to refresh the session and retry the request with the updated session tokens 10 times, but each attempt resulted in a 401 error. The maximum session refresh limit has been reached. Please investigate your API. To increase the session refresh attempts, update maxRetryAttemptsForSessionRefresh in the config.");
+            assert e.getMessage().equals("Received a 401 response from " + Constants.apiDomain + "/throw-401. Attempted to refresh the session and retry the request with the updated session tokens 10 times, but each attempt resulted in a 401 error. The maximum session refresh limit has been reached. Please investigate your API. To increase the session refresh attempts, update maxRetryAttemptsForSessionRefresh in the config.");
         } finally {
             if (throw401Request != null) {
                 throw401Request.disconnect();
@@ -1038,7 +1038,7 @@ public class SuperTokensHttpURLConnectionTest {
             });
             throw new Exception("Expected the request to throw an error");
         } catch (IllegalAccessException e) {
-            assert e.getMessage().equals("Received a 401 response from http://127.0.0.1:8080/throw-401. Attempted to refresh the session and retry the request with the updated session tokens 5 times, but each attempt resulted in a 401 error. The maximum session refresh limit has been reached. Please investigate your API. To increase the session refresh attempts, update maxRetryAttemptsForSessionRefresh in the config.");
+            assert e.getMessage().equals("Received a 401 response from " + Constants.apiDomain + "/throw-401. Attempted to refresh the session and retry the request with the updated session tokens 5 times, but each attempt resulted in a 401 error. The maximum session refresh limit has been reached. Please investigate your API. To increase the session refresh attempts, update maxRetryAttemptsForSessionRefresh in the config.");
         } finally {
             if (throw401Request != null) {
                 throw401Request.disconnect();
@@ -1089,7 +1089,7 @@ public class SuperTokensHttpURLConnectionTest {
             });
             throw new Exception("Expected the request to throw an error");
         } catch (IllegalAccessException e) {
-            assert e.getMessage().equals("Received a 401 response from http://127.0.0.1:8080/throw-401. Attempted to refresh the session and retry the request with the updated session tokens 0 times, but each attempt resulted in a 401 error. The maximum session refresh limit has been reached. Please investigate your API. To increase the session refresh attempts, update maxRetryAttemptsForSessionRefresh in the config.");
+            assert e.getMessage().equals("Received a 401 response from " + Constants.apiDomain + "/throw-401. Attempted to refresh the session and retry the request with the updated session tokens 0 times, but each attempt resulted in a 401 error. The maximum session refresh limit has been reached. Please investigate your API. To increase the session refresh attempts, update maxRetryAttemptsForSessionRefresh in the config.");
         } finally {
             if (throw401Request != null) {
                 throw401Request.disconnect();

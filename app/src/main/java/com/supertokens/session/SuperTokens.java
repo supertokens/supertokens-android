@@ -56,59 +56,79 @@ public class SuperTokens {
             @Nullable CustomHeaderProvider customHeaderProvider,
             @Nullable EventHandler eventHandler
     ) throws MalformedURLException {
-        Utils.NormalisedInputType values = Utils.NormalisedInputType.normaliseInputOrThrowError(
-                apiDomain,
-                apiBasePath,
-                sessionExpiredStatusCode,
-                maxRetryAttemptsForSessionRefresh,
-                sessionTokenBackendDomain,
-                tokenTransferMethod,
-                customHeaderProvider,
-                eventHandler
-        );
-        configure(applicationContext, values, false);
+        SessionCommitResult result;
+        SessionState.beginMutation();
+        try {
+            if (isInitCalled) {
+                try {
+                    android.util.Log.w("SuperTokens", "Already initialized; ignoring repeated build. Use reconfigure() to change configuration.");
+                } catch (RuntimeException ignored) {
+                    // Logging must not turn the legacy no-op into a failure.
+                }
+                return;
+            }
+            Utils.NormalisedInputType values = Utils.NormalisedInputType.normaliseInputOrThrowError(
+                    apiDomain, apiBasePath, sessionExpiredStatusCode, maxRetryAttemptsForSessionRefresh,
+                    sessionTokenBackendDomain, tokenTransferMethod, customHeaderProvider, eventHandler);
+            // The legacy testapp resets only isInitCalled and supplies a fresh preferences context.
+            if (config != null) SessionState.resetForTests();
+            result = configureLocked(applicationContext, values, false);
+        } finally { SessionState.endMutation(); }
+        SessionState.dispatch(result);
     }
 
     private static SessionCommitResult configure(Context context, Utils.NormalisedInputType values,
                                                   boolean reconfigure) {
         SessionCommitResult result;
-        synchronized (SuperTokens.class) {
-            result = SessionState.configure(context, values, reconfigure);
-            SessionState.Configuration captured = SessionState.configuration();
-            Utils.NormalisedInputType active = captured.values;
-            SuperTokens.config = new Utils.NormalisedInputType(active.apiDomain, active.apiBasePath,
-                    active.sessionExpiredStatusCode, active.maxRetryAttemptsForSessionRefresh,
-                    active.sessionTokenBackendDomain, active.tokenTransferMethod,
-                    active.customHeaderMapper, active.eventHandler);
-            Context applicationContext = context.getApplicationContext();
-            contextWeakReference = new WeakReference<>(applicationContext == null ? context : applicationContext);
-            SuperTokens.refreshTokenUrl = captured.refreshTokenUrl;
-            SuperTokens.signOutUrl = captured.signOutUrl;
-            SuperTokens.rid = "session";
-            SuperTokens.isInitCalled = true;
-        }
-        SessionState.dispatch();
+        SessionState.beginMutation();
+        try {
+            result = configureLocked(context, values, reconfigure);
+        } finally { SessionState.endMutation(); }
+        SessionState.dispatch(result);
+        return result;
+    }
+
+    private static SessionCommitResult configureLocked(Context context, Utils.NormalisedInputType values,
+                                                        boolean reconfigure) {
+        SessionCommitResult result = SessionState.configure(context, values, reconfigure);
+        SessionState.Configuration captured = SessionState.configuration();
+        Utils.NormalisedInputType active = captured.values;
+        SuperTokens.config = new Utils.NormalisedInputType(active.apiDomain, active.apiBasePath,
+                active.sessionExpiredStatusCode, active.maxRetryAttemptsForSessionRefresh,
+                active.sessionTokenBackendDomain, active.tokenTransferMethod,
+                active.customHeaderMapper, active.eventHandler);
+        Context applicationContext = context.getApplicationContext();
+        contextWeakReference = new WeakReference<>(applicationContext == null ? context : applicationContext);
+        SuperTokens.refreshTokenUrl = captured.refreshTokenUrl;
+        SuperTokens.signOutUrl = captured.signOutUrl;
+        SuperTokens.rid = "session";
+        SuperTokens.isInitCalled = true;
         return result;
     }
 
     @TestOnly
     public static void resetForTests() {
-        SessionState.resetForTests();
-        SuperTokens.isInitCalled = false;
-        SuperTokens.config = null;
-        SuperTokens.refreshTokenUrl = null;
-        SuperTokens.signOutUrl = null;
-        SuperTokens.rid = null;
-        SuperTokens.contextWeakReference = null;
+        SessionState.beginMutation();
+        try {
+            SessionState.resetForTests();
+            SuperTokens.isInitCalled = false;
+            SuperTokens.config = null;
+            SuperTokens.refreshTokenUrl = null;
+            SuperTokens.signOutUrl = null;
+            SuperTokens.rid = null;
+            SuperTokens.contextWeakReference = null;
+
+        } finally { SessionState.endMutation(); }
     }
 
     @TestOnly
     public static void setTokenTransferMethod(String tokenTransferMethod) {
-        Utils.NormalisedInputType active = SessionState.configuration().values;
-        configure(contextWeakReference.get(), new Utils.NormalisedInputType(active.apiDomain,
-                active.apiBasePath, active.sessionExpiredStatusCode,
-                active.maxRetryAttemptsForSessionRefresh, active.sessionTokenBackendDomain,
-                tokenTransferMethod, active.customHeaderMapper, active.eventHandler), true);
+        SessionState.beginMutation();
+        try {
+            SessionState.setTokenTransferMethodForTests(tokenTransferMethod);
+            config.tokenTransferMethod = tokenTransferMethod;
+
+        } finally { SessionState.endMutation(); }
     }
 
     static String getApiDomain(@NonNull String url) throws MalformedURLException {
@@ -130,33 +150,47 @@ public class SuperTokens {
 
     @SuppressWarnings("unused")
     public static boolean doesSessionExist(Context context) {
-        if (!isInitCalled) return false;
+        if (!isInitCalled) {
+            JSONObject front = FrontToken.getTokenInfo(context);
+            if (front == null) return false;
+            try {
+                return front.getLong("ate") >= System.currentTimeMillis();
+            } catch (JSONException e) {
+                return false;
+            }
+        }
         SessionSnapshot captured = getSessionSnapshot(context);
-        return resolveAccessToken(context, captured.getOwner(), false, null).isSuccess();
+        return resolveLegacyAccessToken(context, captured.getOwner(), false, null).isSuccess();
     }
 
     @SuppressWarnings("unused")
     public static void signOut(Context context) throws IOException, IllegalAccessException, SuperTokensGeneralError {
         final SessionRequestTag tag = captureRequestTag(context);
         final SessionState.Configuration captured = tag.configuration;
-        SessionResolution resolution = resolveAccessToken(context, tag.getOwner(), false, null);
+        SessionResolution resolution = resolveLegacyAccessToken(context, tag.getOwner(), false, null);
         if (!resolution.isSuccess()) {
+            if (resolution.getStatus() == SessionResolution.Status.STALE_OWNER || resolution.pendingReplacement) return;
+            if (resolution.legacyHandlerFailure) {
+                // Published signOut treats a failed proactive session check as absent, without clearing credentials.
+                SessionState.dispatch(new LegacyEventBatch(captured.values.eventHandler, EventHandler.EventType.SIGN_OUT));
+                return;
+            }
             if (resolution.getError() != null) throw resolution.getError();
             if (resolution.getStatus() != SessionResolution.Status.NO_SESSION) {
                 throw new IOException("Could not resolve session for sign out");
             }
-            SessionState.notifyAbsentSignOut(new SessionRequestTag(resolution.getSnapshot(), captured));
+            SessionState.notifyAbsentSignOutIfCurrent(new SessionRequestTag(resolution.getSnapshot(), captured));
             return;
         }
 
         SessionRequestTag responseTag = new SessionRequestTag(resolution.getSnapshot(), captured);
         Map<String, String> provided = captured.values.customHeaderMapper
                 .getRequestHeaders(CustomHeaderProvider.RequestType.SIGN_OUT);
-        Map<String, String> headers = provided == null ? java.util.Collections.emptyMap()
+        Map<String, String> headers = provided == null ? java.util.Collections.<String, String>emptyMap()
                 : new java.util.HashMap<>(provided);
         int attempts = 0;
         while (signOutRequest(context, responseTag, headers)) {
-            SessionTransport.requireCurrent(tag);
+            if (!SessionState.isCurrent(tag.getOwner(), captured)) return;
             if (attempts >= captured.values.maxRetryAttemptsForSessionRefresh) {
                 throw new IllegalAccessException(SessionTransport.retryLimitMessage(captured.signOutUrl,
                         captured.values.maxRetryAttemptsForSessionRefresh));
@@ -164,13 +198,15 @@ public class SuperTokens {
             resolution = RefreshCoordinator.resolve(context, tag.getOwner(),
                     SessionTransport.access(responseTag.getSnapshot()) == null,
                     SessionTransport.access(responseTag.getSnapshot()),
-                    SuperTokensHttpURLConnection.refreshTransport(), responseTag.getSnapshot().getRefreshTokenRevision());
+                    SuperTokensHttpURLConnection.refreshTransport(), responseTag.getSnapshot().getRefreshTokenRevision(), true);
             if (!resolution.isSuccess()) {
+                if (resolution.getStatus() == SessionResolution.Status.STALE_OWNER || resolution.pendingReplacement) return;
                 if (resolution.getError() != null) throw resolution.getError();
                 if (resolution.getStatus() == SessionResolution.Status.NO_SESSION) return;
                 throw new IOException("Could not resolve session for sign out");
             }
-            responseTag = SessionTransport.nextWire(tag);
+            responseTag = SessionTransport.nextWire(tag, false);
+            if (responseTag == null) return;
             attempts++;
         }
     }
@@ -184,8 +220,7 @@ public class SuperTokens {
         URL destination = origin;
         String method = "POST";
         for (int redirects = 0; ; redirects++) {
-            if (!SessionTransport.isResponseInScope(destination.toString(), captured)
-                    || !sameOrigin(origin, destination) || !safeRedirectPath(destination)) {
+            if (!SessionTransport.isResponseInScope(origin.toString(), destination.toString(), captured)) {
                 throw new IOException("Sign out redirect outside captured session scope");
             }
             SignOutRedirect result = signOutWire(context, responseTag, headers, destination, method, redirects < 20);
@@ -193,23 +228,6 @@ public class SuperTokens {
             destination = new URL(destination, result.location);
             if (result.code == 301 || result.code == 302 || result.code == 303) method = "GET";
         }
-    }
-
-    private static boolean sameOrigin(URL left, URL right) {
-        int leftPort = left.getPort() < 0 ? left.getDefaultPort() : left.getPort();
-        int rightPort = right.getPort() < 0 ? right.getDefaultPort() : right.getPort();
-        return left.getProtocol().equalsIgnoreCase(right.getProtocol())
-                && left.getHost().equalsIgnoreCase(right.getHost()) && leftPort == rightPort
-                && right.getUserInfo() == null;
-    }
-
-    private static boolean safeRedirectPath(URL url) {
-        String path = url.getPath();
-        if (path.indexOf('%') >= 0 || path.indexOf('\\') >= 0) return false;
-        for (String part : path.split("/")) {
-            if (part.equals(".") || part.equals("..")) return false;
-        }
-        return true;
     }
 
     private static final class SignOutRedirect {
@@ -229,7 +247,7 @@ public class SuperTokens {
                                                boolean mayRedirect)
             throws IOException, IllegalAccessException, SuperTokensGeneralError {
         SessionState.Configuration captured = responseTag.configuration;
-        if (!SessionState.isCurrent(responseTag.getOwner(), captured)) throw new StaleSessionException();
+        if (!SessionState.isCurrent(responseTag.getOwner(), captured)) return new SignOutRedirect(null, 0, false);
         HttpURLConnection connection = (HttpURLConnection) destination.openConnection();
         java.io.InputStream responseBody = null;
         try {
@@ -253,35 +271,37 @@ public class SuperTokens {
             connection.setRequestProperty("rid", "session");
             connection.setRequestProperty("st-auth-mode", captured.values.tokenTransferMethod);
             SessionTokens tokens = responseTag.getSnapshot().getInternalTokens();
-            if (tokens != null && tokens.getAccessToken() != null) {
-                connection.setRequestProperty("Authorization", "Bearer " + tokens.getAccessToken());
-            }
+            String authorization = SessionTransport.authorization(responseTag.getSnapshot(), false);
+            if (authorization != null) connection.setRequestProperty("Authorization", authorization);
             if (tokens != null && tokens.getAntiCSRF() != null) {
                 connection.setRequestProperty(Constants.CSRF_HEADER_KEY, tokens.getAntiCSRF());
             }
             // Ambient cookie jars remain outside process-owner credential fencing.
-            if (!SessionState.isCurrent(responseTag.getOwner(), captured)) throw new StaleSessionException();
+            if (!SessionState.isCurrent(responseTag.getOwner(), captured)) return new SignOutRedirect(null, 0, false);
             if (method.equals("POST")) connection.getOutputStream().close();
             int responseCode = connection.getResponseCode();
-            if (!SessionState.isCurrent(responseTag.getOwner(), captured)) throw new StaleSessionException();
+            if (!SessionTransport.isResponseInScope(destination.toString(), connection.getURL().toString(), captured)) {
+                throw new IOException("Sign out response outside captured session scope");
+            }
             if (responseCode == 301 || responseCode == 302 || responseCode == 303
                     || responseCode == 307 || responseCode == 308) {
+                if (!SessionState.isCurrent(responseTag.getOwner(), captured)) return new SignOutRedirect(null, 0, false);
                 String location = connection.getHeaderField("Location");
                 if (location == null || location.trim().isEmpty()) throw new IOException("Sign out redirect missing Location");
                 if (!mayRedirect) throw new IOException("Sign out redirect limit exceeded");
                 URL next = new URL(destination, location);
-                if (!sameOrigin(new URL(captured.signOutUrl), next) || !safeRedirectPath(next)
-                        || !SessionTransport.isResponseInScope(next.toString(), captured)) {
+                if (!SessionTransport.isResponseInScope(captured.signOutUrl, next.toString(), captured)) {
                     throw new IOException("Sign out redirect outside captured session scope");
                 }
-                SuperTokensHttpURLConnection.manuallySetCookiesFromResponse(destination, connection);
-                if (!SessionState.isCurrent(responseTag.getOwner(), captured)) throw new StaleSessionException();
+                SuperTokensHttpURLConnection.manuallySetCookiesFromResponse(destination, connection, captured);
+                if (!SessionState.isCurrent(responseTag.getOwner(), captured)) return new SignOutRedirect(null, 0, false);
                 return new SignOutRedirect(location, responseCode, false);
             }
             SessionResponse response = new SessionResponse(responseCode, connection.getResponseMessage(),
                     connection.getHeaderFields());
             responseBody = responseCode >= 400 ? connection.getErrorStream() : connection.getInputStream();
             if (responseCode == captured.values.sessionExpiredStatusCode) {
+                if (!SessionState.isCurrent(responseTag.getOwner(), captured)) return new SignOutRedirect(null, 0, false);
                 try {
                     if (!response.isRemoval()) {
                         return new SignOutRedirect(null, 0, true);
@@ -289,15 +309,20 @@ public class SuperTokens {
                 } catch (IllegalArgumentException e) {
                     throw new IOException("Invalid sign out response", e);
                 }
-                applySignOutResponse(context, responseTag, response, false);
+                if (!applySignOutResponse(context, responseTag, response, false)) return new SignOutRedirect(null, 0, false);
                 if (responseTag.getAcceptedSnapshot() == null) {
                     throw new IOException("Sign out removal was superseded by newer session credentials");
                 }
-                SuperTokensHttpURLConnection.manuallySetCookiesFromResponse(connection.getURL(), connection);
+                SuperTokensHttpURLConnection.manuallySetCookiesFromResponse(destination, connection, captured);
                 return new SignOutRedirect(null, 0, false);
             }
             if (responseCode < 200 || responseCode >= 300) {
                 throw new IOException("Sign out failed with response code " + responseCode);
+            }
+            // Published sign-out commits response headers even when body parsing subsequently fails.
+            // A stale response still has legacy body/error semantics, but cannot mutate the replacement session.
+            if (applySignOutResponse(context, responseTag, response, false)) {
+                SuperTokensHttpURLConnection.manuallySetCookiesFromResponse(destination, connection, captured);
             }
             try {
                 StringBuilder body = new StringBuilder();
@@ -312,12 +337,10 @@ public class SuperTokens {
                 if (status.equals("GENERAL_ERROR")) {
                     throw new SuperTokensGeneralError(jsonBody.getString("message"));
                 }
-                if (!status.equals("OK")) throw new IOException("Unexpected sign out status");
             } catch (JSONException e) {
                 throw new IllegalStateException(e);
             }
-            SuperTokensHttpURLConnection.manuallySetCookiesFromResponse(connection.getURL(), connection);
-            applySignOutResponse(context, responseTag, response, true);
+            if (responseTag.getAcceptedSnapshot() == null) applySignOutResponse(context, responseTag, response, true);
             return new SignOutRedirect(null, 0, false);
         } finally {
             java.io.InputStream stream = responseBody == null ? connection.getErrorStream() : responseBody;
@@ -332,20 +355,25 @@ public class SuperTokens {
         }
     }
 
-    private static void applySignOutResponse(Context context, SessionRequestTag tag,
+    private static boolean applySignOutResponse(Context context, SessionRequestTag tag,
                                              SessionResponse response, boolean confirmed) throws IOException {
+        try {
+            response = response.forSignOut();
+        } catch (IllegalArgumentException e) {
+            throw new IOException("Invalid sign out response", e);
+        }
         SessionCommitResult result = confirmed
                 ? SessionState.applyConfirmedSignOutResponse(context, tag, response)
                 : SessionState.applyOrdinaryResponse(context, tag, response);
-        SessionState.dispatch();
-        if (result.getStatus() == SessionCommitResult.Status.STALE_OWNER) throw new StaleSessionException();
+        SessionState.dispatch(result);
+        if (result.getStatus() == SessionCommitResult.Status.STALE_OWNER) return false;
         if (!result.isSuccess()) {
             if (result.getPersistenceError() != null) throw result.getPersistenceError();
             throw new IOException("Could not accept sign out response");
         }
         SessionSnapshot accepted = tag.getAcceptedSnapshot();
         SessionOwner owner = accepted == null ? tag.getOwner() : accepted.getOwner();
-        if (!SessionState.isCurrent(owner, tag.configuration)) throw new StaleSessionException();
+        return SessionState.isCurrent(owner, tag.configuration);
     }
 
     public static boolean attemptRefreshingSession(Context context) throws IOException, IllegalAccessException {
@@ -353,8 +381,11 @@ public class SuperTokens {
             throw new IllegalAccessException("SuperTokens.init function not called");
         }
 
-        SessionSnapshot captured = getSessionSnapshot(context);
-        SessionResolution result = resolveAccessToken(context, captured.getOwner(), true, null);
+        SessionRequestTag captured = SessionState.capture();
+        LegacyEventBatch absent = SessionState.absentUnauthorised(captured);
+        SessionResolution result = resolveLegacyAccessToken(context, captured.getOwner(), true, null);
+        if (result.getStatus() == SessionResolution.Status.NO_SESSION) SessionState.dispatch(absent);
+        if (result.getStatus() == SessionResolution.Status.STALE_OWNER || result.pendingReplacement) return false;
         if (result.getError() != null) throw result.getError();
         return result.isSuccess();
     }
@@ -373,21 +404,38 @@ public class SuperTokens {
     }
 
     public static JSONObject getAccessTokenPayloadSecurely(Context context) throws IOException {
+        if (!isInitCalled) {
+            JSONObject front = FrontToken.getTokenInfo(context);
+            if (front == null) throw new IllegalStateException("No session exists");
+            try {
+                if (front.getLong("ate") < System.currentTimeMillis()) {
+                    // Published pre-init refresh fails this guard before any network request.
+                    throw new IllegalStateException(new IllegalAccessException("SuperTokens.init function not called"));
+                }
+                return front.getJSONObject("up");
+            } catch (JSONException e) {
+                throw new IllegalStateException(e);
+            }
+        }
         SessionSnapshot captured = getSessionSnapshot(context);
         if (captured.getStatus() != SessionSnapshot.Status.AVAILABLE) {
             throw new IllegalStateException("No session exists");
         }
-        SessionResolution result = resolveAccessToken(context, captured.getOwner(), false, null);
+        SessionResolution result = resolveLegacyAccessToken(context, captured.getOwner(), false, null);
         if (result.isSuccess()) return result.getSnapshot().getAccessTokenPayload();
+        if (result.getStatus() == SessionResolution.Status.STALE_OWNER) {
+            throw new IOException("Could not refresh session");
+        }
         if (result.getError() != null) throw result.getError();
         throw new IOException("Could not refresh session");
     }
 
     public static String getAccessToken(Context context) {
-        if (!isInitCalled) return null;
+        if (!isInitCalled) return doesSessionExist(context)
+                ? Utils.getTokenForHeaderAuth(Utils.TokenType.ACCESS, context) : null;
         SessionSnapshot captured = getSessionSnapshot(context);
-        SessionResolution result = resolveAccessToken(context, captured.getOwner(), false, null);
-        return result.isSuccess() ? result.getAccessToken() : null;
+        SessionResolution result = resolveLegacyAccessToken(context, captured.getOwner(), false, null);
+        return result.isSuccess() ? SessionTransport.access(result.getSnapshot()) : null;
     }
 
     public static SessionSnapshot getSessionSnapshot(Context context) {
@@ -402,13 +450,13 @@ public class SuperTokens {
     public static SessionCommitResult installSession(Context context, SessionOwner expectedOwner,
                                                        SessionTokens tokens, String adoptionCorrelation) {
         SessionCommitResult result = SessionState.install(context, expectedOwner, tokens, adoptionCorrelation);
-        SessionState.dispatch();
+        SessionState.dispatch(result);
         return result;
     }
 
     public static SessionCommitResult clearSession(Context context, SessionOwner expectedOwner) {
         SessionCommitResult result = SessionState.clear(context, expectedOwner);
-        SessionState.dispatch();
+        SessionState.dispatch(result);
         return result;
     }
 
@@ -416,6 +464,12 @@ public class SuperTokens {
                                                        boolean forceRefresh, @Nullable String failedAccessToken) {
         return RefreshCoordinator.resolve(context, expectedOwner, forceRefresh, failedAccessToken,
                 SuperTokensHttpURLConnection.refreshTransport());
+    }
+
+    private static SessionResolution resolveLegacyAccessToken(Context context, SessionOwner expectedOwner,
+                                                              boolean forceRefresh, String failedAccessToken) {
+        return RefreshCoordinator.resolve(context, expectedOwner, forceRefresh, failedAccessToken,
+                SuperTokensHttpURLConnection.refreshTransport(), true);
     }
 
     public static SessionRequestTag captureRequestTag(Context context) {

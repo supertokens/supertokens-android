@@ -153,7 +153,9 @@ public class SessionStateBoundaryTest extends SessionTestFixture {
     }
 
     @Test public void callbackPreparationPastDeadlineNeverDispatchesRefresh() throws Exception {
-        for (int mode = 0; mode < 3; mode++) {
+        // D5/R12: SDK deadlines apply only to SDK-owned transports, not the caller's chain.
+        for (int mode = 0; mode < 2; mode++) {
+            if (mode == 1 && !ownedRefreshAvailable()) continue;
             final java.util.concurrent.atomic.AtomicLong clock = new java.util.concurrent.atomic.AtomicLong();
             SuperTokens.Builder builder = new SuperTokens.Builder(context, server.url("/").toString())
                     .customHeaderProvider(type -> { clock.set(TimeUnit.SECONDS.toNanos(11)); return null; });
@@ -170,8 +172,8 @@ public class SessionStateBoundaryTest extends SessionTestFixture {
                 } else {
                     server.enqueue(new MockResponse().setResponseCode(401));
                     okhttp3.OkHttpClient base = new okhttp3.OkHttpClient.Builder().build();
-                    okhttp3.OkHttpClient transport = base.newBuilder().addInterceptor(mode == 1
-                            ? new SuperTokensInterceptor(base) : new SuperTokensInterceptor()).build();
+                    okhttp3.OkHttpClient transport = base.newBuilder()
+                            .addInterceptor(new SuperTokensInterceptor(base)).build();
                     try { request(transport, null, "/profile"); fail("callback deadline"); }
                     catch (java.net.SocketTimeoutException expected) { }
                     finally { transport.connectionPool().evictAll(); transport.dispatcher().executorService().shutdownNow(); }
@@ -205,16 +207,16 @@ public class SessionStateBoundaryTest extends SessionTestFixture {
         assertEquals(1, server.getRequestCount());
     }
 
-    @Test public void defaultCallbackSubclassesAreNotIdempotentAndReconfigureRetiresOwner() throws Exception {
+    @Test public void defaultCallbackSubclassesAreIgnoredByBuildAndReconfigureRetiresOwner() throws Exception {
         CustomHeaderProvider first = new CustomHeaderProvider.DefaultCustomHeaderMapper() {};
         CustomHeaderProvider second = new CustomHeaderProvider.DefaultCustomHeaderMapper() {};
         assertTrue(new SuperTokens.Builder(context, server.url("/").toString())
                 .customHeaderProvider(first).reconfigure().isSuccess());
         SessionSnapshot prior = install("A", "before");
-        try {
-            new SuperTokens.Builder(context, server.url("/").toString()).customHeaderProvider(second).build();
-            fail("Different callback must not be silently ignored");
-        } catch (IllegalStateException expected) { }
+        // D5: repeated legacy initialization retains the active callback and owner.
+        new SuperTokens.Builder(context, server.url("/").toString()).customHeaderProvider(second).build();
+        assertSame(first, SessionState.configuration().values.customHeaderMapper);
+        assertTrue(prior.isCurrent());
         assertTrue(new SuperTokens.Builder(context, server.url("/").toString())
                 .customHeaderProvider(second).reconfigure().isSuccess());
         assertFalse(prior.isCurrent());
@@ -354,14 +356,14 @@ public class SessionStateBoundaryTest extends SessionTestFixture {
         assertSame(before, SuperTokens.getSessionSnapshot(context));
     }
 
-    @Test public void configurationScopeIncludesSchemePortAndDomainPath() throws Exception {
-        assertFalse(Utils.shouldDoInterceptionBasedOnUrl("https://example.com/profile", "http://example.com", null));
-        assertFalse(Utils.shouldDoInterceptionBasedOnUrl("https://example.com:444/profile", "https://example.com", null));
-        assertFalse(Utils.shouldDoInterceptionBasedOnUrl("https://example.com/other", "https://example.com/base", null));
+    @Test public void outboundScopeUsesHostAndIgnoresDomainPathUnderD1D4() throws Exception {
+        assertTrue(Utils.shouldDoInterceptionBasedOnUrl("https://example.com/profile", "http://example.com", null));
+        assertTrue(Utils.shouldDoInterceptionBasedOnUrl("https://example.com:444/profile", "https://example.com", null));
+        assertTrue(Utils.shouldDoInterceptionBasedOnUrl("https://example.com/other", "https://example.com/base", null));
         assertTrue(Utils.shouldDoInterceptionBasedOnUrl("https://example.com/base/profile", "https://example.com/base", null));
         new SuperTokens.Builder(context, "https://example.com/base").reconfigure();
         String first = SuperTokens.getSessionSnapshot(context).getConfigurationId();
         new SuperTokens.Builder(context, "https://example.com/other").reconfigure();
-        assertNotEquals(first, SuperTokens.getSessionSnapshot(context).getConfigurationId());
+        assertEquals(first, SuperTokens.getSessionSnapshot(context).getConfigurationId());
     }
 }

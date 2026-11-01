@@ -225,12 +225,42 @@ public class SessionRefreshPolicyTest extends SessionTestFixture {
         restart();
         SessionSnapshot hydrated = SuperTokens.getSessionSnapshot(context);
         assertEquals(SessionSnapshot.Status.AVAILABLE, hydrated.getStatus());
-        assertEquals(a.getAdoptionId(), hydrated.getAdoptionId());
+        assertNotEquals("External credential edits require fresh adoption", a.getAdoptionId(), hydrated.getAdoptionId());
         SessionTokens rotated = tokens("A", "fresh");
         server.enqueue(rotation(rotated));
         assertEquals(rotated.getAccessToken(), SuperTokens.getAccessToken(context));
         assertEquals("Bearer " + a.getTokens().getRefreshToken(), server.takeRequest(1, TimeUnit.SECONDS).getHeader("Authorization"));
         assertSame(hydrated.getOwner(), SuperTokens.getSessionSnapshot(context).getOwner());
+        assertEquals(hydrated.getAdoptionId(), SuperTokens.getSessionSnapshot(context).getAdoptionId());
+    }
+
+    @Test public void unchangedExpiredCompatibleRecordRetainsAdoptionAndRemainsRefreshable() throws Exception {
+        SessionTokens expired = withExpiry(tokens("A", "stored"), 1700000000L);
+        SuperTokens.resetForTests();
+        seedLegacy(expired);
+        initializeSession();
+        SessionSnapshot imported = SuperTokens.getSessionSnapshot(context);
+        assertEquals(SessionSnapshot.Status.AVAILABLE, imported.getStatus());
+        assertEquals(SessionStorage.Record.Validation.LEGACY, new SharedPreferencesSessionStorage().read(context).validation);
+        String fingerprint = preferenceStore.preferences.getString(SharedPreferencesSessionStorage.FINGERPRINT, null);
+        int commits = preferenceStore.commits;
+        restart(true);
+        restart(true);
+        SessionSnapshot hydrated = SuperTokens.getSessionSnapshot(context);
+        assertEquals(SessionSnapshot.Status.AVAILABLE, hydrated.getStatus());
+        assertEquals(imported.getAdoptionId(), hydrated.getAdoptionId());
+        assertEquals(imported.getRevision(), hydrated.getRevision());
+        assertEquals(fingerprint, preferenceStore.preferences.getString(SharedPreferencesSessionStorage.FINGERPRINT, null));
+        assertEquals(commits, preferenceStore.commits);
+        SessionTokens rotated = tokens("A", "fresh");
+        server.enqueue(rotation(rotated));
+        assertEquals(rotated.getAccessToken(), SuperTokens.getAccessToken(context));
+        RecordedRequest refresh = server.takeRequest(1, TimeUnit.SECONDS);
+        assertNotNull(refresh);
+        assertEquals("/auth/session/refresh", refresh.getPath());
+        assertEquals("Bearer " + expired.getRefreshToken(), refresh.getHeader("Authorization"));
+        assertSame(hydrated.getOwner(), SuperTokens.getSessionSnapshot(context).getOwner());
+        assertEquals(imported.getAdoptionId(), SuperTokens.getSessionSnapshot(context).getAdoptionId());
     }
 
     @Test public void legacySecurePayloadGetterThrowsAfterAuthoritativeRefreshRemoval() throws Exception {
@@ -248,7 +278,7 @@ public class SessionRefreshPolicyTest extends SessionTestFixture {
         assertNull(SuperTokens.getAccessToken(context));
     }
 
-    @Test public void invalidPersistedUidExpiryAndVersionFailClosed() throws Exception {
+    @Test public void rawPersistedUidExpiryAndVersionChangesUseCompatibleImport() throws Exception {
         for (String corruption : new String[]{"uid", "expiry", "version"}) {
             SessionSnapshot a = install("A", "stored");
             SessionTokens original = a.getTokens();
@@ -261,43 +291,94 @@ public class SessionRefreshPolicyTest extends SessionTestFixture {
                 access = encode(new JSONObject().put("alg", "RS256").put("version", "99").toString(), true) + "." + parts[1] + "." + parts[2];
             }
             SharedPreferences preferences = context.getSharedPreferences(Constants.SHARED_PREFERENCES_KEY, 0);
+            SessionTokens changed = new SessionTokens(access, original.getRefreshToken(), encode(front.toString(), false), original.getAntiCSRF());
+            assertEquals("Explicit install stays strict", SessionCommitResult.Status.INVALID_SESSION,
+                    SuperTokens.installSession(context, a.getOwner(), changed).getStatus());
             assertTrue(preferences.edit().putString("st-storage-item-" + Constants.ACCESS_TOKEN_PREFS_KEY, access)
                     .putString(Constants.FRONT_TOKEN_PREFS_KEY, encode(front.toString(), false)).commit());
             restart();
-            assertEquals(corruption, SessionSnapshot.Status.RECOVERY_REQUIRED, SuperTokens.getSessionSnapshot(context).getStatus());
-            assertNull(SuperTokens.getSessionSnapshot(context).getTokens());
+            // M1/D5: tuple evidence identifies an edit, not whether it was rollback or corruption.
+            for (int again = 0; again < 3; again++) {
+                assertEquals(corruption, SessionSnapshot.Status.AVAILABLE, SuperTokens.getSessionSnapshot(context).getStatus());
+                assertEquals(corruption.equals("uid") ? "wrong-primary" : "primary-user", SuperTokens.getUserId(context));
+                if (again < 2) restart();
+            }
         }
     }
 
-    @Test public void versionedStoredFrontExpiryMustMatchAccessExpiry() throws Exception {
+    @Test public void rollbackFrontExpiryEditRecoversFrontAuthorityButStrictInstallRejectsIt() throws Exception {
         SessionSnapshot a = install("A", "stored");
         JSONObject front = new JSONObject(new String(Base64.getDecoder().decode(a.getTokens().getFrontToken()), StandardCharsets.UTF_8));
         front.put("ate", a.getAccessTokenExpiry() + 1000);
+        SessionTokens changed = new SessionTokens(a.getTokens().getAccessToken(), a.getTokens().getRefreshToken(),
+                encode(front.toString(), false), a.getTokens().getAntiCSRF());
+        assertEquals(SessionCommitResult.Status.INVALID_SESSION,
+                SuperTokens.installSession(context, a.getOwner(), changed).getStatus());
+        assertSame(a, SuperTokens.getSessionSnapshot(context));
         assertTrue(context.getSharedPreferences(Constants.SHARED_PREFERENCES_KEY, 0).edit()
                 .putString(Constants.FRONT_TOKEN_PREFS_KEY, encode(front.toString(), false)).commit());
         restart();
-        assertEquals(SessionSnapshot.Status.RECOVERY_REQUIRED, SuperTokens.getSessionSnapshot(context).getStatus());
-        assertNull(SuperTokens.getSessionSnapshot(context).getTokens());
+        assertCompatibleRollbackReloads(a, changed, "primary-user", a.getAccessTokenExpiry() + 1000);
     }
 
-    @Test public void versionedStoredFrontPayloadPrimaryMustMatchAccessPrimary() throws Exception {
+    @Test public void rollbackFrontPayloadEditIsPreservedButStrictInstallRejectsIt() throws Exception {
         SessionSnapshot a = install("A", "stored");
         JSONObject front = new JSONObject(new String(Base64.getDecoder().decode(a.getTokens().getFrontToken()), StandardCharsets.UTF_8));
         front.getJSONObject("up").put("sub", "different-primary");
+        SessionTokens changed = new SessionTokens(a.getTokens().getAccessToken(), a.getTokens().getRefreshToken(),
+                encode(front.toString(), false), a.getTokens().getAntiCSRF());
+        assertEquals(SessionCommitResult.Status.INVALID_SESSION,
+                SuperTokens.installSession(context, a.getOwner(), changed).getStatus());
+        assertSame(a, SuperTokens.getSessionSnapshot(context));
         assertTrue(context.getSharedPreferences(Constants.SHARED_PREFERENCES_KEY, 0).edit()
                 .putString(Constants.FRONT_TOKEN_PREFS_KEY, encode(front.toString(), false)).commit());
         restart();
-        assertEquals(SessionSnapshot.Status.RECOVERY_REQUIRED, SuperTokens.getSessionSnapshot(context).getStatus());
-        assertNull(SuperTokens.getSessionSnapshot(context).getTokens());
+        assertCompatibleRollbackReloads(a, changed, "primary-user", a.getAccessTokenExpiry());
+        assertEquals("different-primary", SuperTokens.getSessionSnapshot(context).getAccessTokenPayload().getString("sub"));
     }
 
-    @Test public void versionedStoredEmptyRefreshMustNotExportAvailableTuple() throws Exception {
-        install("A", "stored");
+    @Test public void rollbackEmptyRefreshRecoversReadableSessionWithoutExportingIncompleteTuple() throws Exception {
+        SessionSnapshot a = install("A", "stored");
+        SessionTokens emptyRefresh = new SessionTokens(a.getTokens().getAccessToken(), "", a.getTokens().getFrontToken(), a.getTokens().getAntiCSRF());
+        assertEquals(SessionCommitResult.Status.INVALID_SESSION,
+                SuperTokens.installSession(context, a.getOwner(), emptyRefresh).getStatus());
+        assertSame(a, SuperTokens.getSessionSnapshot(context));
         assertTrue(context.getSharedPreferences(Constants.SHARED_PREFERENCES_KEY, 0).edit()
                 .putString("st-storage-item-" + Constants.REFRESH_TOKEN_PREFS_KEY, "").commit());
         restart();
-        assertEquals(SessionSnapshot.Status.RECOVERY_REQUIRED, SuperTokens.getSessionSnapshot(context).getStatus());
-        assertNull(SuperTokens.getSessionSnapshot(context).getTokens());
+        SessionTokens normalized = new SessionTokens(a.getTokens().getAccessToken(), null, a.getTokens().getFrontToken(), a.getTokens().getAntiCSRF());
+        assertCompatibleRollbackReloads(a, normalized, "primary-user", a.getAccessTokenExpiry());
+    }
+
+    private void assertCompatibleRollbackReloads(SessionSnapshot before, SessionTokens expected,
+                                                 String user, long expiry) throws Exception {
+        String adoption = SuperTokens.getSessionSnapshot(context).getAdoptionId();
+        assertNotEquals(before.getAdoptionId(), adoption);
+        for (int restart = 0; restart < 3; restart++) {
+            SessionSnapshot snapshot = SuperTokens.getSessionSnapshot(context);
+            assertEquals(SessionSnapshot.Status.AVAILABLE, snapshot.getStatus());
+            assertEquals(adoption, snapshot.getAdoptionId());
+            assertEquals(user, snapshot.getUserId());
+            assertEquals(user, SuperTokens.getUserId(context));
+            assertEquals(expiry, snapshot.getAccessTokenExpiry());
+            assertEquals(SessionStorage.Record.Validation.LEGACY, new SharedPreferencesSessionStorage().read(context).validation);
+            SessionTokens actual = snapshot.getInternalTokens();
+            assertNotNull(actual);
+            assertTrue("access preserved", java.util.Objects.equals(expected.getAccessToken(), actual.getAccessToken()));
+            assertTrue("refresh normalized", java.util.Objects.equals(expected.getRefreshToken(), actual.getRefreshToken()));
+            assertTrue("front and payload preserved", expected.getFrontToken().equals(actual.getFrontToken()));
+            assertTrue("csrf preserved", java.util.Objects.equals(expected.getAntiCSRF(), actual.getAntiCSRF()));
+            assertEquals(SessionTokens.decodeFrontToken(expected.getFrontToken()).getJSONObject("up").toString(),
+                    snapshot.getAccessTokenPayload().toString());
+            if (expected.getRefreshToken() == null) {
+                assertNull(actual.getRefreshToken());
+                assertNull(snapshot.getTokens());
+            } else assertNotNull(snapshot.getTokens());
+            assertEquals("Compatible provenance must not relax explicit installation", SessionCommitResult.Status.INVALID_SESSION,
+                    SuperTokens.installSession(context, snapshot.getOwner(), expected).getStatus());
+            assertSame(snapshot, SuperTokens.getSessionSnapshot(context));
+            if (restart < 2) restart(true);
+        }
     }
 
     private void restart() throws Exception {

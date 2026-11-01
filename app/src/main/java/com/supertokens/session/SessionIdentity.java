@@ -31,6 +31,42 @@ final class SessionIdentity {
         return parse(tokens, now, true);
     }
 
+    /** Stored legacy identity is front-token authority; access parsing only enriches lineage. */
+    static SessionIdentity parseLegacy(SessionTokens tokens) throws IllegalArgumentException {
+        try {
+            if (tokens == null || isBlank(tokens.getFrontToken())) throw new IllegalArgumentException("Front token is required");
+            JSONObject front = SessionTokens.decodeFrontToken(tokens.getFrontToken());
+            String user = requiredNonBlank(front, "uid");
+            long expiry = front.getLong("ate");
+            front.getJSONObject("up");
+            String handle = null;
+            String tenant = "public";
+            try {
+                String access = tokens.getAccessToken();
+                if (!isBlank(access)) {
+                    JSONObject payload = decodeAccessPayload(access);
+                    JSONObject header = decodePart(access.split("\\.", -1)[0]);
+                    int version = header.has("version") ? Integer.parseInt(header.getString("version")) : 5;
+                    if (version >= 1 && version <= 5) {
+                        handle = optionalNonBlank(payload, "sessionHandle");
+                        tenant = version >= 4 ? requiredNonBlank(payload, "tId") : "public";
+                    }
+                }
+            } catch (JSONException | IllegalArgumentException ignored) {
+                // Unreadable access tokens must not invalidate a readable front token.
+                handle = null;
+                tenant = "public";
+            }
+            return new SessionIdentity(handle, user, tenant, expiry, front);
+        } catch (JSONException e) { throw new IllegalArgumentException("Malformed legacy front token", e); }
+    }
+
+    static SessionIdentity parseResponse(SessionTokens tokens, boolean compatible) {
+        // Legacy response acceptance is structural. Neither device nor server Date rejects the response.
+        return compatible ? parseLegacy(tokens)
+                : parse(tokens, System.currentTimeMillis(), tokens.getAccessToken() != null);
+    }
+
     static SessionIdentity parse(SessionTokens tokens, long now, boolean strictHeader)
             throws IllegalArgumentException {
         try {

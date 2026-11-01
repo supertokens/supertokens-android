@@ -1,0 +1,123 @@
+name: Unit compatibility
+
+on:
+  pull_request:
+  push:
+    branches: [master, '[0-9]+.[0-9]+', 'test-cicd/**']
+    tags: ['dev-v*', 'v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: unit-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  compatibility:
+    name: JVM and API compatibility
+    runs-on: ubuntu-22.04
+    timeout-minutes: 35
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Publisher fail-closed contract (mock APIs, no publication)
+        run: node --test .circleci/requiredCompatibility.test.js .circleci/integrationReceipt.test.js .circleci/publishedUpgradeExport.test.js
+
+      - name: Java for Android SDK bootstrap
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: android-actions/setup-android@v3
+        with:
+          cmdline-tools-version: '11076708'
+
+      - name: Install compile SDK and AGP 4.1.2 build tools
+        run: sdkmanager 'platforms;android-32' 'build-tools;29.0.2'
+
+      - name: Java for Gradle and checked-in consumer bytecode
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '11.0.25+9'
+
+      - name: Cache wrapper and dependency downloads
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/wrapper/dists
+            ~/.gradle/caches/modules-2
+          key: unit-${{ runner.os }}-${{ runner.arch }}-jdk11.0.25-v1-${{ hashFiles('gradle/wrapper/**', '**/*.gradle', '**/gradle.properties', '**/gradle.lockfile', 'gradle/verification-metadata.xml', 'app/src/test/compatibility/legacy054.sha256', '.github/workflows/unit.yml') }}
+
+      - name: JVM, oracle, lint, API and fresh release artifact
+        run: |
+          ./gradlew --no-daemon --console=plain --stacktrace --continue \
+            :app:testDebugUnitTest :app:legacy054Test :app:lintRelease \
+            :app:apiCompatibilityGateTest :app:japicmp :app:verifyOldSdkConsumer \
+            :app:assembleRelease :app:testOkHttp312
+
+      - name: Fresh AAR historical runtime probe
+        run: |
+          stage="$RUNNER_TEMP/runtime-compatibility"
+          mkdir -p "$stage/probe/dependencies"
+          unzip -p app/build/outputs/aar/app-release.aar classes.jar > "$stage/release-classes.jar"
+          sha256sum app/build/outputs/aar/app-release.aar "$stage/release-classes.jar" > "$stage/artifacts.sha256"
+          # Pin downloads before probe.py executes them; its own manifest is observational.
+          cat > "$stage/expected.sha256" <<'HASHES'
+          20f483a62087faa1dc8240150fa500b0a42c822735a12481ae32c5238d9922cc  com/squareup/okhttp3/okhttp/4.1.0/okhttp-4.1.0.jar
+          31d2b24f05b0fcd89688c4e409c92d8aee75a092e76b87554a18330cacea6084  com/squareup/okhttp3/okhttp/3.3.0/okhttp-3.3.0.jar
+          4633c331f50642ebe795dc089d6a5928aff43071c9d17e7840a009eea2fe95a3  com/squareup/okio/okio/1.14.0/okio-1.14.0.jar
+          4aca3e552afb1ceb47f8956685f6295a276e49fa03f9066f8b6be83bec56fb66  com/squareup/okhttp3/okhttp/3.10.0/okhttp-3.10.0.jar
+          508234e024ef7e270ab1a6d5b356f5b98e786511239ca986d684fd1e2cf7bc82  com/squareup/okhttp3/okhttp/3.12.13/okhttp-3.12.13.jar
+          5cfea5afe6c6e441a4dbf6053a07a733b1249d1009382eb44ac2255ccedd0c15  com/squareup/okio/okio/1.8.0/okio-1.8.0.jar
+          693fa319a7e8843300602b204023b7674f106ebcb577f2dd5807212b66118bd2  com/squareup/okio/okio/1.15.0/okio-1.15.0.jar
+          6ea3d0921b26919b286f05cbdb906266666a36f9a7c096197114f7495708ffbc  org/jetbrains/kotlin/kotlin-stdlib/1.3.41/kotlin-stdlib-1.3.41.jar
+          75d44c91a48cb93f624db0138b135d408e74fdb470956603214bce6d0611d598  com/squareup/okhttp3/okhttp/3.13.0/okhttp-3.13.0.jar
+          ace2a10dc8e2d5fd34925ecac03e4988b2c0f851650c94b8cef49ba1bd111478  org/jetbrains/annotations/13.0/annotations-13.0.jar
+          e27c7742448f816da1cac72b4ca283b0d7920749e09f5dd0ac017e40714a2efe  com/squareup/okhttp3/okhttp/3.11.0/okhttp-3.11.0.jar
+          e58c97406a6bb1138893750299ac63c6aa04b38b6b49eae1bfcad1a63ef9ba1b  com/squareup/okio/okio/2.2.2/okio-2.2.2.jar
+          f80ce42d2ffac47ad4c47e1d6f980d604d247ceb1a886705cf4581ab0c9fe2b8  com/squareup/okio/okio/1.17.2/okio-1.17.2.jar
+          faf6deb90ddf90346b350bb24f00991f27984c4b0d18dd159b93cbd44131b455  com/squareup/okhttp3/okhttp/3.14.0/okhttp-3.14.0.jar
+          HASHES
+          while read -r digest relative; do
+            destination="$stage/probe/dependencies/$relative"
+            mkdir -p "$(dirname "$destination")"
+            curl --fail --silent --show-error --location --retry 3 --max-time 60 \
+              "https://repo.maven.apache.org/maven2/$relative" -o "$destination"
+          done < "$stage/expected.sha256"
+          (cd "$stage/probe/dependencies" && sha256sum --check "$stage/expected.sha256")
+          python3 app/src/test/compatibility/runtime/probe.py \
+            --source-root "$GITHUB_WORKSPACE" \
+            --artifact-jar "$stage/release-classes.jar" \
+            --output "$stage/probe" --java-home "$JAVA_HOME" \
+            --android-jar "$ANDROID_HOME/platforms/android-32/android.jar" \
+            2>&1 | tee "$stage/probe.log"
+          diff -u <(sort "$stage/expected.sha256") <(sort "$stage/probe/dependencies.sha256")
+
+      - name: Upload test and compatibility evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-compatibility-${{ github.run_id }}-${{ github.run_attempt }}
+          retention-days: 14
+          if-no-files-found: warn
+          path: |
+            app/build/test-results/
+            app/build/reports/
+            app/build/api-compatibility/
+            app/build/outputs/aar/app-release.aar
+            app/build/okhttp-matrix/
+            ${{ runner.temp }}/runtime-compatibility/*.sha256
+            ${{ runner.temp }}/runtime-compatibility/probe.log
+            ${{ runner.temp }}/runtime-compatibility/probe/dependencies.sha256

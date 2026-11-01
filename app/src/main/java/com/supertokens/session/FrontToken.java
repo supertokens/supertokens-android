@@ -18,16 +18,31 @@ package com.supertokens.session;
 
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.util.Base64;
 
 import org.json.JSONException;
 import org.json.JSONObject;
+import java.nio.charset.Charset;
 
 public class FrontToken {
     static final Object tokenLock = new Object();
 
     static JSONObject getTokenInfo(Context context) {
-        if (!SuperTokens.isInitCalled) return null;
+        if (!SuperTokens.isInitCalled) {
+            if (Utils.getLocalSessionState(context).status == Utils.LocalSessionStateStatus.NOT_EXISTS) return null;
+            String raw = getStoredToken(context);
+            if (raw == null) return null;
+            try {
+                return new JSONObject(new String(Base64.decode(raw, Base64.DEFAULT), Charset.forName("UTF-8")));
+            } catch (JSONException e) {
+                throw new IllegalStateException(e);
+            }
+        }
         return SessionState.snapshot().getFrontToken();
+    }
+
+    private static String getStoredToken(Context context) {
+        return SessionState.storedFrontToken(context);
     }
 
     public static JSONObject getToken(Context context) throws JSONException {
@@ -37,46 +52,38 @@ public class FrontToken {
     /** @deprecated Use SuperTokens.clearSession with an expected owner. */
     @Deprecated
     public static void removeToken(Context context) {
-        SharedPreferences.Editor editor = Utils.getSharedPreferences(context).edit();
-        editor.remove(Constants.FRONT_TOKEN_PREFS_KEY);
-        editor.remove(Constants.CSRF_TOKEN_PREFS_KEY);
-        editor.remove("st-storage-item-" + Constants.ACCESS_TOKEN_PREFS_KEY);
-        editor.remove("st-storage-item-" + Constants.REFRESH_TOKEN_PREFS_KEY);
-        editor.apply();
-        SessionState.legacyStorageChanged(context);
-        SessionState.dispatch();
+        SessionState.dispatch(SessionState.editLegacy(context,
+                new SessionStorage.LegacyEdit(new String[]{Constants.FRONT_TOKEN_PREFS_KEY,
+                        Constants.CSRF_TOKEN_PREFS_KEY, "st-storage-item-" + Constants.ACCESS_TOKEN_PREFS_KEY,
+                        "st-storage-item-" + Constants.REFRESH_TOKEN_PREFS_KEY},
+                        new String[]{null, null, null, null}), false));
     }
 
     /** @deprecated Use SuperTokens.installSession for an atomic tuple. */
     @Deprecated
     public static void setToken(Context context, String frontToken) {
-        Utils.getSharedPreferences(context).edit()
-                .putString(Constants.FRONT_TOKEN_PREFS_KEY, frontToken).apply();
-        SessionState.legacyStorageChanged(context);
-        SessionState.dispatch();
+        SessionState.dispatch(SessionState.editLegacy(context,
+                new SessionStorage.LegacyEdit(new String[]{Constants.FRONT_TOKEN_PREFS_KEY},
+                        new String[]{frontToken}), false));
     }
 
     /** @deprecated Use SuperTokens.installSession or clearSession. */
     @Deprecated
     public static void setItem(Context context, String frontToken) {
-        SharedPreferences.Editor editor = Utils.getSharedPreferences(context).edit();
-        editor.putString("st-storage-item-" + Constants.LAST_ACCESS_TOKEN_UPDATE_PREFS_KEY,
-                Long.toString(System.currentTimeMillis()));
-        editor.remove("st-storage-item-sIRTFrontend");
-        if (frontToken.equalsIgnoreCase("remove")) {
-            editor.remove(Constants.FRONT_TOKEN_PREFS_KEY);
-            editor.remove(Constants.CSRF_TOKEN_PREFS_KEY);
-            editor.remove("st-storage-item-" + Constants.ACCESS_TOKEN_PREFS_KEY);
-            editor.remove("st-storage-item-" + Constants.REFRESH_TOKEN_PREFS_KEY);
-        } else {
-            editor.putString(Constants.FRONT_TOKEN_PREFS_KEY, frontToken);
-        }
-        editor.apply();
-        SessionState.legacyStorageChanged(context);
-        SessionState.dispatch();
+        boolean remove = frontToken.equalsIgnoreCase("remove");
+        String[] keys = remove ? new String[]{"st-storage-item-" + Constants.LAST_ACCESS_TOKEN_UPDATE_PREFS_KEY,
+                "st-storage-item-sIRTFrontend", Constants.FRONT_TOKEN_PREFS_KEY, Constants.CSRF_TOKEN_PREFS_KEY,
+                "st-storage-item-" + Constants.ACCESS_TOKEN_PREFS_KEY, "st-storage-item-" + Constants.REFRESH_TOKEN_PREFS_KEY}
+                : new String[]{"st-storage-item-" + Constants.LAST_ACCESS_TOKEN_UPDATE_PREFS_KEY,
+                "st-storage-item-sIRTFrontend", Constants.FRONT_TOKEN_PREFS_KEY};
+        String now = Long.toString(System.currentTimeMillis());
+        String[] values = remove ? new String[]{now, null, null, null, null, null}
+                : new String[]{now, null, frontToken};
+        SessionState.dispatch(SessionState.editLegacy(context, new SessionStorage.LegacyEdit(keys, values), true));
     }
 
     public static boolean doesTokenExist(Context context) {
+        if (!SuperTokens.isInitCalled) return getStoredToken(context) != null;
         return getTokenInfo(context) != null;
     }
 }

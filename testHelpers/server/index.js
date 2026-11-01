@@ -12,19 +12,26 @@
  * License for the specific language governing permissions and limitations
  * under the License.
  */
+const runtimeIdentity = require("./coreRuntimeIdentity");
+runtimeIdentity.recordServerStart();
 let SuperTokens = require("supertokens-node");
 const resetRecipes = require("./resetRecipes");
 const createLegacySession = require("./legacySession");
+const coreProtocol = require("./coreProtocol");
+const backendMutations = require("./backendMutations");
 let Session = require("supertokens-node/recipe/session");
 let express = require("express");
 let cookieParser = require("cookie-parser");
 let bodyParser = require("body-parser");
 let http = require("http");
 let cors = require("cors");
-let { startST, stopST, killAllST, setupST, cleanST, setKeyValueInConfig, maxVersion, isProtectedPropName } = require("./utils");
+const ownedCore = require('./ownedCore');
+ownedCore.assertOwner();
+let { startST, stopST, setupST, cleanST, setKeyValueInConfig } = ownedCore;
+let { maxVersion, isProtectedPropName } = require("./utils");
+const coreURI = 'http://127.0.0.1:' + process.env.ST_TEST_CORE_PORT;
 let { middleware, errorHandler } = require("supertokens-node/framework/express");
 let { verifySession } = require("supertokens-node/recipe/session/framework/express");
-const { spawnSync } = require("child_process");
 const morgan = require("morgan");
 let noOfTimesRefreshCalledDuringTest = 0;
 let noOfTimesGetSessionCalledDuringTest = 0;
@@ -45,9 +52,28 @@ let urlencodedParser = bodyParser.urlencoded({ limit: "20mb", extended: true, pa
 let jsonParser = bodyParser.json({ limit: "20mb" });
 
 let app = express();
+app.use(coreProtocol.native.middleware);
 app.use(urlencodedParser);
 app.use(jsonParser);
 app.use(cookieParser());
+let lifecycleBusy = false;
+const lifecyclePaths = new Set(['/startst', '/stopst', '/beforeeach', '/after', '/test/startServer',
+    '/stop', '/test/shutdown-core', '/reinitialiseBackendConfig']);
+function lifecycleGuard(req, res, next) {
+    if (req.get('x-st-test-run-id') !== process.env.ST_TEST_RUN_ID) return res.status(403).send('Foreign run');
+    if (lifecycleBusy) return res.status(409).send('Lifecycle operation in progress');
+    lifecycleBusy = true;
+    res.once('finish', () => { lifecycleBusy = false; });
+    next();
+}
+// Express 4 does not forward rejected async handlers to the error middleware.
+const post = app.post.bind(app);
+app.post = (route, ...handlers) => {
+    if (!lifecyclePaths.has(route)) return post(route, ...handlers);
+    return post(route, lifecycleGuard, ...handlers.map(handler => (req, res, next) =>
+        Promise.resolve().then(() => handler(req, res, next)).catch(next)
+            .finally(() => { lifecycleBusy = false; })));
+};
 app.use(morgan(`:date[iso] - :method :url`, { immediate: true }));
 app.use(morgan(`:date[iso] - :method :url :status :response-time ms - :res[content-length]`));
 
@@ -64,7 +90,7 @@ function getConfig(enableAntiCsrf, enableJWT, jwtPropertyName) {
                 websiteDomain: "http://localhost.org:8080"
             },
             supertokens: {
-                connectionURI: "http://localhost:9000"
+                connectionURI: coreURI
             },
             recipeList: [
                 Session.init({
@@ -124,7 +150,7 @@ function getConfig(enableAntiCsrf, enableJWT, jwtPropertyName) {
                 websiteDomain: "http://localhost.org:8080"
             },
             supertokens: {
-                connectionURI: "http://localhost:9000"
+                connectionURI: coreURI
             },
             recipeList: [
                 Session.init({
@@ -172,7 +198,7 @@ function getConfig(enableAntiCsrf, enableJWT, jwtPropertyName) {
             websiteDomain: "http://localhost.org:8080"
         },
         supertokens: {
-            connectionURI: "http://localhost:9000"
+            connectionURI: coreURI
         },
         recipeList: [
             Session.init({
@@ -196,7 +222,7 @@ function getConfig(enableAntiCsrf, enableJWT, jwtPropertyName) {
     };
 }
 
-SuperTokens.init(getConfig(true, false));
+SuperTokens.init(coreProtocol.configure(getConfig(true, false)));
 
 app.use(
     cors({
@@ -209,20 +235,34 @@ app.use(
 app.disable('etag');
 
 app.get("/healthz", (req, res) => res.status(200).send("ok"));
+app.get('/test/instance', (req, res) => {
+    const challenge = req.query.challenge;
+    if (typeof challenge !== 'string' || !/^[a-f0-9]{48}$/.test(challenge)) return res.sendStatus(400);
+    const instance = process.env.ST_TEST_INSTANCE_ID;
+    const proof = require('crypto').createHmac('sha256', process.env.ST_TEST_RUN_ID)
+        .update(challenge + ':' + instance + ':' + process.pid).digest('hex');
+    res.json({ instance, pid: process.pid, proof });
+});
+app.post("/test/shutdown-core", async (req, res, next) => {
+    await stopST(req.body.pid);
+    res.json({ stopped: true });
+});
 
 app.use(middleware());
+coreProtocol.install(app);
 
-app.post("/login", async (req, res) => {
-    let userId = req.body.userId;
-    
-    let session;
-    if (multitenancySupported) {
-        session = await Session.createNewSession(req, res, "public", accountLinkingSupported ? SuperTokens.convertToRecipeUserId(userId) : userId);
-    } else {
-        session = await Session.createNewSession(req, res, userId);
-    }
+app.post("/login", async (req, res, next) => {
+    try {
+        let userId = req.body.userId;
+        const session = await coreProtocol.native.login(req, res, async () => {
+            if (multitenancySupported) {
+                return Session.createNewSession(req, res, "public", accountLinkingSupported ? SuperTokens.convertToRecipeUserId(userId) : userId);
+            }
+            return Session.createNewSession(req, res, userId);
+        });
 
-    res.send(session.getUserId());
+        res.send(session.getUserId());
+    } catch (error) { next(error); }
 });
 
 app.post("/startst", async (req, res) => {
@@ -243,7 +283,7 @@ app.post("/startst", async (req, res) => {
     if (enableAntiCsrf !== undefined) {
         resetRecipes();
 
-        SuperTokens.init(getConfig(enableAntiCsrf, enableJWT));
+        SuperTokens.init(coreProtocol.configure(getConfig(enableAntiCsrf, enableJWT)));
     }
     await startST();
     res.send("");
@@ -265,23 +305,25 @@ app.post("/reinitialiseBackendConfig", async (req, res) => {
     let jwtPropertyName = req.body.jwtPropertyName;
 
     resetRecipes();
-    SuperTokens.init(getConfig(lastSetEnableAntiCSRF, currentEnableJWT, jwtPropertyName));
+    SuperTokens.init(coreProtocol.configure(getConfig(lastSetEnableAntiCSRF, currentEnableJWT, jwtPropertyName)));
 
     res.send("");
 });
 
-app.post("/beforeeach", async (req, res) => {
+app.post("/beforeeach", async (req, res, next) => {
+    try { await coreProtocol.cleanupOwners(); } catch (error) { return next(error); }
     noOfTimesRefreshCalledDuringTest = 0;
     noOfTimesGetSessionCalledDuringTest = 0;
     noOfTimesRefreshAttemptedDuringTest = 0;
     customRefreshHeaderValue = "";
-    await killAllST();
+    await stopST();
     await setupST();
     res.send();
 });
 
-app.post("/after", async (req, res) => {
-    await killAllST();
+app.post("/after", async (req, res, next) => {
+    try { await coreProtocol.cleanupOwners(); } catch (error) { return next(error); }
+    await stopST();
     await cleanST();
     res.send();
 });
@@ -361,13 +403,7 @@ app.post(
     "/update-jwt-with-handle",
     (req, res, next) => verifySession()(req, res, next),
     async (req, res) => {
-        if (Session.getJWTPayload !== undefined) {
-            await Session.updateJWTPayload(req.session.getHandle(), req.body);
-            res.json(req.session.getJWTPayload());
-        } else {
-            await Session.updateAccessTokenPayload(req.session.getHandle(), req.body);
-            res.json(req.session.getAccessTokenPayload());
-        }
+        res.json(await backendMutations.updateWithHandle(Session, req.session, req.body, isProtectedPropName));
     }
 );
 
@@ -414,7 +450,7 @@ app.post(
     (req, res, next) => verifySession()(req, res, next),
     async (req, res) => {
         let userId = req.session.getUserId();
-        await SuperTokens.revokeAllSessionsForUser(userId);
+        await backendMutations.revokeAll(Session, SuperTokens, userId);
         res.send("success");
     }
 );
@@ -494,16 +530,11 @@ app.get("/throw-401", (req, res) => {
     res.status(401).send("Unauthorised");
 });
 
-app.get("/stop", async (req, res) => {
-    process.exit();
+app.get("/stop", lifecycleGuard, async (req, res) => {
+    res.status(409).send('Backend lifetime is owned by the runner');
 });
 
 app.post("/test/startServer", async (req, res) => {
-    spawnSync("./startServer", [
-        process.env.INSTALL_PATH,
-        process.env.NODE_PORT === undefined ? 8080 : process.env.NODE_PORT,
-    ])
-
     res.status(200).send("")
 });
 
@@ -514,7 +545,7 @@ app.post("/login-2.18", async (req, res, next) => {
     const userId = req.body.userId;
     let legacySessionResp;
     try {
-        legacySessionResp = await createLegacySession("http://localhost:9000", userId, payload);
+        legacySessionResp = await createLegacySession(coreURI, userId, payload);
     } catch (err) {
         return next(err);
     }
@@ -565,5 +596,4 @@ app.use(async (err, req, res, next) => {
 });
 
 let server = http.createServer(app);
-// server.listen(process.env.NODE_PORT === undefined ? 8080 : process.env.NODE_PORT, "::");
-server.listen(8080, "::");
+server.listen(Number(process.env.NODE_PORT), '127.0.0.1');

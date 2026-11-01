@@ -1,0 +1,60 @@
+name: Nightly compatibility
+
+on:
+  push:
+    branches: ['[0-9]+.[0-9]+', 'test-cicd/**']
+    tags: ['dev-v*', 'v*']
+  schedule:
+    - cron: '17 2 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nightly-compatibility-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  compatibility:
+    name: Nightly ${{ matrix.lane }}
+    runs-on: ubuntu-22.04
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        lane: [OkHttp312, OkHttp410, OkHttp412, OkHttp5, Stress20]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+        with:
+          cmdline-tools-version: '11076708'
+      - run: sdkmanager 'platforms;android-32' 'build-tools;29.0.2'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '11.0.25+9'
+      - name: Matrix or twenty real seeded runs
+        env:
+          LANE: ${{ matrix.lane }}
+        run: |
+          if [ "$LANE" = Stress20 ]; then
+            python3 app/src/test/compatibility/nightly-stress.py --output "$RUNNER_TEMP/stress20"
+          else
+            ./gradlew --no-daemon --console=plain ":app:test$LANE"
+          fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: nightly-${{ matrix.lane }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            app/build/okhttp-matrix/
+            app/build/test-results/
+            ${{ runner.temp }}/stress20/
+          retention-days: 14

@@ -50,6 +50,20 @@ public class TestUtils {
 
     public static final String VERSION_NAME = "1.2.1";
 
+    private static void lifecycle(String path, RequestBody body) {
+        String runId = System.getenv("ST_TEST_RUN_ID");
+        if (runId == null || System.getenv("ST_TEST_BACKEND_URL") == null) {
+            throw new AssertionError("Use the isolated ordinary fixture runner");
+        }
+        Request request = new Request.Builder().url(testBaseURL + path)
+                .header("x-st-test-run-id", runId).post(body).build();
+        try (Response response = new OkHttpClient.Builder().build().newCall(request).execute()) {
+            if (response.code() != 200) throw new AssertionError("Fixture " + path + ": " + response.code());
+        } catch (IOException error) {
+            throw new AssertionError("Fixture " + path + " failed", error);
+        }
+    }
+
     public static void setInitToFalse() throws NoSuchFieldException, IllegalAccessException, ClassNotFoundException {
             Class<?> forName = Class.forName("com.supertokens.session.SuperTokens");
             Field[] declaredFields = forName.getDeclaredFields();
@@ -62,48 +76,16 @@ public class TestUtils {
     }
 
     public static void beforeAll() {
-        try {
-            RequestBody reqbody = RequestBody.create(null, new byte[0]);
-            OkHttpClient client = new OkHttpClient.Builder().build();
-            Request request = new Request.Builder()
-                    .url(new URL(testBaseURL + "/test/startServer"))
-                    .method("POST",reqbody)
-                    .build();
-            client.newCall(request).execute();
-        } catch (Exception e) {
-        }
+        lifecycle("/test/startServer", RequestBody.create(null, new byte[0]));
     }
 
     public static void afterAll() {
-        try {
-            RequestBody reqbody = RequestBody.create(null, new byte[0]);
-            OkHttpClient client = new OkHttpClient.Builder().build();
-            Request request = new Request.Builder()
-                    .url(new URL(testBaseURL + "/after"))
-                    .method("POST",reqbody)
-                    .build();
-            client.newCall(request).execute();
-
-            request = new Request.Builder()
-                    .url(new URL(testBaseURL + "/stopst"))
-                    .build();
-            client.newCall(request).execute();
-        } catch (Exception e) {
-        }
+        lifecycle("/after", RequestBody.create(null, new byte[0]));
     }
 
     public static void beforeEach() {
-        try {
-            SuperTokens.resetForTests();
-            RequestBody reqbody = RequestBody.create(null, new byte[0]);
-            OkHttpClient client = new OkHttpClient.Builder().build();
-            Request request = new Request.Builder()
-                    .url(new URL(testBaseURL + "/beforeeach"))
-                    .method("POST",reqbody)
-                    .build();
-            client.newCall(request).execute();
-        } catch (Exception e) {
-        }
+        SuperTokens.resetForTests();
+        lifecycle("/beforeeach", RequestBody.create(null, new byte[0]));
     }
 
     public static void startST() {
@@ -114,18 +96,9 @@ public class TestUtils {
     }
 
     public static void startST(long validity, boolean AntiCsrf, double refreshTokenValidity) {
-        try {
-            final MediaType JSON
-                    = MediaType.parse("application/json; charset=utf-8");
-            RequestBody body = RequestBody.create(JSON, "{\"accessTokenValidity\": " + validity + ",\"enableAntiCsrf\": " + AntiCsrf + "}");
-            OkHttpClient client = new OkHttpClient.Builder().build();
-            Request request = new Request.Builder()
-                    .url(new URL(startSTAPIURL))
-                    .post(body)
-                    .build();
-            client.newCall(request).execute();
-        } catch (Exception e) {
-        }
+        final MediaType JSON = MediaType.parse("application/json; charset=utf-8");
+        lifecycle("/startst", RequestBody.create(JSON,
+                "{\"accessTokenValidity\": " + validity + ",\"enableAntiCsrf\": " + AntiCsrf + "}"));
     }
 
     public static int getRefreshTokenCounter() throws IOException {

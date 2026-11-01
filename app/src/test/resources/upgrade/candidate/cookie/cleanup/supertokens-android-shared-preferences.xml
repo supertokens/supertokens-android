@@ -1,0 +1,13 @@
+<?xml version='1.0' encoding='utf-8'?>
+<map>
+  <string name="supertokens-android-session-status">absent</string>
+  <string name="supertokens-android-session-revision">4</string>
+  <string name="supertokens-android-session-adoption">00000000-0000-0000-0000-000000000035</string>
+  <string name="supertokens-android-session-access-revision">4</string>
+  <string name="supertokens-android-session-refresh-revision">4</string>
+  <string name="supertokens-android-session-expiry">0</string>
+  <string name="supertokens-android-session-validation">strict</string>
+  <string name="supertokens-android-session-configuration">2aa63df14b969c83ace67801818c6b682cc90d4bf374da8e71a85925ef118461</string>
+  <string name="supertokens-android-session-schema">1</string>
+  <string name="supertokens-android-session-fingerprint">92be2d565849b3e194a528932603d052949adcd953a88a94a1b3a63c3ce9d684</string>
+</map>

@@ -1,0 +1,17 @@
+<?xml version='1.0' encoding='utf-8'?>
+<map>
+  <string name="phase">candidate-checked</string>
+  <string name="process">00000000-0000-0000-0000-000000000023</string>
+  <string name="fixtureId">fixture-id-0029</string>
+  <boolean name="available" value="true" />
+  <string name="owners">["fixture-id-0029"]</string>
+  <string name="handle">00000000-0000-0000-0000-00000000001e</string>
+  <string name="refreshDigest">4bb9c3443910e40d2acbe4a7327360a594aed706c79238014e45f76f00115866</string>
+  <string name="userId">fixture-id-0029</string>
+  <string name="accessDigest">b3d32e9c24f94e1e202b76ca3b9d423c36fae12c5ee3d494925267a79c60555f</string>
+  <string name="scenario">logout</string>
+  <string name="backend">http://fixture.invalid</string>
+  <string name="runId">00000000-0000-0000-0000-000000000020</string>
+  <boolean name="cleanupDone" value="false" />
+  <string name="lastRequestId">fixture-id-0033</string>
+</map>

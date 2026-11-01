@@ -1,0 +1,199 @@
+configurations {
+    apiCompatibilityTool { transitive = false }
+}
+
+repositories {
+    mavenCentral { content { includeGroup 'com.github.siom79.japicmp' } }
+}
+
+dependencies {
+    apiCompatibilityTool 'com.github.siom79.japicmp:japicmp:0.17.2:jar-with-dependencies'
+}
+
+def compatibilityDirectory = file("$buildDir/api-compatibility")
+def publishedJar = file("$buildDir/legacy054/classes.jar")
+def consumerDirectory = file("$buildDir/old-sdk-consumer")
+def consumerResource = file('src/test/resources/compatibility/OldSdkConsumer.bin')
+def callbacks = [
+        'com.supertokens.session.EventHandler',
+        'com.supertokens.session.CustomHeaderProvider',
+        'com.supertokens.session.SuperTokensHttpURLConnection$PreConnectCallback'
+] as Set
+
+def violations = { File report ->
+    def xml = new XmlSlurper(false, false).parse(report)
+    if (xml.name() != 'japicmp' || xml.classes.'class'.isEmpty()) {
+        throw new GradleException("Empty or invalid API report: $report")
+    }
+    def failures = [] as Set
+    xml.classes.'class'.each { type ->
+        def name = type.@fullyQualifiedName.text()
+        def status = type.@changeStatus.text()
+        if (status == 'NEW') return
+        if (status == 'REMOVED') failures.add("Removed class: $name")
+        if (type.@binaryCompatible.text() == 'false' || type.@sourceCompatible.text() == 'false') {
+            failures.add("Incompatible class: $name")
+        }
+        [type.methods.method, type.constructors.constructor, type.fields.field].each { members ->
+            members.each { member ->
+                def change = member.@changeStatus.text()
+                def parameters = member.parameters.parameter.collect { it.@type.text() }.join(', ')
+                def signature = "$name#${member.@name}($parameters)"
+                if (change == 'REMOVED' || change == 'MODIFIED') {
+                    failures.add("$change public ${member.name()}: $signature")
+                }
+                if (member.name() == 'method' && change == 'NEW' && callbacks.contains(name)) {
+                    failures.add("Added callback method: $signature")
+                }
+            }
+        }
+        [type.classType, type.superclass, type.modifiers.modifier,
+         type.genericTemplates.genericTemplate, type.interfaces.'interface'].each { nodes ->
+            nodes.each { node ->
+                if (node.@changeStatus.text() in ['MODIFIED', 'REMOVED']) {
+                    failures.add("Changed ${node.name()}: $name")
+                }
+            }
+        }
+    }
+    failures.sort()
+}
+
+def compare = { File oldJar, File newJar, File report, String oldClasspath, String newClasspath ->
+    report.parentFile.mkdirs()
+    def arguments = ['--old', oldJar.absolutePath, '--new', newJar.absolutePath,
+                     '-a', 'public', '--no-annotations', '--xml-file', report.absolutePath]
+    if (oldClasspath) arguments.addAll(['--old-classpath', oldClasspath])
+    if (newClasspath) arguments.addAll(['--new-classpath', newClasspath])
+    new File(report.parentFile, report.name.replace('.xml', '.txt')).withOutputStream { output ->
+        javaexec {
+            classpath = configurations.apiCompatibilityTool
+            main = 'japicmp.JApiCmp'
+            args arguments
+            standardOutput = output
+        }
+    }
+}
+
+task apiCompatibilityJar(type: Jar) {
+    archiveFileName = 'candidate-classes.jar'
+    destinationDirectory = compatibilityDirectory
+}
+
+task japicmp(dependsOn: [extractLegacy054, apiCompatibilityJar]) {
+    group = 'verification'
+    description = 'Rejects changed/removed published public APIs and callback method additions (M6 rank 6).'
+    inputs.file publishedJar
+    inputs.file apiCompatibilityJar.archiveFile
+    inputs.file file('src/test/compatibility/api-compatibility.gradle')
+    outputs.dir file("$compatibilityDirectory/report")
+    doLast {
+        def compile = tasks.getByName('compileReleaseJavaWithJavac')
+        def report = file("$compatibilityDirectory/report/japicmp.xml")
+        def oldClasspath = files(android.bootClasspath, configurations.legacy054DriverDependencies).asPath
+        def newClasspath = files(android.bootClasspath, compile.classpath).asPath
+        compare(publishedJar, apiCompatibilityJar.archiveFile.get().asFile, report, oldClasspath, newClasspath)
+        def rejected = violations(report)
+        file("$compatibilityDirectory/report/disallowed-changes.txt").text = rejected.join('\n')
+        if (!rejected.isEmpty()) {
+            throw new GradleException("Public API compatibility failed:\n${rejected.join('\n')}\nFull report: $report")
+        }
+    }
+}
+
+task compileOldSdkConsumer(type: JavaCompile, dependsOn: extractLegacy054) {
+    source = files('src/test/compatibility/OldSdkConsumer.java')
+    destinationDir = consumerDirectory
+    sourceCompatibility = '1.8'
+    targetCompatibility = '1.8'
+    options.compilerArgs += ['-proc:none']
+    classpath = files(publishedJar, android.bootClasspath) + configurations.legacy054DriverDependencies
+}
+
+task verifyOldSdkConsumer(dependsOn: compileOldSdkConsumer) {
+    group = 'verification'
+    description = 'Checks that the committed consumer was compiled against checksum-verified 0.5.4.'
+    inputs.file file('src/test/compatibility/OldSdkConsumer.java')
+    inputs.file consumerResource
+    inputs.dir consumerDirectory
+    doLast {
+        def compiled = file("$consumerDirectory/compatibility/OldSdkConsumer.class")
+        if (!consumerResource.isFile() || !Arrays.equals(compiled.bytes, consumerResource.bytes)) {
+            throw new GradleException('OldSdkConsumer.bin is stale; run :app:regenerateOldSdkConsumer with JDK 11, then review the resource diff.')
+        }
+    }
+}
+
+task regenerateOldSdkConsumer(type: Copy, dependsOn: compileOldSdkConsumer) {
+    description = 'Explicitly refreshes the checked-in published-SDK consumer; never runs automatically.'
+    from(file("$consumerDirectory/compatibility/OldSdkConsumer.class"))
+    into(consumerResource.parentFile)
+    rename 'OldSdkConsumer.class', 'OldSdkConsumer.bin'
+}
+
+task apiCompatibilityGateTest {
+    group = 'verification'
+    description = 'Exercises API gate policy with real javac/japicmp fixtures, including default callback additions.'
+    doLast {
+        def root = file("$compatibilityDirectory/policy-test")
+        delete root
+        def compiler = javax.tools.ToolProvider.systemJavaCompiler
+        if (compiler == null) throw new GradleException('API gate tests require a JDK')
+        def archive = { String label, String name, String body ->
+            def directory = new File(root, label)
+            def source = new File(directory, 'source/' + name.replace('.', '/') + '.java')
+            def classes = new File(directory, 'classes')
+            source.parentFile.mkdirs()
+            classes.mkdirs()
+            source.text = 'package com.supertokens.session;\n' + body
+            if (compiler.run(null, null, null, '-source', '8', '-target', '8', '-d', classes.path, source.path) != 0) {
+                throw new GradleException("Could not compile API fixture $label")
+            }
+            def jar = new File(directory, 'classes.jar')
+            ant.jar(destfile: jar, basedir: classes)
+            jar
+        }
+        def check = { String label, String name, String before, String after, boolean shouldReject ->
+            def oldJar = archive(label + '-old', name, before)
+            def newJar = archive(label + '-new', name, after)
+            def report = new File(root, label + '/japicmp.xml')
+            compare(oldJar, newJar, report, '', '')
+            if ((!violations(report).isEmpty()) != shouldReject) {
+                throw new GradleException("Wrong API gate result for $label: ${violations(report)}")
+            }
+        }
+        def name = 'com.supertokens.session.Example'
+        def before = 'public class Example { public int value() { return 1; } }'
+        check('unchanged', name, before, before, false)
+        check('addition', name, before, 'public class Example { public int value() { return 1; } public void added() {} }', false)
+        check('removed', name, before, 'public class Example {}', true)
+        check('return-type', name, before, 'public class Example { public long value() { return 1; } }', true)
+        check('visibility', name, before, 'public class Example { private int value() { return 1; } }', true)
+        check('field-type', name, 'public class Example { public int value; }',
+                'public class Example { public long value; }', true)
+        check('constructor', name, 'public class Example { public Example(int value) {} }',
+                'public class Example { public Example(long value) {} }', true)
+        check('class-modifier', name, before, 'public final class Example { public int value() { return 1; } }', true)
+        callbacks.each { callback ->
+            def nested = callback.contains('$')
+            def simple = callback.tokenize('.').last()
+            def outer = simple.tokenize('$').first()
+            def declaration = nested ? 'public class SuperTokensHttpURLConnection { public interface PreConnectCallback {' : "public interface $simple {"
+            def end = nested ? '}}' : '}'
+            ['void added();', 'default void added() {}', 'static void added() {}'].eachWithIndex { added, index ->
+                check(outer + index, 'com.supertokens.session.' + outer,
+                        declaration + ' void existing();' + end,
+                        declaration + ' void existing(); ' + added + end, true)
+            }
+        }
+    }
+}
+
+afterEvaluate {
+    def compile = tasks.getByName('compileReleaseJavaWithJavac')
+    apiCompatibilityJar.dependsOn compile
+    apiCompatibilityJar.from compile.destinationDir
+    japicmp.inputs.files(android.bootClasspath, compile.classpath, configurations.legacy054DriverDependencies,
+            configurations.apiCompatibilityTool)
+    tasks.getByName('check').dependsOn japicmp, verifyOldSdkConsumer, apiCompatibilityGateTest
+}

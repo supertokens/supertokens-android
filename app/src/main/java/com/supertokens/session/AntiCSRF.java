@@ -23,28 +23,20 @@ import androidx.annotation.Nullable;
 class AntiCSRF {
     static String getToken(Context context, @Nullable String associatedAccessTokenUpdate) {
         if (associatedAccessTokenUpdate == null || !SuperTokens.isInitCalled) return null;
-        SessionSnapshot snapshot = SessionState.snapshot();
-        if (!associatedAccessTokenUpdate.equals(SessionState.lastAccessTokenUpdate(snapshot.getOwner()))) {
-            return null;
-        }
-        SessionTokens tokens = snapshot.getInternalTokens();
-        return tokens == null ? null : tokens.getAntiCSRF();
+        return SessionState.antiCSRF(associatedAccessTokenUpdate);
     }
 
     @Deprecated
     static void removeToken(Context context) {
-        Utils.getSharedPreferences(context).edit().remove(Constants.CSRF_TOKEN_PREFS_KEY).apply();
-        SessionState.legacyStorageChanged(context);
-        SessionState.dispatch();
+        SessionState.dispatch(SessionState.editLegacy(context,
+                new SessionStorage.LegacyEdit(new String[]{Constants.CSRF_TOKEN_PREFS_KEY}, new String[]{null}), false));
     }
 
     @Deprecated
     static void setToken(Context context, @Nullable String associatedAccessTokenUpdate, String antiCSRFToken) {
         if (associatedAccessTokenUpdate == null) return;
-        Utils.getSharedPreferences(context).edit()
-                .putString(Constants.CSRF_TOKEN_PREFS_KEY, antiCSRFToken).apply();
-        SessionState.legacyStorageChanged(context);
-        SessionState.dispatch();
+        SessionState.dispatch(SessionState.editLegacy(context,
+                new SessionStorage.LegacyEdit(new String[]{Constants.CSRF_TOKEN_PREFS_KEY}, new String[]{antiCSRFToken}), false));
     }
 
     static class AntiCSRFTokenInfo {

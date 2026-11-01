@@ -16,7 +16,72 @@
 
 apply plugin: 'com.android.application'
 
+def sdkRoot = file('../../..')
+def validatePreparedArtifacts = {
+    if (!System.getenv('ST_ARTIFACT_RECEIPT') || !System.getenv('ST_ARTIFACT_NODE')) {
+        throw new GradleException('Use node testHelpers/testapp/runTests.js ordinary|retrofit|mutation|upgrade from the repository root; direct testapp Gradle can consume stale artifacts.')
+    }
+    exec {
+        commandLine System.getenv('ST_ARTIFACT_NODE'), new File(sdkRoot, 'testHelpers/testapp/artifactReceipt.js')
+    }
+}
+validatePreparedArtifacts()
+task preparePublishedUpgradeArtifacts {
+    doLast { validatePreparedArtifacts() }
+}
+
+tasks.withType(Test).all { task ->
+    def observedCases = []
+    outputs.upToDateWhen { false }
+    outputs.doNotCacheIf('Integration tests require fresh execution') { true }
+    doFirst { validatePreparedArtifacts() }
+    afterTest { descriptor, result ->
+        observedCases.add([className: descriptor.className, name: descriptor.name, result: result.resultType.toString()])
+    }
+    afterSuite { descriptor, result ->
+        if (descriptor.parent == null) {
+            def reportDirectory = new File(System.getenv('ST_TEST_REPORT_DIR'))
+            reportDirectory.mkdirs()
+            new File(reportDirectory, "${task.name}.json").text = groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson([
+                tests: result.testCount, passed: result.successfulTestCount, skipped: result.skippedTestCount,
+                failed: result.failedTestCount, cases: observedCases, includes: task.includes, excludes: task.excludes,
+                filterIncludes: task.filter.includePatterns, classpath: task.classpath.files*.absolutePath,
+                requestedTasks: gradle.startParameter.taskNames, excludedTasks: gradle.startParameter.excludedTaskNames,
+                taskGraph: gradle.taskGraph.allTasks*.path, rerun: gradle.startParameter.rerunTasks
+            ]))
+            if (result.testCount == 0) throw new GradleException('No integration tests executed')
+            if (project.hasProperty('mutationAcceptance') &&
+                (result.testCount != 6 || result.skippedTestCount != 0 || result.failedTestCount != 0)) {
+                throw new GradleException('Mutation acceptance requires exactly 6 passed, 0 skipped, 0 failed')
+            }
+        }
+    }
+}
+
+def retrofitCompatibility = project.hasProperty('retrofitCompatibility')
+def retrofitTestVersion = retrofitCompatibility ? '2.9.0' : '2.3.0'
+def okhttpTestVersion = retrofitCompatibility ? '3.14.0' : '4.1.0'
+
+if (retrofitCompatibility) {
+    configurations.matching { it.name.contains('UnitTest') }.all {
+        resolutionStrategy.force 'com.squareup.okhttp3:okhttp:3.14.0', 'com.squareup.okio:okio:1.17.2'
+    }
+}
+
 android {
+    testOptions {
+        unitTests.all {
+            if (project.hasProperty('m6BackendUrl')) systemProperty 'm6BackendUrl', project.property('m6BackendUrl')
+            if (retrofitCompatibility) {
+                reports.junitXml.destination = file("$buildDir/test-results/retrofit29/$name")
+                reports.html.destination = file("$buildDir/reports/tests/retrofit29/$name")
+            }
+            if (System.getenv('ST_TEST_REPORT_DIR')) {
+                reports.junitXml.destination = file("${System.getenv('ST_TEST_REPORT_DIR')}/xml/$name")
+                reports.html.destination = file("${System.getenv('ST_TEST_REPORT_DIR')}/html/$name")
+            }
+        }
+    }
     compileSdkVersion 29
     buildToolsVersion "29.0.2"
 
@@ -53,12 +118,62 @@ dependencies {
     androidTestImplementation 'androidx.test.espresso:espresso-core:3.2.0'
     testImplementation 'junit:junit:4.12'
     testImplementation 'org.mockito:mockito-core:4.8.0'
+    testCompileOnly 'org.jetbrains:annotations:13.0'
     testImplementation 'com.google.code.gson:gson:2.8.5'
-    testImplementation 'com.squareup.okhttp3:okhttp:4.1.0'
+    testImplementation "com.squareup.okhttp3:okhttp:$okhttpTestVersion"
     testImplementation 'com.github.franmontiel:PersistentCookieJar:v1.0.1'
-    testImplementation 'com.squareup.retrofit2:retrofit:2.3.0'
-    testImplementation 'com.squareup.retrofit2:converter-gson:2.3.0'
+    testImplementation "com.squareup.retrofit2:retrofit:$retrofitTestVersion"
+    testImplementation "com.squareup.retrofit2:converter-gson:$retrofitTestVersion"
     testImplementation 'org.json:json:20220320'
     testImplementation 'io.github.ivanshafran:shared-preferences-mock:1.2.4'
-    compile files('../../../app/build/outputs/aar/app-debug.aar')
+    compile files(new File(sdkRoot, 'app/build/outputs/aar/app-debug.aar')).builtBy(preparePublishedUpgradeArtifacts)
+    testImplementation files(new File(sdkRoot, 'app/build/upgradeHarness/upgrade-harness.jar')).builtBy(preparePublishedUpgradeArtifacts)
+}
+
+task upgradeLiveTest(type: Test, dependsOn: preparePublishedUpgradeArtifacts) {
+    description = 'Published 0.5.4 continuation against an externally provisioned Node/Core/FDI member.'
+    group = 'verification'
+    filter { includeTestsMatching 'com.example.example.PublishedUpgradeLiveTest' }
+    def publishedJar = new File(sdkRoot, 'app/build/legacy054/classes.jar')
+    def publishedDriver = new File(sdkRoot, 'app/build/legacy054/driver')
+    inputs.file(publishedJar).withPropertyName('publishedJar')
+    inputs.dir(publishedDriver).withPropertyName('publishedDriver')
+    outputs.upToDateWhen { false }
+    outputs.doNotCacheIf('Tests externally provisioned backend state') { true }
+    systemProperty 'legacy054.jar', publishedJar.absolutePath
+    systemProperty 'legacy054.driver', publishedDriver.absolutePath
+    ['baseUrl', 'fdiVersion', 'expectedNodeVersion', 'expectedTokenVersion',
+     'expectedPublishedLoginVersion', 'expectedPublishedHandoffVersion', 'expectedCandidateRefreshVersion',
+      'expectedPublishedHandoffVersions', 'loginRoute', 'legacy218Evidence'].each { option ->
+        def key = "upgrade.${option}"
+        if (project.hasProperty(key)) systemProperty key, project.property(key)
+    }
+    if (project.hasProperty('upgrade.legacy218Evidence')) {
+        def receipt = file(project.property('upgrade.legacy218Evidence'))
+        inputs.file(receipt).withPropertyName('legacy218Evidence')
+        systemProperty 'upgrade.legacy218Evidence', receipt.absolutePath
+    }
+    doFirst {
+        if (!systemProperties['upgrade.baseUrl'] || !systemProperties['upgrade.fdiVersion']) {
+            throw new GradleException('upgradeLiveTest requires upgrade.baseUrl and upgrade.fdiVersion')
+        }
+    }
+    afterSuite { descriptor, result ->
+        if (descriptor.parent == null && result.testCount == result.skippedTestCount) {
+            throw new GradleException('Live upgrade matrix executed no supported rows')
+        }
+    }
+}
+
+afterEvaluate {
+    def unit = tasks.getByName('testDebugUnitTest')
+    upgradeLiveTest.dependsOn unit.taskDependencies.getDependencies(unit)
+    upgradeLiveTest.testClassesDirs = unit.testClassesDirs
+    upgradeLiveTest.classpath = unit.classpath
+    unit.systemProperties.each { key, value ->
+        if (!upgradeLiveTest.systemProperties.containsKey(key)) upgradeLiveTest.systemProperty key, value
+    }
+    tasks.withType(Test).matching { it.name != 'upgradeLiveTest' }.all {
+        exclude '**/PublishedUpgradeLiveTest*'
+    }
 }

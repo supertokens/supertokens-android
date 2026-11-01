@@ -1,0 +1,83 @@
+name: Release consumer compatibility
+
+on:
+  push:
+    branches: ['[0-9]+.[0-9]+', 'test-cicd/**']
+    tags: ['dev-v*', 'v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-consumer-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  consumer:
+    name: Published upgrade and R8 API 34
+    runs-on: ubuntu-22.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21.0.7+6'
+      - name: Build pinned Core and private backend dependencies
+        env:
+          COMPAT_ROOT_SHA: ${{ vars.COMPAT_ROOT_SHA }}
+          COMPAT_CORE_SHA: ${{ vars.COMPAT_CORE_SHA }}
+          COMPAT_PLUGIN_SHA: ${{ vars.COMPAT_PLUGIN_SHA }}
+          COMPAT_NODE_SHA: ${{ vars.COMPAT_NODE_SHA }}
+          SUPERTOKENS_API_KEY: ${{ secrets.COMPAT_CORE_SETUP_API_KEY }}
+        run: |
+          echo "CORE_JAVA=$JAVA_HOME/bin/java" >> "$GITHUB_ENV"
+          bash .circleci/prepareConsumerBackend.sh "$RUNNER_TEMP/consumer"
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+        with:
+          cmdline-tools-version: '11076708'
+      - run: |
+          sdkmanager 'platforms;android-32' 'build-tools;29.0.2' 'build-tools;30.0.3'
+          sudo chmod 666 /dev/kvm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '11.0.25+9'
+      - name: Fresh published, candidate and differently mapped R8 APKs
+        run: bash .circleci/buildConsumers.sh "$RUNNER_TEMP/consumer/public"
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Owned fixture lifecycle and bounded upgrade/R8 stages
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d
+        with:
+          api-level: 34
+          target: default
+          arch: x86_64
+          emulator-port: 5554
+          emulator-boot-timeout: 600
+          disable-linux-hw-accel: 'false'
+          script: |
+            test "$(adb -s emulator-5554 shell getprop ro.build.version.sdk | tr -d '\r')" = 34
+            CORE_PROTOCOL_TESTS=1 ST_TEST_JAVA="$CORE_JAVA" timeout --signal=TERM --kill-after=60s 35m node testHelpers/server/runOrdinary.js "$RUNNER_TEMP/consumer/core-source" "$RUNNER_TEMP/consumer/private" 18081 19001 bash "$PWD/.circleci/runConsumers.sh" "$PWD" "$RUNNER_TEMP/consumer/public" "$RUNNER_TEMP/consumer/private"
+      - name: Public runtime provenance
+        if: always()
+        run: bash testHelpers/device/runtime-provenance.sh 34 x86_64 "$RUNNER_TEMP/consumer/public/runtime"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: release-consumer-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/consumer/public/
+          if-no-files-found: error
+          retention-days: 14
