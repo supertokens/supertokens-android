@@ -33,7 +33,7 @@ public class TestappReinitializationTest {
         new SuperTokens.Builder(second, "http://localhost:8081")
                 .apiBasePath("/second").tokenTransferMethod("cookie").build();
         assertSame(original, SuperTokens.getSessionSnapshot(first));
-        verifyZeroInteractions(second);
+        verifyNoInteractions(second);
 
         com.example.TestUtils.setInitToFalse();
         assertFalse(original.isCurrent());
