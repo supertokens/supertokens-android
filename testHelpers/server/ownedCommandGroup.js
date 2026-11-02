@@ -1,4 +1,5 @@
 const path = require('path');
+const fs = require('fs');
 const { execFileSync } = require('child_process');
 const { OwnedProcess } = require('./ownedProcess');
 const crypto = require('crypto');
@@ -14,8 +15,44 @@ function processTable() {
     });
 }
 
+function linuxProcessIdentity(pid) {
+    const stat = fs.readFileSync(`/proc/${pid}/stat`).toString('utf8');
+    const close = stat.lastIndexOf(')');
+    const fields = stat.slice(close + 1).trim().split(/\s+/);
+    if (close < 0 || !/^\d+$/.test(fields[2]) || !/^\d+$/.test(fields[19])) {
+        throw new Error(`Invalid process identity for ${pid}; command drain unproven`);
+    }
+    return { group: Number(fields[2]), startTicks: fields[19] };
+}
+
+function linuxIdentityMatches(member, tagged) {
+    const found = tagged.get(member.pid);
+    if (!found || found.group !== member.group || found.startTicks !== member.startTicks) return false;
+    const current = linuxProcessIdentity(member.pid);
+    return current.group === member.group && current.startTicks === member.startTicks;
+}
+
 function taggedPids(token) {
     // Read-only discovery. Never persist environment output or use it as a kill command.
+    if (process.platform === 'linux') {
+        const tagged = new Map();
+        for (const pid of fs.readdirSync('/proc').filter(name => /^\d+$/.test(name))) {
+            try {
+                const before = linuxProcessIdentity(pid);
+                const environment = fs.readFileSync(`/proc/${pid}/environ`);
+                if (!environment.toString('utf8').split('\0').includes('ST_TEST_COMMAND_ID=' + token)) continue;
+                const after = linuxProcessIdentity(pid);
+                if (before.startTicks !== after.startTicks || before.group !== after.group) {
+                    throw new Error(`Process ${pid} changed during inspection; command drain unproven`);
+                }
+                tagged.set(Number(pid), after);
+            } catch (error) {
+                if (error.code === 'ENOENT' || error.code === 'ESRCH') continue;
+                throw new Error(`Unable to inspect process ${pid} (${error.code || 'inspection failed'}); command drain unproven`, { cause: error });
+            }
+        }
+        return tagged;
+    }
     const output = execFileSync('ps', process.platform === 'darwin'
         ? ['eww', '-axo', 'pid=,command='] : ['eww', '-axo', 'pid=,args='],
     { encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 });
@@ -76,7 +113,9 @@ class OwnedCommandGroup {
         if (table.some(row => descendants.has(row.pid) && row.group !== this.group && !row.zombie && !tagged.has(row.pid))) {
             throw new Error('Unidentified escaped descendant; retain fixture for recovery');
         }
-        return table.filter(row => (row.group === this.group || tagged.has(row.pid)) && !row.zombie);
+        return table.filter(row => (row.group === this.group || tagged.has(row.pid)) && !row.zombie)
+            .map(row => process.platform === 'linux' && tagged.has(row.pid)
+                ? { ...row, startTicks: tagged.get(row.pid).startTicks } : row);
     }
 
     async drain() {
@@ -93,7 +132,9 @@ class OwnedCommandGroup {
             for (const member of members.filter(row => row.group !== this.group)) {
                 const current = processTable().find(row => row.pid === member.pid);
                 if (!current || current.zombie) continue;
-                if (current.identity !== member.identity || !taggedPids(this.token).has(member.pid) || member.pid === process.pid) {
+                const tagged = taggedPids(this.token);
+                if (current.identity !== member.identity || current.group !== member.group || !tagged.has(member.pid) || member.pid === process.pid ||
+                    (process.platform === 'linux' && !linuxIdentityMatches(member, tagged))) {
                     throw new Error('Escaped worker identity changed; refusing signal');
                 }
                 process.kill(member.pid, signal);

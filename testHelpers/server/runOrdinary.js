@@ -74,9 +74,20 @@ async function main() {
     } finally {
         try { await test.drain(); }
         catch (error) {
-            fs.writeFileSync(path.join(root, 'RETAINED.json'), JSON.stringify({ backendPid: backend.child && backend.child.pid,
-                commandGroup: test.group, fingerprint: backend.fingerprint, instance, error: error.message }));
-            throw new Error('Command drain unproven; Core/backend retained at ' + root + ': ' + error.message);
+            try {
+                try {
+                    const record = fs.openSync(path.join(root, 'RETAINED.json'), 'w', 0o600);
+                    try {
+                        fs.writeFileSync(record, JSON.stringify({ backendPid: backend.child && backend.child.pid,
+                            commandGroup: test.group, fingerprint: backend.fingerprint, instance, error: error.message }));
+                        fs.fsyncSync(record);
+                    } finally { fs.closeSync(record); }
+                    fs.writeSync(2, 'Command drain unproven; Core/backend retained at ' + root + ': ' + error.message + '\n');
+                } catch (recordError) {
+                    try { fs.writeSync(2, 'Command drain unproven; retention record or diagnostic failed (' +
+                        (recordError.code || 'I/O error') + '); fixture location: ' + root + '\n'); } catch (_) { }
+                }
+            } finally { process.exit(1); }
         }
         fs.appendFileSync(path.join(root, 'process-tree.jsonl'), JSON.stringify({ action: 'BEFORE_CORE_CLEANUP' }) + '\n');
         if (ready) {
