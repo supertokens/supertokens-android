@@ -159,6 +159,18 @@ class OwnedCommandGroup {
                 const tagged = this.discover();
                 if (current.identity !== member.identity || current.group !== member.group || !tagged.has(member.pid) || member.pid === process.pid ||
                     (process.platform === 'linux' && !linuxIdentityMatches(member, tagged))) {
+                    const found = tagged.get ? tagged.get(member.pid) : undefined;
+                    let finalIdentity;
+                    if (process.platform === 'linux') {
+                        try { finalIdentity = linuxProcessIdentity(member.pid); } catch (_) { /* diagnostic only */ }
+                    }
+                    this.evidence({ action: 'ESCAPED_IDENTITY_MISMATCH', pid: member.pid,
+                        before: { group: member.group, startTicks: member.startTicks },
+                        after: { group: current.group, tagged: tagged.has(member.pid),
+                            taggedGroup: found && found.group, taggedStartTicks: found && found.startTicks,
+                            psIdentityMatches: current.identity === member.identity,
+                            finalGroup: finalIdentity && finalIdentity.group,
+                            finalStartTicks: finalIdentity && finalIdentity.startTicks } });
                     throw new Error('Escaped worker identity changed; refusing signal');
                 }
                 process.kill(member.pid, signal);

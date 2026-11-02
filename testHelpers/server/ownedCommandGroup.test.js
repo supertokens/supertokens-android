@@ -115,6 +115,45 @@ test('discovery rechecks the live leader and retains its bound after verified ex
     assert.deepStrictEqual(Array.from(group.discover().keys()), []);
 });
 
+test('escaped worker refusal records sanitized identity comparisons without signaling', async () => {
+    const events = [];
+    const ps = () => '42 1 42 S Mon Jan  1 00:00:00 2024 secret-command\n';
+    const { OwnedCommandGroup } = discovery({ 42: { stat: stat(42, 42, 101) } }, ps);
+    const group = new OwnedCommandGroup('test', event => events.push(event));
+    group.owner = { child: { pid: 10 }, fingerprint: 'owned' };
+    group.started = true;
+    group.verifyGroup = () => [{ pid: 42, group: 42, startTicks: '100', identity: 'Mon Jan 1 00:00:00 2024 secret-command' }];
+    group.discover = () => new Map([[42, { group: 42, startTicks: '101' }]]);
+    await assert.rejects(group.drain(), /Escaped worker identity changed; refusing signal/);
+    const diagnostic = events.find(event => event.action === 'ESCAPED_IDENTITY_MISMATCH');
+    assert.ok(diagnostic);
+    assert.deepStrictEqual(JSON.parse(JSON.stringify(diagnostic)), {
+        action: 'ESCAPED_IDENTITY_MISMATCH', pid: 42,
+        before: { group: 42, startTicks: '100' },
+        after: { group: 42, tagged: true, taggedGroup: 42, taggedStartTicks: '101', psIdentityMatches: true,
+            finalGroup: 42, finalStartTicks: '101' }
+    });
+    assert.ok(!JSON.stringify(diagnostic).includes('secret-command'));
+});
+
+test('escaped worker diagnostics distinguish missing tag, changed group and ps identity', async () => {
+    for (const scenario of ['tag', 'group', 'ps']) {
+        const events = [];
+        const ps = () => `42 1 ${scenario === 'group' ? 43 : 42} S Mon Jan 1 00:00:00 2024 ${scenario === 'ps' ? 'changed' : 'original'}\n`;
+        const { OwnedCommandGroup } = discovery({ 42: { stat: stat(42, 42, 100) } }, ps);
+        const group = new OwnedCommandGroup('test', event => events.push(event));
+        group.owner = { child: { pid: 10 }, fingerprint: 'owned' };
+        group.started = true;
+        group.verifyGroup = () => [{ pid: 42, group: 42, startTicks: '100', identity: 'Mon Jan 1 00:00:00 2024 original' }];
+        group.discover = () => scenario === 'tag' ? new Map() : new Map([[42, { group: 42, startTicks: '100' }]]);
+        await assert.rejects(group.drain(), /refusing signal/);
+        const { after } = events.find(event => event.action === 'ESCAPED_IDENTITY_MISMATCH');
+        assert.strictEqual(after.tagged, scenario !== 'tag');
+        assert.strictEqual(after.group, scenario === 'group' ? 43 : 42);
+        assert.strictEqual(after.psIdentityMatches, scenario !== 'ps');
+    }
+});
+
 test('supervisor exits promptly when startup IPC is disconnected', { timeout: 5000 }, async () => {
     const child = fork(path.join(__dirname, 'ordinarySupervisor.js'), [], {
         stdio: ['ignore', 'ignore', 'pipe', 'ipc'], env: { ...process.env, BASH_ENV: '', ENV: '' }
