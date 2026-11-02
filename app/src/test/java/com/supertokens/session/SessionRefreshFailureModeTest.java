@@ -14,7 +14,7 @@ import org.junit.Test;
 import static org.junit.Assert.*;
 
 public class SessionRefreshFailureModeTest extends SessionTestFixture {
-    public enum Fault { HTML, MISSING_HEADERS, HTTP_500, HTTP_502, HTTP_503, RETRY_AFTER, RESET, TIMEOUT, FRONT_ONLY }
+    public enum Fault { HTML, MISSING_HEADERS, HTTP_500, HTTP_502, HTTP_503, RETRY_AFTER, RESET, STALLED_BACKEND, FRONT_ONLY }
     private final AtomicInteger preparations = new AtomicInteger();
 
     @Override protected void initializeSession() throws Exception {
@@ -48,10 +48,14 @@ public class SessionRefreshFailureModeTest extends SessionTestFixture {
                         assertEquals("/auth/session/refresh", request.getPath());
                         refreshes.incrementAndGet();
                         assertEquals("Bearer " + before.getTokens().getRefreshToken(), request.getHeader("Authorization"));
+                        // Legacy URLConnection has no read deadline, so release the stalled request with a failure.
+                        if (url && fault == Fault.STALLED_BACKEND) {
+                            return new MockResponse().setResponseCode(503).setHeadersDelay(1, TimeUnit.SECONDS);
+                        }
                         return response(fault, ignored);
                     }
                 });
-                // The legacy OkHttp chain inherits this native read timeout; URLConnection refresh has its SDK 10s bound.
+                // The legacy OkHttp chain inherits this native read timeout.
                 client = client.newBuilder().readTimeout(200, TimeUnit.MILLISECONDS).build();
                 ExecutorService worker = Executors.newSingleThreadExecutor();
                 try {
@@ -163,7 +167,7 @@ public class SessionRefreshFailureModeTest extends SessionTestFixture {
             case HTTP_503: return new MockResponse().setResponseCode(503);
             case RETRY_AFTER: return new MockResponse().setResponseCode(429).setHeader("Retry-After", "3600");
             case RESET: return new MockResponse().setSocketPolicy(SocketPolicy.DISCONNECT_AFTER_REQUEST);
-            case TIMEOUT: return new MockResponse().setSocketPolicy(SocketPolicy.NO_RESPONSE);
+            case STALLED_BACKEND: return new MockResponse().setSocketPolicy(SocketPolicy.NO_RESPONSE);
             case FRONT_ONLY: return new MockResponse().addHeader("front-token", ignored.getFrontToken());
             default: throw new AssertionError(fault);
         }

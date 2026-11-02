@@ -203,7 +203,7 @@ public class SuperTokens {
             resolution = RefreshCoordinator.resolve(context, tag.getOwner(),
                     SessionTransport.access(responseTag.getSnapshot()) == null,
                     SessionTransport.access(responseTag.getSnapshot()),
-                    SuperTokensHttpURLConnection.refreshTransport(), responseTag.getSnapshot().getRefreshTokenRevision(), true);
+                    SuperTokensHttpURLConnection.refreshTransport(true), responseTag.getSnapshot().getRefreshTokenRevision(), true);
             if (!resolution.isSuccess()) {
                 if (resolution.getStatus() == SessionResolution.Status.STALE_OWNER || resolution.pendingReplacement) return;
                 if (resolution.getError() != null) throw resolution.getError();
@@ -478,7 +478,7 @@ public class SuperTokens {
     private static SessionResolution resolveLegacyAccessToken(Context context, SessionOwner expectedOwner,
                                                               boolean forceRefresh, String failedAccessToken) {
         return RefreshCoordinator.resolve(context, expectedOwner, forceRefresh, failedAccessToken,
-                SuperTokensHttpURLConnection.refreshTransport(), true);
+                SuperTokensHttpURLConnection.refreshTransport(true), true);
     }
 
     public static SessionRequestTag captureRequestTag(Context context) {

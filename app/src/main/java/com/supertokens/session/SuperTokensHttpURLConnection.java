@@ -35,7 +35,7 @@ public class SuperTokensHttpURLConnection {
     }
 
     public static HttpURLConnection newRequest(URL url, PreConnectCallback callback,
-                                               SessionRequestTag requestTag)
+                                               final SessionRequestTag requestTag)
             throws IllegalAccessException, IOException {
         if (!SuperTokens.isInitCalled) throw new IllegalAccessException("SuperTokens.init function needs to be called before using newRequest");
         Context context = SuperTokens.contextWeakReference.get();
@@ -115,7 +115,7 @@ public class SuperTokensHttpURLConnection {
                                     SessionState.Configuration configuration, SessionSnapshot captured)
                                     throws IOException {
                                 if (configuration != config) throw new StaleSessionException();
-                                return refresh(ctx, configuration, captured);
+                                return refresh(ctx, configuration, captured, requestTag == null);
                             }
                         }, wire.getSnapshot().getRefreshTokenRevision(), requestTag == null);
                 if (!resolution.isSuccess()) {
@@ -140,71 +140,100 @@ public class SuperTokensHttpURLConnection {
     }
 
     static RefreshCoordinator.Transport refreshTransport() {
+        return refreshTransport(false);
+    }
+
+    static RefreshCoordinator.Transport refreshTransport(final boolean legacy) {
         return new RefreshCoordinator.Transport() {
             @Override public SessionResponse execute(Context context,
                     SessionState.Configuration configuration, SessionSnapshot captured) throws IOException {
-                return refresh(context, configuration, captured);
+                return refresh(context, configuration, captured, legacy);
             }
         };
     }
 
     static SessionResponse refresh(Context context, SessionState.Configuration configuration,
                                    SessionSnapshot captured) throws IOException {
-        RefreshDeadline deadline = new RefreshDeadline();
+        return refresh(context, configuration, captured, false);
+    }
+
+    static SessionResponse refresh(Context context, SessionState.Configuration configuration,
+                                   SessionSnapshot captured, boolean legacy) throws IOException {
+        RefreshDeadline deadline = legacy ? null : new RefreshDeadline();
         SessionRequestTag tag = new SessionRequestTag(captured, configuration);
         SessionTransport.requireCurrentRefresh(tag);
-        URL url = new URL(configuration.refreshTokenUrl);
-        final HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-        java.util.concurrent.ScheduledFuture<?> timeout = null;
-        try {
-            requireCookieManager(configuration);
-            connection.setRequestMethod("POST");
-            connection.setInstanceFollowRedirects(false);
-            connection.setUseCaches(false);
-            connection.setConnectTimeout((int) RefreshCoordinator.NETWORK_TIMEOUT_MS);
-            connection.setReadTimeout((int) RefreshCoordinator.NETWORK_TIMEOUT_MS);
-            // Streaming prevents HttpURLConnection from transparently replaying this POST.
-            connection.setDoOutput(true);
-            connection.setFixedLengthStreamingMode(0);
-            connection.setRequestProperty("rid", SuperTokens.rid);
-            connection.setRequestProperty("fdi-version", Utils.join(Version.supported_fdi, ","));
-            connection.setRequestProperty("st-auth-mode", configuration.values.tokenTransferMethod);
-            String auth = SessionTransport.authorization(captured, true);
-            String anti = SessionTransport.antiCSRF(captured);
-            if (auth != null) connection.setRequestProperty("Authorization", auth);
-            if (anti != null) connection.setRequestProperty(Constants.CSRF_HEADER_KEY, anti);
-            Map<String, String> headers = configuration.values.customHeaderMapper
-                    .getRequestHeaders(CustomHeaderProvider.RequestType.REFRESH);
-            if (headers != null) {
-                for (Map.Entry<String, String> entry : headers.entrySet()) {
-                    if (entry.getKey().equalsIgnoreCase("Authorization")
-                            && !SessionTransport.matches(entry.getValue(), auth)) {
-                        throw new RefreshCoordinator.ConfigurationException("Refresh callback changed authorization");
-                    }
-                    connection.setRequestProperty(entry.getKey(), entry.getValue());
+        URL origin = new URL(configuration.refreshTokenUrl);
+        URL url = origin;
+        boolean post = true;
+        for (int redirects = 0; ; redirects++) {
+            final HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+            java.util.concurrent.ScheduledFuture<?> timeout = null;
+            try {
+                requireCookieManager(configuration);
+                connection.setRequestMethod(post ? "POST" : "GET");
+                connection.setInstanceFollowRedirects(false);
+                connection.setUseCaches(false);
+                if (post) {
+                    // Streaming prevents HttpURLConnection from transparently replaying this POST.
+                    connection.setDoOutput(true);
+                    connection.setFixedLengthStreamingMode(0);
                 }
+                connection.setRequestProperty("rid", SuperTokens.rid);
+                connection.setRequestProperty("fdi-version", Utils.join(Version.supported_fdi, ","));
+                connection.setRequestProperty("st-auth-mode", configuration.values.tokenTransferMethod);
+                String auth = SessionTransport.authorization(captured, true);
+                String anti = SessionTransport.antiCSRF(captured);
+                if (auth != null) connection.setRequestProperty("Authorization", auth);
+                if (anti != null) connection.setRequestProperty(Constants.CSRF_HEADER_KEY, anti);
+                Map<String, String> headers = configuration.values.customHeaderMapper
+                        .getRequestHeaders(CustomHeaderProvider.RequestType.REFRESH);
+                if (headers != null) {
+                    for (Map.Entry<String, String> entry : headers.entrySet()) {
+                        if (entry.getKey().equalsIgnoreCase("Authorization")
+                                && !SessionTransport.matches(entry.getValue(), auth)) {
+                            throw new RefreshCoordinator.ConfigurationException("Refresh callback changed authorization");
+                        }
+                        connection.setRequestProperty(entry.getKey(), entry.getValue());
+                    }
+                }
+                SessionTransport.requireCurrentRefresh(tag);
+                if (deadline != null) {
+                    int remaining = (int) deadline.remainingMillis();
+                    connection.setConnectTimeout(remaining);
+                    connection.setReadTimeout(remaining);
+                    timeout = deadline.cancelAfterDeadline(new Runnable() {
+                        @Override public void run() { connection.disconnect(); }
+                    });
+                }
+                if (post) connection.getOutputStream().close();
+                int code = connection.getResponseCode();
+                if (!SessionTransport.isResponseInScope(origin.toString(), connection.getURL().toString(), configuration)) {
+                    throw new RefreshCoordinator.ConfigurationException("Refresh response URL is outside captured session scope");
+                }
+                SessionTransport.requireCurrentRefresh(tag);
+                String location = connection.getHeaderField("Location");
+                if ((code == 301 || code == 302 || code == 303 || code == 307 || code == 308) && location != null) {
+                    if (redirects >= 20) throw new IOException("Too many refresh redirects");
+                    URL next = new URL(url, location);
+                    if (!SessionTransport.isResponseInScope(origin.toString(), next.toString(), configuration)
+                            || !SessionTransport.isResponseInScope(url.toString(), next.toString(), configuration)) {
+                        throw new RefreshCoordinator.ConfigurationException("Refresh redirect URL is outside captured session scope");
+                    }
+                    manuallySetCookiesFromResponse(url, connection, configuration);
+                    if (code == 301 || code == 302 || code == 303) post = false;
+                    url = next;
+                    continue;
+                }
+                SessionResponse response = new SessionResponse(code, connection.getResponseMessage(), connection.getHeaderFields());
+                manuallySetCookiesFromResponse(url, connection, configuration);
+                if (deadline != null) deadline.remainingMillis();
+                return response;
+            } catch (IllegalAccessException e) {
+                throw new RefreshCoordinator.ConfigurationException(e.getMessage());
+            } finally {
+                RefreshDeadline.finished(timeout);
+                connection.disconnect();
             }
-            SessionTransport.requireCurrentRefresh(tag);
-            int remaining = (int) deadline.remainingMillis();
-            connection.setConnectTimeout(remaining);
-            connection.setReadTimeout(remaining);
-            timeout = deadline.cancelAfterDeadline(new Runnable() {
-                @Override public void run() { connection.disconnect(); }
-            });
-            connection.getOutputStream().close();
-            int code = connection.getResponseCode();
-            if (!SessionTransport.isResponseInScope(url.toString(), connection.getURL().toString(), configuration)) {
-                throw new RefreshCoordinator.ConfigurationException("Refresh response URL is outside captured session scope");
-            }
-            SessionResponse response = new SessionResponse(code, connection.getResponseMessage(), connection.getHeaderFields());
-            manuallySetCookiesFromResponse(url, connection, configuration);
-            deadline.remainingMillis();
-            return response;
-        } catch (IllegalAccessException e) {
-            throw new RefreshCoordinator.ConfigurationException(e.getMessage());
-        } finally {
-            RefreshDeadline.finished(timeout);
-            connection.disconnect();
         }
     }
 
@@ -219,7 +248,7 @@ public class SuperTokensHttpURLConnection {
                     new StaleSessionException());
         }
         SessionResolution result = RefreshCoordinator.resolve(context, tag.getOwner(), true, null,
-                refreshTransport(), true);
+                refreshTransport(true), true);
         if (result.isSuccess()) return new Utils.Unauthorised(Utils.Unauthorised.UnauthorisedStatus.RETRY);
         if (result.getError() != null) return new Utils.Unauthorised(Utils.Unauthorised.UnauthorisedStatus.API_ERROR, result.getError());
         return new Utils.Unauthorised(Utils.Unauthorised.UnauthorisedStatus.SESSION_EXPIRED);
