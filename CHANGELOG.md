@@ -22,6 +22,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 #### Compatibility
 
+- A new persistence failure while accepting an untagged response is reported rather than exposing uncommitted credentials (D10).
+
 - Existing 0.5.4 integrations require no code or stored-session migration changes. New APIs are optional and retain stricter validation and explicit failure reporting.
 - Preserve legacy outbound host matching, caller-owned refresh timeouts, Java 7 production bytecode and minSdk 17. Redirected responses must remain on the sent request's origin to change managed state or trigger retries.
 - See [session ownership](SESSION_OWNERSHIP.md) for cookie, persistence and rollback limits. This candidate entry is not release approval; [qualification](docs/compatibility-wiki/index.md) remains artifact-specific, with API17 and Linux CI verification gaps.

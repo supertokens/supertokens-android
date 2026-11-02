@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.net.CookieHandler;
 import java.net.CookieManager;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -21,10 +22,46 @@ import static org.junit.Assert.*;
 
 public class LegacyRecoveryRequestTest extends SessionTestFixture {
     private boolean cookieMode;
+    private final List<EventHandler.EventType> events = new ArrayList<>();
 
     @Override protected void initializeSession() throws Exception {
         new SuperTokens.Builder(context, server.url("/").toString())
-                .tokenTransferMethod(cookieMode ? "cookie" : "header").build();
+                .tokenTransferMethod(cookieMode ? "cookie" : "header").eventHandler(events::add).build();
+    }
+
+    @Test public void legacyRecoveryEntryPointsBehaveAsAbsent() throws Exception {
+        for (boolean unavailable : new boolean[]{false, true}) {
+            for (boolean url : new boolean[]{false, true}) {
+                recover(unavailable);
+                events.clear();
+                assertFalse(SuperTokens.doesSessionExist(context));
+                assertNull(SuperTokens.getAccessToken(context));
+                try { SuperTokens.getUserId(context); fail("No user expected"); }
+                catch (IllegalStateException expected) { }
+                assertFalse(SuperTokens.attemptRefreshingSession(context));
+                assertEquals(Arrays.asList(EventHandler.EventType.UNAUTHORISED), events);
+                events.clear();
+                server.enqueue(new MockResponse().setResponseCode(401));
+                assertEquals(401, request(url, null, "/recovery"));
+                assertCredentialFree();
+                assertEquals(Arrays.asList(EventHandler.EventType.UNAUTHORISED), events);
+                events.clear();
+                SuperTokens.signOut(context);
+                assertEquals(Arrays.asList(EventHandler.EventType.SIGN_OUT), events);
+                assertEquals(SessionSnapshot.Status.ABSENT, SessionState.snapshot().getStatus());
+                restart(true);
+                assertEquals(SessionSnapshot.Status.ABSENT, SessionState.snapshot().getStatus());
+            }
+        }
+    }
+
+    @Test public void recoverySignOutIsBestEffortWhenPersistenceFails() throws Exception {
+        recover(false);
+        failCommits(TestPreferences.CommitMode.RETURN_FALSE);
+        events.clear();
+        SuperTokens.signOut(context);
+        assertEquals(Arrays.asList(EventHandler.EventType.SIGN_OUT), events);
+        assertEquals(SessionSnapshot.Status.RECOVERY_REQUIRED, SessionState.snapshot().getStatus());
     }
 
     private void recover(boolean unavailable) throws Exception {

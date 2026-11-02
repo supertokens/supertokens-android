@@ -14,18 +14,12 @@ import static org.junit.Assert.*;
 
 public class LegacyPendingMutationTest extends SessionTestFixture {
     private void assertRecoveryErrors() throws Exception {
-        try {
-            SuperTokens.attemptRefreshingSession(context);
-            fail("Recovery must remain observable to attempt-refresh");
-        } catch (IOException expected) {
-            assertEquals("Session storage recovery is required", expected.getMessage());
-        }
-        try {
-            SuperTokens.signOut(context);
-            fail("Recovery must remain observable to signout");
-        } catch (IOException expected) {
-            assertEquals("Session storage recovery is required", expected.getMessage());
-        }
+        // R20 treats terminal recovery as absent only for legacy entry points.
+        assertFalse(SuperTokens.attemptRefreshingSession(context));
+        SessionSnapshot snapshot = SuperTokens.getSessionSnapshot(context);
+        SessionResolution strict = SuperTokens.resolveAccessToken(context, snapshot.getOwner(), true, null);
+        assertEquals(SessionResolution.Status.RECOVERY_REQUIRED, strict.getStatus());
+        assertNotNull(strict.getError());
     }
 
     private void blockedLegacyCalls(boolean signOut) throws Exception {
@@ -137,6 +131,8 @@ public class LegacyPendingMutationTest extends SessionTestFixture {
             assertEquals(SessionCommitResult.Status.PERSISTENCE_FAILED, result.getStatus());
             assertEquals("Injected primary failure", result.getPersistenceError().getMessage());
             assertRecoveryErrors();
+            SuperTokens.signOut(context);
+            assertEquals(SessionSnapshot.Status.ABSENT, SuperTokens.getSessionSnapshot(context).getStatus());
             assertEquals(0, server.getRequestCount());
         } finally { recoveryRelease.countDown(); workers.shutdownNow(); }
     }
@@ -155,6 +151,8 @@ public class LegacyPendingMutationTest extends SessionTestFixture {
             storage.release.countDown();
             writer.get(5, TimeUnit.SECONDS);
             assertRecoveryErrors();
+            SuperTokens.signOut(context);
+            assertEquals(SessionSnapshot.Status.ABSENT, SuperTokens.getSessionSnapshot(context).getStatus());
         } finally { storage.release.countDown(); workers.shutdownNow(); }
     }
 

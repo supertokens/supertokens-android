@@ -6,6 +6,12 @@ behavior contract, not certification of a release artifact. Consult the
 [compatibility wiki](docs/compatibility-wiki/index.md) for scoped evidence and pending
 gates. Do not replace a published artifact with a local candidate under the same version.
 
+## Untagged response persistence failure (D10)
+
+If accepting an untagged response encounters a new storage commit failure, the
+request reports the failure and uncommitted credentials are not exposed. This
+deliberately differs from 0.5.4's in-memory behavior.
+
 ## Atomic native state
 
 ```java

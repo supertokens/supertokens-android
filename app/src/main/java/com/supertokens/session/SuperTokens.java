@@ -168,6 +168,13 @@ public class SuperTokens {
         SessionResolution resolution = resolveLegacyAccessToken(context, tag.getOwner(), false, null);
         if (!resolution.isSuccess()) {
             if (resolution.getStatus() == SessionResolution.Status.STALE_OWNER || resolution.pendingReplacement) return;
+            if (resolution.getStatus() == SessionResolution.Status.RECOVERY_REQUIRED) {
+                SessionCommitResult cleared = SessionState.clear(context, tag.getOwner());
+                if (cleared.getStatus() == SessionCommitResult.Status.STALE_OWNER) return;
+                SessionState.dispatch(cleared);
+                SessionState.dispatch(new LegacyEventBatch(captured.values.eventHandler, EventHandler.EventType.SIGN_OUT));
+                return;
+            }
             if (resolution.legacyHandlerFailure) {
                 // Published signOut treats a failed proactive session check as absent, without clearing credentials.
                 SessionState.dispatch(new LegacyEventBatch(captured.values.eventHandler, EventHandler.EventType.SIGN_OUT));
@@ -382,8 +389,12 @@ public class SuperTokens {
         SessionRequestTag captured = SessionState.capture();
         LegacyEventBatch absent = SessionState.absentUnauthorised(captured);
         SessionResolution result = resolveLegacyAccessToken(context, captured.getOwner(), true, null);
-        if (result.getStatus() == SessionResolution.Status.NO_SESSION) SessionState.dispatch(absent);
         if (result.getStatus() == SessionResolution.Status.STALE_OWNER || result.pendingReplacement) return false;
+        if (result.getStatus() == SessionResolution.Status.NO_SESSION
+                || result.getStatus() == SessionResolution.Status.RECOVERY_REQUIRED) {
+            SessionState.dispatch(absent);
+            return false;
+        }
         if (result.getError() != null) throw result.getError();
         return result.isSuccess();
     }

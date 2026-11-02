@@ -674,8 +674,6 @@ final class SessionState {
             return new SessionResolution(SessionResolution.Status.NO_SESSION, current, null);
         }
         if (current.getStatus() != SessionSnapshot.Status.AVAILABLE) {
-            // Only the reserved replacement view is benign at legacy entry points. A failed
-            // commit or a terminal partial raw tuple must retain its recovery error.
             boolean pendingReplacement = current.getStatus() == SessionSnapshot.Status.UNAVAILABLE
                     && pending != null && current.getOwner() == transientOwner;
             return new SessionResolution(SessionResolution.Status.RECOVERY_REQUIRED, current,
@@ -1042,7 +1040,11 @@ final class SessionState {
                         || (!compatibleResponse && !candidate.completeHeader
                         && !"cookie".equalsIgnoreCase(configuration.values.tokenTransferMethod))
                         || response.code < 200 || response.code >= 300)) {
-                    return new SessionCommitResult(SessionCommitResult.Status.RECOVERY_REQUIRED, current, null);
+                    LegacyEventBatch events = compatibleResponse
+                            && response.code == configuration.values.sessionExpiredStatusCode
+                            ? new LegacyEventBatch(configuration.values.eventHandler, EventHandler.EventType.UNAUTHORISED)
+                            : LegacyEventBatch.EMPTY;
+                    return new SessionCommitResult(SessionCommitResult.Status.RECOVERY_REQUIRED, current, null, events);
                 }
                 if (candidate == null || (response.code >= 300 && !candidate.removal)) {
                     if (current.getStatus() == SessionSnapshot.Status.ABSENT
@@ -1486,7 +1488,8 @@ final class SessionState {
         lock.lock();
         try {
             if (configuration != captured.configuration || !isCurrentLocked(captured.getOwner())
-                    || current.getStatus() != SessionSnapshot.Status.ABSENT) return LegacyEventBatch.EMPTY;
+                    || (current.getStatus() != SessionSnapshot.Status.ABSENT
+                    && !SessionTransport.isRecovering(current))) return LegacyEventBatch.EMPTY;
             return new LegacyEventBatch(configuration.values.eventHandler, EventHandler.EventType.UNAUTHORISED);
         } finally { lock.unlock(); }
     }
