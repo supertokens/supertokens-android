@@ -1,6 +1,6 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
-const { verifyRun, inspect, list, poll } = require('./requiredCompatibility');
+const { requirements, verifyRun, inspect, list, poll } = require('./requiredCompatibility');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
@@ -17,6 +17,20 @@ function fixture() {
 test('exact workflow, SHA, ref and attempt succeeds', () => {
     const { run, jobs } = fixture();
     assert.equal(verifyRun(run, jobs, expected), true);
+});
+test('both exact published upgrade and R8 device jobs are required', () => {
+    const workflow = 'release-compatibility.yml';
+    const names = ['Published upgrade and R8 API 21', 'Published upgrade and R8 API 34'];
+    assert.deepEqual(requirements[workflow], names);
+    const f = fixture();
+    const exp = { ...expected, workflow };
+    f.run.path = '.github/workflows/' + workflow;
+    f.jobs = names.map((name, index) => ({ ...f.jobs[0], id: 31 + index, name }));
+    assert.equal(verifyRun(f.run, f.jobs, exp), true);
+    for (const name of names) {
+        assert.throws(() => verifyRun(f.run, f.jobs.filter(job => job.name !== name), exp), /Missing or duplicate required job/);
+        assert.throws(() => verifyRun(f.run, f.jobs.map(job => job.name === name ? { ...job, conclusion: 'skipped' } : job), exp), /stale, skipped, pending or failed/);
+    }
 });
 for (const [name, mutate] of [
     ['stale SHA', f => { f.run.head_sha = 'b'.repeat(40); }],

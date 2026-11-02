@@ -5,7 +5,7 @@ const fs = require('fs');
 const requirements = {
     'unit.yml': ['JVM and API compatibility'],
     'device.yml': ['Restart API 21', 'Restart API 34', 'Old runtime API 17', 'Old runtime API 19'],
-    'release-compatibility.yml': ['Published upgrade and R8 API 34'],
+    'release-compatibility.yml': ['Published upgrade and R8 API 21', 'Published upgrade and R8 API 34'],
     'nightly-compatibility.yml': ['Nightly OkHttp312', 'Nightly OkHttp410', 'Nightly OkHttp412', 'Nightly OkHttp5', 'Nightly Stress20'],
 };
 

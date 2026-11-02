@@ -15,9 +15,13 @@ concurrency:
 
 jobs:
   consumer:
-    name: Published upgrade and R8 API 34
+    name: Published upgrade and R8 API ${{ matrix.api }}
     runs-on: ubuntu-22.04
     timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        api: [21, 34]
     steps:
       - uses: actions/checkout@v4
         with:
@@ -63,22 +67,22 @@ jobs:
       - name: Owned fixture lifecycle and bounded upgrade/R8 stages
         uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d
         with:
-          api-level: 34
+          api-level: ${{ matrix.api }}
           target: default
           arch: x86_64
           emulator-port: 5554
           emulator-boot-timeout: 600
           disable-linux-hw-accel: 'false'
           script: |
-            test "$(adb -s emulator-5554 shell getprop ro.build.version.sdk | tr -d '\r')" = 34
+            test "$(adb -s emulator-5554 shell getprop ro.build.version.sdk | tr -d '\r')" = '${{ matrix.api }}'
             CORE_PROTOCOL_TESTS=1 ST_TEST_JAVA="$CORE_JAVA" timeout --signal=TERM --kill-after=60s 35m node testHelpers/server/runOrdinary.js "$RUNNER_TEMP/consumer/core-source" "$RUNNER_TEMP/consumer/private" 18081 19001 bash "$PWD/.circleci/runConsumers.sh" "$PWD" "$RUNNER_TEMP/consumer/public" "$RUNNER_TEMP/consumer/private"
       - name: Public runtime provenance
         if: always()
-        run: bash testHelpers/device/runtime-provenance.sh 34 x86_64 "$RUNNER_TEMP/consumer/public/runtime"
+        run: bash testHelpers/device/runtime-provenance.sh '${{ matrix.api }}' x86_64 "$RUNNER_TEMP/consumer/public/runtime"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: release-consumer-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          name: release-consumer-api${{ matrix.api }}-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/consumer/public/
           if-no-files-found: error
           retention-days: 14

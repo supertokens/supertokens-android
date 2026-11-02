@@ -112,10 +112,21 @@ def validate_stage(value, config, stage, previous):
     return value
 
 
+def compiled_source_paths(app):
+    # Match Gradle's default file-tree exclusions for version-control metadata.
+    excluded = {'.git', '.svn', '.hg', 'CVS', '.bzr', 'SCCS', '_darcs', '.metadata', 'BitKeeper', 'ChangeSet', '.DS_Store',
+                '.gitignore', '.gitattributes', '.gitmodules', '.hgignore', '.hgsub', '.hgsubstate', '.hgtags', '.bzrignore', 'vssver.scc'}
+    return sorted(path for path in (app / 'app/src').rglob('*')
+                  if path.is_file() and not any(part in excluded for part in path.parts)
+                  and not any(part.endswith('~') or (part.startswith('#') and part.endswith('#'))
+                              or part.startswith(('.#', '._')) or (part.startswith('%') and part.endswith('%'))
+                              for part in path.parts))
+
+
 def source_manifest(root):
     paths = [root / 'testHelpers/device/restart-pairs.py']
     app = root / 'testHelpers/upgradeapp'
-    paths += sorted((app / 'app/src').rglob('*.java'))
+    paths += compiled_source_paths(app)
     paths += sorted((app / 'tools').glob('*.py'))
     paths += sorted((app / 'tools').rglob('*.js'))
     paths += [app / 'app/build.gradle', app / 'build.gradle', app / 'settings.gradle', app / 'gradle.properties']
@@ -124,6 +135,6 @@ def source_manifest(root):
 
 def compiled_sources(root):
     app = root / 'testHelpers/upgradeapp'
-    paths = sorted((app / 'app/src').rglob('*.java')) + sorted((app / 'app/src').rglob('AndroidManifest.xml'))
+    paths = compiled_source_paths(app)
     paths += [app / name for name in ['app/build.gradle', 'build.gradle', 'settings.gradle', 'gradle.properties']]
     return {str(path.relative_to(root)): hashlib.sha256(path.read_bytes()).hexdigest() for path in paths}

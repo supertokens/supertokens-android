@@ -1,5 +1,6 @@
 """Synthetic receipt/protocol controls only; no Android or backend certification."""
 import json
+import tempfile
 from pathlib import Path
 import unittest
 import zipfile
@@ -66,6 +67,30 @@ def stage(binding, action):
 
 
 class ReceiptControls(unittest.TestCase):
+    def test_resource_mutation_invalidates_both_source_bindings(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            app = root / 'testHelpers/upgradeapp'
+            asset = app / 'app/src/androidTest/assets/cookie-test-only-cert.pem'
+            resource = app / 'app/src/main/res/xml/test.xml'
+            for path in [asset, resource, app / 'app/build.gradle', app / 'build.gradle',
+                         app / 'settings.gradle', app / 'gradle.properties',
+                         root / 'testHelpers/device/restart-pairs.py']:
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text('original')
+            compiled = matrix_native.compiled_sources(root)
+            execution = matrix_native.source_manifest(root)
+            for path in [asset, resource]:
+                relative = str(path.relative_to(root))
+                self.assertIn(relative, compiled)
+                self.assertIn(relative, execution)
+                path.write_text('changed')
+                self.assertNotEqual(compiled, matrix_native.compiled_sources(root))
+                self.assertNotEqual(execution, matrix_native.source_manifest(root))
+                path.write_text('original')
+                self.assertEqual(compiled, matrix_native.compiled_sources(root))
+                self.assertEqual(execution, matrix_native.source_manifest(root))
+
     def test_four_exact_sequences(self):
         for mode in ['COOKIE', 'EXPOSED_COOKIE']:
             for flow in ['REFRESH', 'SIGN_OUT']:
@@ -353,6 +378,24 @@ class RunnerControls(unittest.TestCase):
         with zipfile.ZipFile(apk) as archive:
             entries = {info.filename: archive.read(info) for info in archive.infolist()}
         entries['assets/native-test-provenance.json'] = json.dumps(dict(schema=1, sources={})).encode()
+        with zipfile.ZipFile(apk, 'w') as archive:
+            for name, value in entries.items():
+                archive.writestr(name, value)
+        result = self.run_case(extra=['--preflight-only'])
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn('trusted compilation output', result.stderr)
+        self.assertFalse(any(command[0] == 'adb' for command in self.commands()))
+
+    def test_preflight_rejects_stale_cookie_asset_before_device(self):
+        self.prepare_matrix()
+        apk = self.root / 'sdk-test.apk'
+        with zipfile.ZipFile(apk) as archive:
+            entries = {info.filename: archive.read(info) for info in archive.infolist()}
+        provenance = json.loads(entries['assets/native-test-provenance.json'])
+        key = 'testHelpers/upgradeapp/app/src/androidTest/assets/cookie-test-only-cert.pem'
+        self.assertIn(key, provenance['sources'])
+        provenance['sources'][key] = digest(b'previous asset contents')
+        entries['assets/native-test-provenance.json'] = json.dumps(provenance).encode()
         with zipfile.ZipFile(apk, 'w') as archive:
             for name, value in entries.items():
                 archive.writestr(name, value)
