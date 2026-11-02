@@ -2,7 +2,7 @@ const crypto = require("crypto");
 const findFixtureTenant = require("./findFixtureTenant");
 
 // Tracks only users created by this process, never arbitrary caller-supplied user IDs.
-module.exports = function fixtureOwners(SuperTokens, ThirdParty, Multitenancy) {
+module.exports = function fixtureOwners(SuperTokens, ThirdParty, Multitenancy, sdkVersion) {
     const owners = new Map();
     // Tombstones acknowledge only known completed cleanups after a lost response.
     const cleaned = new Map();
@@ -36,6 +36,7 @@ module.exports = function fixtureOwners(SuperTokens, ThirdParty, Multitenancy) {
             return;
         }
         const tenantExists = owner.tenantId === "public" || await findFixtureTenant(Multitenancy, owner.tenantId) !== undefined;
+        if (owner.tenantCreationAmbiguous && tenantExists) throw new Error('Fixture tenant ownership is ambiguous; cleanup refused');
         if (owner.recipeUserId === undefined && tenantExists) {
             // Creation may have committed at Core before its response was lost.
             const users = await SuperTokens.listUsersByAccountInfo(owner.tenantId, {
@@ -124,14 +125,27 @@ module.exports = function fixtureOwners(SuperTokens, ThirdParty, Multitenancy) {
         owners.set(owner.id, owner);
         try {
             if (nonPublicTenant) {
+                const match = /^(\d+)\.\d+\.\d+$/.exec(sdkVersion || '');
+                const major = match && Number(match[1]);
+                if (!major || major < 17 || major > 24) {
+                    owners.delete(owner.id);
+                    throw new Error('Unsupported fixture tenant configuration for SDK version');
+                }
                 if (await findFixtureTenant(Multitenancy, owner.tenantId) !== undefined) {
                     owners.delete(owner.id);
                     throw new Error("Generated fixture tenant already exists");
                 }
-                // Retain ownership before the call: a lost response may still have created this tenant.
+                // A lost response cannot prove that this process created the tenant.
+                owner.tenantCreationAmbiguous = true;
+                const config = major >= 19 ? { firstFactors: ['thirdparty'] } : { thirdPartyEnabled: true };
+                const tenant = await Multitenancy.createOrUpdateTenant(owner.tenantId, config);
+                if (tenant.status === 'OK' && tenant.createdNew === false) {
+                    owners.delete(owner.id);
+                    throw new Error('Fixture tenant creation failed: tenant already exists');
+                }
+                if (tenant.status !== "OK" || tenant.createdNew !== true) throw new Error("Fixture tenant creation failed");
+                owner.tenantCreationAmbiguous = false;
                 owner.ownsTenant = true;
-                const tenant = await Multitenancy.createOrUpdateTenant(owner.tenantId, { thirdPartyEnabled: true });
-                if (tenant.status !== "OK" || !tenant.createdNew) throw new Error("Fixture tenant creation failed");
             }
             const created = await ThirdParty.manuallyCreateOrUpdateUser(owner.tenantId, "google", owner.id, email, true);
             if (created.status !== "OK") throw new Error("Core third-party creation failed: " + created.status);

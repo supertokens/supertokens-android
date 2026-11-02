@@ -25,6 +25,20 @@ async function main() {
     const owners = fixtureOwners(sdk, thirdParty);
     const { owner } = await owners.createLegacy('fixture@example.com', async id => ({ getHandle: () => id }), true);
     assert.equal(users.size, 1);
+    const retryUsers = new Map();
+    const retryThirdParty = {
+        async getUserByThirdPartyInfo(tenant, provider, id) { return retryUsers.get(id); },
+        async manuallyCreateOrUpdateUser(tenant, provider, id) {
+            assert.equal(tenant, 'public'); assert.equal(provider, 'google');
+            const user = { id: 'core-' + id, thirdParty: { id: provider, userId: id } };
+            retryUsers.set(id, user);
+            return { status: 'OK', createdNewUser: false, user };
+        }
+    };
+    const retryOwners = fixtureOwners(sdk, retryThirdParty);
+    await assert.rejects(retryOwners.createLegacy('fixture@example.com', async () => {}, true), /cleanup also failed/);
+    await assert.rejects(retryOwners.cleanupAll(), /ambiguous/);
+    assert.equal(retryUsers.size, 1);
     assert.equal(await owners.cleanupById(owner.id), true);
     assert.equal(users.size, 0);
     ambiguous = true;

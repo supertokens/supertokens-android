@@ -2,7 +2,7 @@ const assert = require("assert");
 const fixtureOwners = require("./fixtureOwners");
 
 // Fault-injecting SDK seam; these tests establish cleanup control flow, not Core parity.
-function harness() {
+function harness(version = '17.1.0') {
     const users = new Map();
     const mappings = new Map();
     const tenants = new Set();
@@ -63,8 +63,10 @@ function harness() {
         },
         async createOrUpdateTenant(id, config) {
             tenantCalls.create++;
-            assert.deepStrictEqual(config, { thirdPartyEnabled: true });
+            assert.deepStrictEqual(config, Number(version.split('.')[0]) < 19 ? { thirdPartyEnabled: true } : { firstFactors: ['thirdparty'] });
             const createdNew = !tenants.has(id);
+            if (faults.tenantCollision) { tenants.add(id); return { status: 'OK', createdNew: false }; }
+            if (faults.license) throw new Error('HTTP 402 missing multitenancy license');
             tenants.add(id);
             if (faults.tenantCreateAfter) throw new Error("tenant creation response lost");
             return { status: "OK", createdNew };
@@ -75,7 +77,7 @@ function harness() {
             return { status: "OK", didExist: tenants.delete(id) };
         }
     };
-    return { owners: fixtureOwners(SuperTokens, ThirdParty, Multitenancy), users, mappings, tenants, tenantCalls, faults, Multitenancy };
+    return { owners: fixtureOwners(SuperTokens, ThirdParty, Multitenancy, version), users, mappings, tenants, tenantCalls, faults, Multitenancy };
 }
 
 async function main() {
@@ -90,6 +92,31 @@ async function main() {
     } finally { crypto.randomBytes = randomBytes; }
     assert.deepStrictEqual(collision.tenantCalls, { create: 0, delete: 0 });
     assert.strictEqual(collision.users.size, 0);
+    const modern = harness('22.1.2');
+    const modernOwner = await modern.owners.create('modern@example.com', async id => ({ getHandle: () => id }), true);
+    await modern.owners.cleanupById(modernOwner.owner.id);
+    for (const version of ['18.0.3', '19.0.2', '24.1.0']) {
+        const pair = harness(version);
+        const { owner } = await pair.owners.create('version@example.com', async id => ({ getHandle: () => id }), true);
+        await pair.owners.cleanupById(owner.id);
+    }
+    const unknown = harness('25.0.0');
+    await assert.rejects(unknown.owners.create('unknown@example.com', async () => {}, true), /Unsupported fixture tenant configuration/);
+    assert.deepStrictEqual(unknown.tenantCalls, { create: 0, delete: 0 });
+    const denied = harness('22.1.2');
+    denied.faults.license = true;
+    await assert.rejects(denied.owners.create('denied@example.com', async () => {}, true), /402/);
+    assert.strictEqual(denied.tenantCalls.delete, 0);
+    const race = harness('22.1.2');
+    race.faults.tenantCollision = true;
+    await assert.rejects(race.owners.create('race@example.com', async () => {}, true), /creation failed/);
+    assert.strictEqual(race.tenantCalls.delete, 0);
+    assert.strictEqual(race.tenants.size, 1);
+    const ambiguousTenant = harness('22.1.2');
+    ambiguousTenant.faults.tenantCreateAfter = true;
+    await assert.rejects(ambiguousTenant.owners.create('ambiguous@example.com', async () => {}, true), /cleanup also failed/);
+    await assert.rejects(ambiguousTenant.owners.cleanupAll(), /ambiguous/);
+    assert.strictEqual(ambiguousTenant.tenantCalls.delete, 0);
     const tenant = harness();
     const createSession = async (id, tenantId) => {
         assert.notStrictEqual(tenantId, "public");
@@ -121,7 +148,7 @@ async function main() {
         assert.strictEqual(pending.users.size, 0);
         assert.strictEqual(pending.tenants.size, 0);
     }
-    for (const fault of ["tenantCreateAfter", "creationAfter", "mappingAfter", "session"]) {
+    for (const fault of ["creationAfter", "mappingAfter", "session"]) {
         const failed = harness();
         failed.faults[fault] = true;
         await assert.rejects(failed.owners.create("failure@example.com", async () => { throw new Error("session failed"); }, true));

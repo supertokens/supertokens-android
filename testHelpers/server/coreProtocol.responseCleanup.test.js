@@ -61,7 +61,7 @@ function harness(faultPoint, cleanupFails) {
         "supertokens-node": SuperTokens,
         "supertokens-node/recipe/session": { createNewSession: async () => session },
         "supertokens-node/recipe/session/framework/express": { verifySession: () => () => {} },
-        "supertokens-node/lib/build/version": { version: "test", cdiSupported: ["test-cdi"] },
+        "supertokens-node/lib/build/version": { version: "17.1.0", cdiSupported: ["test-cdi"] },
         "supertokens-node/recipe/thirdparty": ThirdParty,
         "supertokens-node/recipe/accountlinking": {},
         "supertokens-node/recipe/multitenancy": Multitenancy,

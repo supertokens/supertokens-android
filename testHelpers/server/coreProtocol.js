@@ -45,7 +45,7 @@ const transitionalSdkSupported = version === '15.2.3' && ThirdParty !== undefine
     typeof ThirdParty.getUserByThirdPartyInfo === 'function' && typeof SuperTokens.deleteUser === 'function';
 const tenantSdkSupported = Multitenancy !== undefined &&
     ["createOrUpdateTenant", "listAllTenants", "deleteTenant"].every(name => typeof Multitenancy[name] === "function");
-const owners = fixtureOwners(SuperTokens, ThirdParty, Multitenancy);
+const owners = fixtureOwners(SuperTokens, ThirdParty, Multitenancy, version);
 const native = require('./nativeEvidence')({ owners, Session, snapshot: () => {
     const fs = require('fs');
     const path = require('path');
