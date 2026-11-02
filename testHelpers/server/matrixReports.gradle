@@ -1,10 +1,13 @@
 import groovy.json.JsonOutput
 import groovy.json.JsonSlurper
 import java.nio.charset.StandardCharsets
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
+import java.nio.file.AtomicMoveNotSupportedException
 import java.time.Instant
 
 def cleanIdentifier = { value ->
-    value == null ? null : value.toString().take(240).replaceFirst('[^A-Za-z0-9_.$#-].*', '')
+    value != null && value.toString().length() <= 240 && value.toString() ==~ /[A-Za-z_$][A-Za-z0-9_$.]*/ ? value.toString() : null
 }
 
 gradle.projectsEvaluated {
@@ -19,22 +22,46 @@ gradle.projectsEvaluated {
                 task.reports.junitXml.destination = new File(directory, 'xml')
                 task.reports.html.destination = new File(directory, 'html')
             }
-            def binding = [kind: 'matrix', profile: cleanIdentifier(new File(matrixRoot ?: testRoot).name)]
-            if (testRoot && !matrixRoot) {
-                def invocation = new JsonSlurper().parse(new File(new File(testRoot).parentFile, 'invocation.json'))
-                if (!(invocation.nonce ==~ /[a-f0-9]{48}/) || !(invocation.mode in ['ordinary', 'retrofit', 'mutation', 'upgrade', 'exposed']) ||
-                    !(invocation.sources instanceof String) || !(invocation.sources ==~ /[a-f0-9]{64}/) ||
-                    !(invocation.progressScriptSha256 instanceof String) || !(invocation.progressScriptSha256 ==~ /[a-f0-9]{64}/)) {
-                    throw new IllegalStateException('Invalid test progress invocation binding')
+            def matrixProfile = new File(matrixRoot ?: testRoot).name
+            def binding = [kind: 'matrix', profile: matrixProfile in ['root-build', 'core-baseline', 'core-classes', 'proxy-tests'] ? matrixProfile : null]
+            boolean progressEnabled = true
+            boolean warned = false
+            def bestEffort = { action ->
+                if (!progressEnabled) return
+                try { action() } catch (Exception ignored) {
+                    progressEnabled = false
+                    if (!warned) {
+                        warned = true
+                        try { System.err.println('test progress unavailable; test outcome remains authoritative') } catch (Exception ignoredAgain) { }
+                    }
                 }
-                binding = [kind: 'testapp', invocation: invocation.nonce, profile: invocation.mode, sources: invocation.sources,
-                           progressScriptSha256: invocation.progressScriptSha256]
             }
             def progressDir = new File(matrixRoot ?: testRoot, 'progress')
-            progressDir.mkdirs()
-            def progress = new File(progressDir, cleanIdentifier(task.path.replace(':', '_')) + '-' + UUID.randomUUID() + '.jsonl')
+            def prefix = task.path.replace(':', '_') + '-' + UUID.randomUUID()
+            def progress = new File(progressDir, prefix + '.jsonl')
+            def snapshot = new File(progressDir, prefix + '.json')
+            def snapshotTemp = new File(progressDir, prefix + '.tmp')
+            bestEffort {
+                if (testRoot && !matrixRoot) {
+                    def reports = new File(testRoot)
+                    def invocation = new JsonSlurper().parse(new File(reports.parentFile, 'invocation.json'))
+                    if (!(invocation.nonce instanceof String) || !(invocation.nonce ==~ /[a-f0-9]{48}/) ||
+                        invocation.nonce != System.getenv('ST_ARTIFACT_NONCE') || reports.name != 'reports' ||
+                        reports.parentFile.name != invocation.nonce || reports.canonicalFile != reports.absoluteFile ||
+                        !(invocation.mode in ['ordinary', 'retrofit', 'mutation', 'upgrade', 'exposed']) ||
+                        !(invocation.sources instanceof String) || !(invocation.sources ==~ /[a-f0-9]{64}/) ||
+                        !(invocation.progressScriptSha256 instanceof String) || !(invocation.progressScriptSha256 ==~ /[a-f0-9]{64}/)) {
+                        throw new IllegalStateException('Invalid test progress invocation binding')
+                    }
+                    binding = [kind: 'testapp', invocation: invocation.nonce, profile: invocation.mode, sources: invocation.sources,
+                               progressScriptSha256: invocation.progressScriptSha256]
+                }
+                if (!progressDir.isDirectory() && !progressDir.mkdirs()) throw new IOException('Cannot create progress directory')
+            }
             def lock = new Object()
             def active = new IdentityHashMap()
+            def activeOrder = []
+            boolean activeOverflow = false
             long sequence = 0
             long nextTest = 0
             def transport = { descriptor ->
@@ -44,31 +71,47 @@ gradle.projectsEvaluated {
             }
             def emit = { event ->
                 synchronized (lock) {
-                    if (sequence >= 10000) return
                     sequence++
-                    if (sequence == 10000) event = [event: 'truncated']
-                    def record = [schema: 1, binding: binding, task: cleanIdentifier(task.path.replace(':', '_')), sequence: sequence,
-                                  timestamp: Instant.now().toString(), monotonicNanos: System.nanoTime()] + event
-                    def stream = new FileOutputStream(progress, true)
-                    try {
-                        stream.write((JsonOutput.toJson(record) + '\n').getBytes(StandardCharsets.UTF_8))
-                        stream.flush()
-                    } finally { stream.close() }
+                    bestEffort {
+                        def common = [schema: 1, binding: binding, task: task.path.replace(':', '_'), sequence: sequence,
+                                      timestamp: Instant.now().toString(), monotonicNanos: System.nanoTime()]
+                        if (sequence <= 10000) {
+                            def record = common + (sequence == 10000 ? [event: 'truncated'] : event)
+                            def stream = new FileOutputStream(progress, true)
+                            try { stream.write((JsonOutput.toJson(record) + '\n').getBytes(StandardCharsets.UTF_8)) }
+                            finally { stream.close() }
+                        }
+                        snapshotTemp.text = JsonOutput.toJson(common + [historyTruncated: sequence >= 10000,
+                            activeOverflow: activeOverflow, active: active.values().toList()])
+                        try { Files.move(snapshotTemp.toPath(), snapshot.toPath(), StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING) }
+                        catch (AtomicMoveNotSupportedException ignored) {
+                            Files.move(snapshotTemp.toPath(), snapshot.toPath(), StandardCopyOption.REPLACE_EXISTING)
+                        }
+                    }
                 }
             }
             task.beforeTest { descriptor ->
                 synchronized (lock) {
                     def id = ++nextTest
-                    active.put(descriptor, id)
-                    emit([event: 'start', test: id, className: cleanIdentifier(descriptor.className),
-                          method: cleanIdentifier(descriptor.name), transportHint: transport(descriptor)])
+                    if (active.size() >= 1024) {
+                        active.remove(activeOrder.remove(0))
+                        activeOverflow = true
+                    }
+                    def detail = [test: id, className: cleanIdentifier(descriptor.className),
+                                  method: cleanIdentifier(descriptor.name), transportHint: transport(descriptor),
+                                  startedAt: Instant.now().toString(), startedNanos: System.nanoTime()]
+                    active.put(descriptor, detail)
+                    activeOrder.add(descriptor)
+                    emit([event: 'start'] + detail)
                 }
             }
             task.afterTest { descriptor, result ->
-                cases.add([name: descriptor.name, className: descriptor.className, result: result.resultType.toString()])
                 synchronized (lock) {
-                    def id = active.remove(descriptor)
-                    emit([event: 'finish', test: id, className: cleanIdentifier(descriptor.className),
+                    cases.add([name: descriptor.name, className: descriptor.className, result: result.resultType.toString()])
+                    def detail = active.remove(descriptor)
+                    def index = activeOrder.findIndexOf { item -> item.is(descriptor) }
+                    if (index >= 0) activeOrder.remove(index)
+                    emit([event: 'finish', test: detail?.test, className: cleanIdentifier(descriptor.className),
                           method: cleanIdentifier(descriptor.name), transportHint: transport(descriptor),
                           result: result.resultType.toString()])
                 }
