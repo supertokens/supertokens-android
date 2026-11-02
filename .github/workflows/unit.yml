@@ -42,6 +42,7 @@ jobs:
       - uses: android-actions/setup-android@v3
         with:
           cmdline-tools-version: '11076708'
+          packages: 'platform-tools'
 
       - name: Install compile SDK and AGP 4.1.2 build tools
         run: sdkmanager 'platforms;android-32' 'build-tools;29.0.2'

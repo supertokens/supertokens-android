@@ -36,6 +36,7 @@ jobs:
       - uses: android-actions/setup-android@v3
         with:
           cmdline-tools-version: '11076708'
+          packages: 'platform-tools'
       - run: sdkmanager 'platforms;android-32' 'build-tools;29.0.2'
       - name: Enable KVM for runner user
         run: sudo chmod 666 /dev/kvm
@@ -97,6 +98,7 @@ jobs:
       - uses: android-actions/setup-android@v3
         with:
           cmdline-tools-version: '11076708'
+          packages: 'platform-tools'
       - name: Require the exact obsolete image
         run: |
           mkdir -p "$RUNNER_TEMP/old-runtime"
