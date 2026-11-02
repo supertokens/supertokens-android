@@ -106,6 +106,17 @@ The added cookie support has not been independently qualified. Final-SHA unit,
 integration, device and published-upgrade gates remain pending; these historical
 observations do not qualify a release.
 
+The response-shape matrix now seeds COOKIE and EXPOSED_COOKIE with actual
+`sAccessToken` and `sRefreshToken` cookies through OkHttp and verifies that the
+transport sends both on the shaped and subsequent requests. The jar is owned by
+the caller, not the SDK; response shapes in this matrix do not set or delete
+cookies. Seeding uses OkHttp even for URLConnection rows: under JDK 11, the
+published 0.5.4 URLConnection wrapper throws `IllegalArgumentException: Empty
+cookie header string` while processing the login's Set-Cookie headers. Thus
+these rows do not qualify URLConnection cookie-setting responses or Android's
+platform cookie implementation. The HTTP-only cookie fixtures also do not
+exercise Secure, domain, or refresh-path scoping.
+
 ## Follow-up cross-product run, 2026-11-01
 
 With compatible ordinary 401 removal notifications emitted twice after a

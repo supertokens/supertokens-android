@@ -7,10 +7,18 @@ import com.supertokens.session.Utils;
 import java.nio.charset.StandardCharsets;
 import java.net.CookieHandler;
 import java.net.CookieManager;
+import java.net.CookiePolicy;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Base64;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
+import okhttp3.Cookie;
+import okhttp3.CookieJar;
+import okhttp3.HttpUrl;
+import okhttp3.OkHttpClient;
 import okhttp3.mockwebserver.Dispatcher;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.RecordedRequest;
@@ -48,26 +56,41 @@ public class LegacyShapeCrossProductTest extends SessionTestFixture {
     private String run(boolean legacy, String config, Prior prior, Shape shape, int status, boolean urlConnection) throws Exception {
         List<String> events = new ArrayList<>();
         AtomicReference<String> wire = new AtomicReference<>();
+        AtomicReference<String> shapeCookie = new AtomicReference<>();
+        AtomicReference<String> nextCookie = new AtomicReference<>();
         server.setDispatcher(new Dispatcher() {
             @Override public MockResponse dispatch(RecordedRequest request) {
                 if (request.getPath().equals("/login")) {
                     MockResponse login = new MockResponse().addHeader("front-token", FRONT).addHeader("anti-csrf", "csrf1");
                     if (prior == Prior.HEADER || prior == Prior.EXPOSED_COOKIE) login.addHeader("st-access-token", "access1");
                     if (prior == Prior.HEADER) login.addHeader("st-refresh-token", "refresh1");
+                    if (prior == Prior.COOKIE || prior == Prior.EXPOSED_COOKIE) {
+                        login.addHeader("Set-Cookie", "sAccessToken=cookie-access; Path=/; HttpOnly")
+                                .addHeader("Set-Cookie", "sRefreshToken=cookie-refresh; Path=/; HttpOnly");
+                    }
                     return login;
                 }
-                if (request.getPath().equals("/shape")) return response(shape, status);
+                if (request.getPath().equals("/shape")) {
+                    shapeCookie.set(request.getHeader("Cookie"));
+                    return response(shape, status);
+                }
                 if (request.getPath().equals("/next")) {
                     wire.set(request.getHeader("Authorization") + ":" + request.getHeader("anti-csrf"));
+                    nextCookie.set(request.getHeader("Cookie"));
                     return new MockResponse();
                 }
                 return new MockResponse().setResponseCode(401);
             }
         });
         CookieHandler previousCookies = CookieHandler.getDefault();
+        OkHttpClient previousClient = client;
         try (Legacy054Harness old = legacy ? new Legacy054Harness(context) : null) {
             if (legacy) old.invoke("useCookies");
-            else CookieHandler.setDefault(new CookieManager());
+            else {
+                CookieManager manager = new CookieManager(null, CookiePolicy.ACCEPT_ALL);
+                CookieHandler.setDefault(manager);
+                client = client.newBuilder().cookieJar(cookieJar(manager)).build();
+            }
             if (legacy) {
                 old.invoke("buildWithEventsForTransfer", new Class<?>[]{String.class, String.class, List.class, String.class},
                         server.url("/").toString(), config, events, null);
@@ -75,7 +98,7 @@ public class LegacyShapeCrossProductTest extends SessionTestFixture {
                 new SuperTokens.Builder(context, server.url("/").toString()).tokenTransferMethod(config)
                         .eventHandler(type -> events.add(type.name())).build();
             }
-            if (prior != Prior.ABSENT) assertEquals("prior state setup (legacy=" + legacy + ")", "200", call(old, urlConnection, "/login"));
+            if (prior != Prior.ABSENT) assertEquals("prior state setup (legacy=" + legacy + ")", "200", call(old, false, "/login"));
             String outcome = call(old, urlConnection, "/shape");
             String exists = String.valueOf(legacy ? old.invoke("doesSessionExist") : SuperTokens.doesSessionExist(context));
             String user;
@@ -91,10 +114,44 @@ public class LegacyShapeCrossProductTest extends SessionTestFixture {
                 stored.append(':').append(context.getSharedPreferences("supertokens-android-shared-preferences", 0).getString(key, null));
             }
             String next = call(old, urlConnection, "/next");
+            if (prior == Prior.COOKIE || prior == Prior.EXPOSED_COOKIE) {
+                for (String cookies : new String[]{shapeCookie.get(), nextCookie.get()}) {
+                    assertTrue("transport must retain access cookie: " + cookies, cookies != null && cookies.contains("sAccessToken=cookie-access"));
+                    assertTrue("transport must retain refresh cookie: " + cookies, cookies != null && cookies.contains("sRefreshToken=cookie-refresh"));
+                }
+            }
             return outcome + ":" + exists + ":" + user + ":" + access + ":" + utility + stored + ":events=" + normalized + ":next=" + next + ":wire=" + wire.get();
         } finally {
+            client = previousClient;
             CookieHandler.setDefault(previousCookies);
         }
+    }
+
+    private CookieJar cookieJar(CookieManager manager) {
+        return new CookieJar() {
+            @Override public void saveFromResponse(HttpUrl url, List<Cookie> cookies) {
+                List<String> headers = new ArrayList<>();
+                for (Cookie cookie : cookies) headers.add(cookie.toString());
+                try { manager.put(url.uri(), Collections.singletonMap("Set-Cookie", headers)); }
+                catch (IOException e) { throw new IllegalStateException(e); }
+            }
+
+            @Override public List<Cookie> loadForRequest(HttpUrl url) {
+                List<Cookie> result = new ArrayList<>();
+                try {
+                    Map<String, List<String>> headers = manager.get(url.uri(), Collections.<String, List<String>>emptyMap());
+                    for (Map.Entry<String, List<String>> header : headers.entrySet()) {
+                        if (!"Cookie".equalsIgnoreCase(header.getKey())) continue;
+                        for (String value : header.getValue()) for (String pair : value.split(";\\s*")) {
+                            if (pair.startsWith("$")) continue;
+                            Cookie cookie = Cookie.parse(url, pair);
+                            if (cookie != null) result.add(cookie);
+                        }
+                    }
+                } catch (IOException e) { throw new IllegalStateException(e); }
+                return result;
+            }
+        };
     }
 
     private String call(Legacy054Harness old, boolean urlConnection, String path) {
