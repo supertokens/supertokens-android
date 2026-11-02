@@ -110,7 +110,8 @@ The response-shape matrix now seeds COOKIE and EXPOSED_COOKIE with actual
 `sAccessToken` and `sRefreshToken` cookies through OkHttp and verifies that the
 transport sends both on the shaped and subsequent requests. The jar is owned by
 the caller, not the SDK; response shapes in this matrix do not set or delete
-cookies. Seeding uses OkHttp even for URLConnection rows: under JDK 11, the
+cookies. All non-absent prior states, including HEADER, are seeded through
+OkHttp even for URLConnection rows: under JDK 11, the
 published 0.5.4 URLConnection wrapper throws `IllegalArgumentException: Empty
 cookie header string` while processing the login's Set-Cookie headers. Thus
 these rows do not qualify URLConnection cookie-setting responses or Android's
