@@ -326,7 +326,9 @@ public class Utils {
 
     public static String getTokenForHeaderAuth(TokenType tokenType, Context context) {
         if (!SuperTokens.isInitCalled) return getFromStorage(getStorageName(tokenType), context);
-        SessionTokens tokens = SessionState.snapshot().getTokens();
+        SessionSnapshot snapshot = SessionState.snapshot();
+        SessionTokens tokens = snapshot.getStatus() == SessionSnapshot.Status.AVAILABLE
+                ? snapshot.getInternalTokens() : null;
         if (tokens == null) return null;
         return tokenType == TokenType.ACCESS ? tokens.getAccessToken() : tokens.getRefreshToken();
     }
@@ -347,10 +349,16 @@ public class Utils {
         // users to continue these sessions.
         // The new session preference should be applied at the start of the next
         // session, if the backend allows it.
-        if (!SuperTokens.isInitCalled) return null;
-        SessionTokens tokens = SessionState.snapshot().getTokens();
-        String accessToken = tokens == null ? null : tokens.getAccessToken();
-        String refreshToken = tokens == null ? null : tokens.getRefreshToken();
+        String accessToken;
+        String refreshToken;
+        if (!SuperTokens.isInitCalled) {
+            accessToken = getFromStorage(getStorageName(TokenType.ACCESS), context);
+            refreshToken = getFromStorage(getStorageName(TokenType.REFRESH), context);
+        } else {
+            SessionTokens tokens = SessionState.snapshot().getTokens();
+            accessToken = tokens == null ? null : tokens.getAccessToken();
+            refreshToken = tokens == null ? null : tokens.getRefreshToken();
+        }
 
         // We don't always need the refresh token because that's only required by the
         // refresh call
