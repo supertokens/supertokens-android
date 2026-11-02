@@ -74,7 +74,7 @@ jobs:
             echo 'export NVM_DIR="$HOME/.nvm"' >> $BASH_ENV
             echo '[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"' >> $BASH_ENV
       - run: node .circleci/sourceRevisionManifest.test.js
-      - run: node --test .circleci/matrixDiagnostics.test.js
+      - run: node .circleci/matrixDiagnostics.test.js
       - run: node .circleci/integrationReceipt.js begin /tmp/integration-receipts '<< parameters.fdi-version >>'
       - run: (cd .circleci/ && ./doTests.sh  << parameters.fdi-version >>)
       - run: node .circleci/integrationReceipt.js write /tmp/integration-receipts '<< parameters.fdi-version >>'

@@ -17,6 +17,7 @@ function counters(value, allowed) {
 }
 function cgroup(proc, mounts) {
     const groups = (read(proc) || '').split('\n').map(line => line.split(':'));
+    let unresolved = false;
     for (const line of (read(mounts) || '').split('\n')) {
         const parts = line.split(' ');
         const separator = parts.indexOf('-');
@@ -30,7 +31,12 @@ function cgroup(proc, mounts) {
         const root = decode(parts[3]);
         const mount = decode(parts[4]);
         const member = group[2];
-        if (root !== '/' && member !== root && !member.startsWith(root + '/')) continue;
+        if (!root.startsWith('/') || !member.startsWith('/') ||
+            [root, member].some(value => value.split('/').some(part => part === '.' || part === '..')) ||
+            (root !== '/' && member !== root && !member.startsWith(root + '/'))) {
+            unresolved = true;
+            continue;
+        }
         const relative = root === '/' ? member.slice(1) : member.slice(root.length).replace(/^\//, '');
         const dir = path.resolve(mount, relative);
         if (dir !== mount && !dir.startsWith(mount + '/')) continue;
@@ -42,7 +48,7 @@ function cgroup(proc, mounts) {
                 v2 ? ['low', 'high', 'max', 'oom', 'oom_kill', 'oom_group_kill'] : ['oom_kill', 'under_oom']),
             failcnt: v2 ? null : number(read(path.join(dir, 'memory.failcnt'))) };
     }
-    return null;
+    return { version: null, reason: unresolved ? 'membership-not-resolvable' : 'memory-controller-unavailable' };
 }
 function snapshot(phase, status, env = process.env) {
     const sdk = env.ANDROID_HOME || env.ANDROID_SDK_ROOT;

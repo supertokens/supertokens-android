@@ -1,4 +1,3 @@
-const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
 const os = require('os');
@@ -6,9 +5,17 @@ const path = require('path');
 const { spawnSync } = require('child_process');
 const { cgroup, counters } = require('./matrixDiagnostics');
 
-test('cgroup v2 reads only bounded memory counters', t => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'matrix-cgroup-'));
-    t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+function test(name, run) {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'matrix-diagnostics-'));
+    try {
+        run(dir);
+        console.log('PASS ' + name);
+    } finally {
+        fs.rmSync(dir, { recursive: true, force: true });
+    }
+}
+
+test('cgroup v2 reads only bounded memory counters', dir => {
     const mount = path.join(dir, 'mount');
     fs.mkdirSync(path.join(mount, 'job'), { recursive: true });
     fs.writeFileSync(path.join(dir, 'groups'), '0::/job\n');
@@ -22,9 +29,7 @@ test('cgroup v2 reads only bounded memory counters', t => {
     assert.deepEqual(counters('oom 1\noom 1 secret\n', ['oom']), { oom: '1' });
 });
 
-test('cgroup v1 reads memory controller counters', t => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'matrix-cgroup-v1-'));
-    t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+test('cgroup v1 reads memory controller counters', dir => {
     fs.writeFileSync(path.join(dir, 'groups'), '4:memory:/parent/job\n');
     fs.writeFileSync(path.join(dir, 'mounts'), `1 0 0:1 /parent ${dir} rw - cgroup cgroup rw,memory\n`);
     fs.mkdirSync(path.join(dir, 'job'));
@@ -37,9 +42,18 @@ test('cgroup v1 reads memory controller counters', t => {
     });
 });
 
-test('wrapper retains failure and permits outer cleanup even when diagnostics cannot write', t => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'matrix-wrapper-'));
-    t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+test('ambiguous namespaced membership is explicitly unavailable rather than reading a mount root', dir => {
+    fs.writeFileSync(path.join(dir, 'groups'), '0::/\n');
+    fs.writeFileSync(path.join(dir, 'mounts'), `1 0 0:1 /host/subtree ${dir} rw - cgroup2 cgroup rw\n`);
+    fs.writeFileSync(path.join(dir, 'memory.current'), '999');
+    assert.deepEqual(cgroup(path.join(dir, 'groups'), path.join(dir, 'mounts')),
+        { version: null, reason: 'membership-not-resolvable' });
+    fs.writeFileSync(path.join(dir, 'mounts'), `1 0 0:1 /.. ${dir} rw - cgroup2 cgroup rw\n`);
+    assert.deepEqual(cgroup(path.join(dir, 'groups'), path.join(dir, 'mounts')),
+        { version: null, reason: 'membership-not-resolvable' });
+});
+
+test('wrapper retains failure and permits outer cleanup even when diagnostics cannot write', dir => {
     const wrapper = path.join(__dirname, 'diagnoseOwnedMatrix.sh');
     for (const broken of [false, true]) {
         const install = path.join(dir, broken ? 'file' : 'instance');
