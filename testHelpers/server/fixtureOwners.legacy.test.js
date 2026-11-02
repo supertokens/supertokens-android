@@ -69,7 +69,7 @@ test('legacy failed cleanup of confirmed owner is retained and retried', async (
     assert.equal(h.users.size, 0);
 });
 
-test('legacy lost response after a concurrent identity collision never deletes the other user', async () => {
+test('ambiguous cleanup refuses to delete a replacement user', async () => {
     const h = harness();
     h.faults.lost = true;
     await assert.rejects(h.owners.createLegacy('a@example.com', async () => {}), /cleanup also failed/);
