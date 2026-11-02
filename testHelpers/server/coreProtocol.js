@@ -168,6 +168,16 @@ function install(app) {
         res.json({ userId: req.session.getUserId(), handle: req.session.getHandle() });
     });
 
+    app.get('/test/payload-promotion', (req, res, next) => {
+        if (!enabled || !sdkSupported) return res.status(501).json({ status: 'UNSUPPORTED_TEST_CAPABILITY' });
+        return verifySession()(req, res, next);
+    }, async (req, res, next) => {
+        try {
+            await req.session.mergeIntoAccessTokenPayload({ fixturePayloadProbe: true });
+            res.json({ userId: req.session.getUserId(), handle: req.session.getHandle() });
+        } catch (error) { next(error); }
+    });
+
     app.post("/test/revoke-session", async (req, res, next) => {
         try {
             if (!enabled) return res.status(501).json({ status: "UNSUPPORTED_TEST_CAPABILITY" });

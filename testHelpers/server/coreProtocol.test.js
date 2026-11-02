@@ -19,6 +19,7 @@ async function main() {
         assert.strictEqual(capabilities.mappedGoogleSession, false);
         assert.strictEqual(capabilities.nonPublicTenantSession, false);
         assert.strictEqual(capabilities.qualificationProxy, false);
+        assert.strictEqual((await fetch(base + '/test/payload-promotion')).status, 501);
         assert.strictEqual(capabilities.accountLinking.refreshUserIdChange, null);
         const linking = await fetch(base + "/link-accounts", {
             method: "POST", headers: { "content-type": "application/json" }, body: '{"primaryUserId":"not-a-fixture"}'

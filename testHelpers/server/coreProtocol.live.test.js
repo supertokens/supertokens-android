@@ -37,23 +37,44 @@ async function main() {
         const refreshed = await request("/auth/session/refresh", {}, owner.refreshToken);
         assert.strictEqual(refreshed.status, 200);
         const access = refreshed.headers.get("st-access-token");
-        const refresh = refreshed.headers.get("st-refresh-token");
+        let refresh = refreshed.headers.get("st-refresh-token");
         assert.ok(access);
         assert.ok(refresh);
         assert.notStrictEqual(refresh, owner.refreshToken);
-        const protectedResponse = await request("/test/protected", undefined, access);
+        // CDI >= 5.6 does not promote refresh children; this tests partial adoption, not the proxy's child-lineage race.
+        const stateless = require('./promotionMode')(capabilities.sdkCdiVersions, capabilities.coreCdiVersions) === 'payload';
+        const protectedResponse = await request(stateless ? "/test/payload-promotion" : "/test/protected", undefined, access);
         assert.strictEqual(protectedResponse.status, 200);
-        assert.strictEqual((await protectedResponse.json()).userId, owner.userId);
-        assert.ok(protectedResponse.headers.get("st-access-token"), "Core child-access promotion required");
+        const protectedSession = await protectedResponse.json();
+        assert.strictEqual(protectedSession.userId, owner.userId);
+        assert.strictEqual(protectedSession.handle, owner.handle);
+        const promoted = protectedResponse.headers.get("st-access-token");
+        assert.ok(promoted, stateless ? "Core payload promotion required" : "Core child-access promotion required");
         assert.ok(protectedResponse.headers.get("front-token"));
         assert.strictEqual(protectedResponse.headers.get("st-refresh-token"), null);
+        if (stateless) {
+            assert.notStrictEqual(promoted, access);
+            const payload = JSON.parse(Buffer.from(promoted.split('.')[1], 'base64').toString('utf8'));
+            assert.strictEqual(payload.fixturePayloadProbe, true);
+            const usable = await request('/test/protected', undefined, promoted);
+            assert.strictEqual(usable.status, 200);
+            const state = await usable.json();
+            assert.strictEqual(state.userId, owner.userId);
+            assert.strictEqual(state.handle, owner.handle);
+            const refreshedAgain = await request('/auth/session/refresh', {}, refresh);
+            assert.strictEqual(refreshedAgain.status, 200, 'Refresh remains usable after partial promotion');
+            const nextRefresh = refreshedAgain.headers.get('st-refresh-token');
+            assert.ok(nextRefresh);
+            assert.notStrictEqual(nextRefresh, refresh);
+            refresh = nextRefresh;
+        }
         const revoked = await request("/test/revoke-session", { handle: owner.handle });
         assert.strictEqual(revoked.status, 200);
         const cleanup = await revoked.json();
         assert.strictEqual(cleanup.revoked, true);
         assert.strictEqual(cleanup.ownerCleaned, true);
         assert.strictEqual((await request("/auth/session/refresh", {}, refresh)).status, 401);
-        console.log("Live Core mapped Google session, refresh, promotion and revocation passed");
+        console.log("Live Core mapped Google session, refresh, " + (stateless ? "payload" : "child-access") + " promotion and revocation passed");
     } finally {
         const cleanup = await request("/test/cleanup-owner", { fixtureId: owner.fixtureId });
         assert.strictEqual(cleanup.status, 200, "Fixture owner cleanup failed");
