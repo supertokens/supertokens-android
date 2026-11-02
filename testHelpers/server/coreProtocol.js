@@ -35,6 +35,11 @@ const sdkSupported = ThirdParty !== undefined &&
     typeof SuperTokens.deleteUserIdMapping === "function" &&
     typeof SuperTokens.listUsersByAccountInfo === "function" &&
     typeof SuperTokens.convertToRecipeUserId === "function";
+const legacySdkSupported = ThirdParty !== undefined &&
+    typeof ThirdParty.signInUp === 'function' &&
+    typeof ThirdParty.getUserByThirdPartyInfo === 'function' &&
+    typeof ThirdParty.Google === 'function' &&
+    typeof SuperTokens.deleteUser === 'function';
 const tenantSdkSupported = Multitenancy !== undefined &&
     ["createOrUpdateTenant", "listAllTenants", "deleteTenant"].every(name => typeof Multitenancy[name] === "function");
 const owners = fixtureOwners(SuperTokens, ThirdParty, Multitenancy);
@@ -56,8 +61,10 @@ const native = require('./nativeEvidence')({ owners, Session, snapshot: () => {
 } });
 
 function configure(config) {
-    if (enabled && sdkSupported) {
-        config.recipeList.push(ThirdParty.init());
+    if (enabled && (sdkSupported || legacySdkSupported)) {
+        config.recipeList.push(sdkSupported ? ThirdParty.init() : ThirdParty.init({
+            signInAndUpFeature: { providers: [ThirdParty.Google({ clientId: 'fixture-only', clientSecret: 'fixture-only' })] }
+        }));
     }
     return config;
 }
@@ -83,6 +90,7 @@ async function capabilities() {
         coreReachable,
         compatible,
         mappedGoogleSession: enabled && sdkSupported && compatible,
+        legacyBaselineSession: enabled && legacySdkSupported && compatible,
         nonPublicTenantSession: enabled && sdkSupported && tenantSdkSupported && compatible,
         accountLinking: accountLinkingCapability(enabled, compatible, AccountLinking, linkingQualification.identity(), linkingQualification.readEvidence()),
         qualificationProxy: false
@@ -133,15 +141,17 @@ function install(app) {
     app.post("/test/email-change-owner", async (req, res, next) => {
         try {
             const supported = await capabilities();
-            if (!supported.mappedGoogleSession) {
+            if (!supported.mappedGoogleSession && (!supported.legacyBaselineSession || req.nativeEvidence)) {
                 return res.status(501).json({ status: "UNSUPPORTED_TEST_CAPABILITY", capabilities: supported });
             }
             if (req.body.recipe !== "google" || typeof req.body.email !== "string" || !req.body.email.includes("@")) {
                 return res.status(400).json({ status: "INVALID_TEST_OWNER" });
             }
             // Manual recipe creation uses real Core storage; it does not simulate an OAuth exchange.
-            const { owner, session } = await native.provision(req, () => owners.create(req.body.email, async externalId =>
-                Session.createNewSession(req, res, "public", SuperTokens.convertToRecipeUserId(externalId))));
+            const { owner, session } = await native.provision(req, () => supported.mappedGoogleSession
+                ? owners.create(req.body.email, async externalId =>
+                    Session.createNewSession(req, res, "public", SuperTokens.convertToRecipeUserId(externalId)))
+                : owners.createLegacy(req.body.email, async userId => Session.createNewSession(req, res, userId)));
             try {
                 const tokens = session.getAllSessionTokensDangerously();
                 res.json({ google: true, fixtureId: owner.id, userId: session.getUserId(), handle: session.getHandle(), refreshToken: tokens.refreshToken });

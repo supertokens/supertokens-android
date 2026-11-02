@@ -15,6 +15,24 @@ module.exports = function fixtureOwners(SuperTokens, ThirdParty, Multitenancy) {
     }
 
     async function performCleanup(owner) {
+        if (owner.legacy) {
+            if (owner.creationAttempted) {
+                const user = await ThirdParty.getUserByThirdPartyInfo('google', owner.id);
+                if (user !== undefined) {
+                    if (!user.thirdParty || user.thirdParty.id !== 'google' || user.thirdParty.userId !== owner.id ||
+                        typeof user.id !== 'string' || (owner.recipeUserId && owner.recipeUserId !== user.id)) {
+                        throw new Error('Legacy fixture lookup identity mismatch');
+                    }
+                    const deleted = await SuperTokens.deleteUser(user.id);
+                    if (deleted.status !== 'OK' || await ThirdParty.getUserByThirdPartyInfo('google', owner.id) !== undefined) {
+                        throw new Error('Legacy fixture user deletion failed');
+                    }
+                }
+            }
+            cleaned.set(owner.id, new Set([owner.handle].filter(Boolean)));
+            owners.delete(owner.id);
+            return;
+        }
         const tenantExists = owner.tenantId === "public" || await findFixtureTenant(Multitenancy, owner.tenantId) !== undefined;
         if (owner.recipeUserId === undefined && tenantExists) {
             // Creation may have committed at Core before its response was lost.
@@ -52,6 +70,48 @@ module.exports = function fixtureOwners(SuperTokens, ThirdParty, Multitenancy) {
         }
         cleaned.set(owner.id, new Set([owner.handle, ...(owner.loginHandles || [])].filter(Boolean)));
         owners.delete(owner.id);
+    }
+
+    async function createLegacy(email, createSession) {
+        const owner = { id: 'android-test-' + crypto.randomBytes(16).toString('hex'), tenantId: 'public', legacy: true, creating: true };
+        owners.set(owner.id, owner);
+        try {
+            if (await ThirdParty.getUserByThirdPartyInfo('google', owner.id) !== undefined) {
+                owners.delete(owner.id);
+                throw new Error('Generated fixture user already exists');
+            }
+            owner.creationAttempted = true;
+            const created = await ThirdParty.signInUp('google', owner.id, email);
+            if (created.status === 'OK' && created.createdNewUser === false) {
+                owner.creationAttempted = false;
+                throw new Error('Legacy fixture user was not created');
+            }
+            if (created.status !== 'OK' || created.createdNewUser !== true) throw new Error('Legacy fixture creation failed');
+            const user = created.user;
+            if (!user || typeof user.id !== 'string' || !user.thirdParty || user.thirdParty.id !== 'google' || user.thirdParty.userId !== owner.id) {
+                throw new Error('Legacy fixture creation identity mismatch');
+            }
+            owner.recipeUserId = user.id;
+            const persisted = await ThirdParty.getUserByThirdPartyInfo('google', owner.id);
+            if (!persisted || persisted.id !== user.id || !persisted.thirdParty ||
+                persisted.thirdParty.id !== 'google' || persisted.thirdParty.userId !== owner.id) {
+                throw new Error('Legacy fixture user not persisted');
+            }
+            const session = await createSession(user.id);
+            owner.handle = session.getHandle();
+            owner.ready = true;
+            owner.creating = false;
+            return { owner, session };
+        } catch (error) {
+            if (!owners.has(owner.id)) throw error;
+            owner.creating = false;
+            try { await cleanup(owner); } catch (cleanupError) {
+                const failure = new Error('Fixture creation failed; cleanup also failed and remains pending: ' + cleanupError.message);
+                failure.cause = error;
+                throw failure;
+            }
+            throw error;
+        }
     }
 
     async function create(email, createSession, nonPublicTenant = false) {
@@ -163,6 +223,6 @@ module.exports = function fixtureOwners(SuperTokens, ThirdParty, Multitenancy) {
         try { return await readSession(handle); } finally { owner.nativeBusy = false; }
     }
 
-    return { create, cleanupById, cleanupByHandle, cleanupAll, ownsSession,
+    return { create, createLegacy, cleanupById, cleanupByHandle, cleanupAll, ownsSession,
         bindNativeOwner, assertNativeOwner, nativeLogin, nativeSessionState };
 };
