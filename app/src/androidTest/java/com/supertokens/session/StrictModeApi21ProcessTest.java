@@ -21,15 +21,34 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import org.junit.Test;
 import static org.junit.Assert.*;
 
 public class StrictModeApi21ProcessTest {
     @Test public void detectsDiskRead() throws Exception { runProbe(0, 2); }
-    @Test public void detectsDiskWrite() throws Exception { runProbe(1, 1); }
+    @Test public void detectsDiskWrite() throws Exception {
+        checkCrashDiagnosticsAreAllowlisted();
+        runProbe(1, 1);
+    }
     @Test public void detectsNetwork() throws Exception { runProbe(2, 4); }
     @Test public void prewarmedEmptyStartupSurvives() throws Exception { runProbe(3, 0); }
     @Test public void prewarmedCoherentStartupSurvives() throws Exception { runProbe(4, 0); }
+
+    private static void checkCrashDiagnosticsAreAllowlisted() {
+        String detail = "true|android.os.StrictMode$StrictModeViolation|policy=71 violation=2|"
+                + "android.os.StrictMode.executeDeathPenalty\nsecret-path";
+        assertEquals("CRASH(expected=false,main=true,classMatch=true,policy=71,violation=2,framework=true)",
+                safeEvent("CRASH", detail, 1));
+        String unknown = "CRASH(expected=false,main=unknown,classMatch=false,policy=unknown,violation=unknown,framework=false)";
+        assertEquals(unknown, safeEvent("CRASH", "secret|secret|policy=999999999999 violation=1|secret", 1));
+        assertEquals(unknown, safeEvent("CRASH", "secret|secret|policy=2147483648 violation=1|secret", 1));
+        assertEquals(unknown, safeEvent("CRASH", "secret|secret|prefix policy=71 violation=1|secret", 1));
+        assertEquals(unknown, safeEvent("CRASH", "secret|secret|policy=71 violation=1secret|secret", 1));
+        assertEquals(unknown, safeEvent("CRASH", "secret|secret|secret|policy=71 violation=1", 1));
+        assertEquals(unknown, safeEvent("CRASH", null, 1));
+    }
 
     private void runProbe(int action, int violation) throws Exception {
         assertEquals("API 21 only", 21, Build.VERSION.SDK_INT);
@@ -184,7 +203,29 @@ public class StrictModeApi21ProcessTest {
         if ("CRASH".equals(phase)) {
             String expected = "true|android.os.StrictMode$StrictModeViolation|policy=71 violation="
                     + violation + "|";
+            String[] fields = detail == null ? new String[0] : detail.split("\\|", 4);
+            String main = fields.length > 0 && ("true".equals(fields[0]) || "false".equals(fields[0]))
+                    ? fields[0] : "unknown";
+            boolean classMatch = fields.length > 1
+                    && "android.os.StrictMode$StrictModeViolation".equals(fields[1]);
+            String policy = "unknown";
+            String observedViolation = "unknown";
+            if (fields.length > 2) {
+                Matcher matcher = Pattern.compile("^policy=([0-9]{1,10}) violation=([0-9]{1,10})(?:$|\\s)")
+                        .matcher(fields[2]);
+                if (matcher.find()) {
+                    try {
+                        policy = Integer.toString(Integer.parseInt(matcher.group(1)));
+                        observedViolation = Integer.toString(Integer.parseInt(matcher.group(2)));
+                    } catch (NumberFormatException ignored) {
+                        policy = "unknown";
+                        observedViolation = "unknown";
+                    }
+                }
+            }
             return "CRASH(expected=" + (detail != null && detail.startsWith(expected))
+                    + ",main=" + main + ",classMatch=" + classMatch + ",policy=" + policy
+                    + ",violation=" + observedViolation
                     + ",framework=" + (detail != null && detail.contains("android.os.StrictMode.executeDeathPenalty")) + ")";
         }
         return "OTHER";
