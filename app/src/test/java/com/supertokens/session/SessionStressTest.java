@@ -120,7 +120,8 @@ public class SessionStressTest extends SessionTestFixture {
         return id;
     }
 
-    private int wire(boolean url, SessionRequestTag tag, String path, String id) throws Exception {
+    static int wire(okhttp3.OkHttpClient client, okhttp3.mockwebserver.MockWebServer server,
+                    boolean url, SessionRequestTag tag, String path, String id) throws Exception {
         if (url) {
             HttpURLConnection connection = SuperTokensHttpURLConnection.newRequest(server.url(path).url(), con -> {
                 con.setConnectTimeout(8000); con.setReadTimeout(8000); con.setRequestProperty("x-stress-op", id);
@@ -130,6 +131,20 @@ public class SessionStressTest extends SessionTestFixture {
         Request.Builder builder = new Request.Builder().url(server.url(path)).header("x-stress-op", id);
         if (tag != null) builder.tag(SessionRequestTag.class, tag);
         try (Response response = client.newCall(builder.build()).execute()) { return response.code(); }
+    }
+
+    static boolean expectedStressIOException(int kind, SessionRequestTag tag, Exception exception) {
+        String message = exception.getMessage();
+        return message != null && (message.startsWith("Received a 401 response from ")
+                || message.equals("Too many unfinished refresh transports")
+                || expectedPendingReplacementIOException(kind, tag, exception));
+    }
+
+    private static boolean expectedPendingReplacementIOException(int kind, SessionRequestTag tag, Exception exception) {
+        return (kind >= 0 && kind <= 2 || kind == 7) && tag != null && tag.capturedDuringPendingReplacement()
+                && tag.getSnapshot().getStatus() == SessionSnapshot.Status.UNAVAILABLE
+                && exception instanceof IOException
+                && "Session storage recovery is required".equals(exception.getMessage());
     }
 
     @Test public void seededPublicOperationMix() throws Exception {
@@ -159,7 +174,7 @@ public class SessionStressTest extends SessionTestFixture {
                         try {
                             switch (kind) {
                                 case 0: case 1: case 2:
-                                    int code = wire(kind == 1, tag, kind == 2 ? "/reject" : "/protected", id);
+                                    int code = wire(client, server, kind == 1, tag, kind == 2 ? "/reject" : "/protected", id);
                                     assertTrue(code == 200 || code == 401);
                                     break;
                                 case 3:
@@ -172,7 +187,7 @@ public class SessionStressTest extends SessionTestFixture {
                                     SessionCommitResult installed = SuperTokens.installSession(context, snapshot.getOwner(), backend.register(id));
                                     assertTrue(installed.isSuccess() || installed.getStatus() == SessionCommitResult.Status.STALE_OWNER);
                                     break;
-                                case 7: backend.register(id); assertEquals(200, wire(random.nextBoolean(), tag, "/login?session=" + id, id)); break;
+                                case 7: backend.register(id); assertEquals(200, wire(client, server, random.nextBoolean(), tag, "/login?session=" + id, id)); break;
                                 default: throw new AssertionError();
                             }
                             outcomes.computeIfAbsent("operation-" + kind, key -> new AtomicInteger()).incrementAndGet();
@@ -181,9 +196,10 @@ public class SessionStressTest extends SessionTestFixture {
                             else violations.add("legacy stale kind=" + kind + " id=" + id);
                         } catch (IOException | IllegalAccessException expected) {
                             String message = expected.getMessage();
-                            if (message != null && (message.startsWith("Received a 401 response from ")
-                                    || message.equals("Too many unfinished refresh transports"))) {
-                                outcomes.computeIfAbsent("bounded-legacy-io", key -> new AtomicInteger()).incrementAndGet();
+                            if (expectedStressIOException(kind, tag, expected)) {
+                                String outcome = expectedPendingReplacementIOException(kind, tag, expected)
+                                        ? "tagged-pending-io" : "bounded-legacy-io";
+                                outcomes.computeIfAbsent(outcome, key -> new AtomicInteger()).incrementAndGet();
                             } else violations.add("unexpected " + expected.getClass().getName() + " kind=" + kind + " message=" + message);
                         } finally { operation.remove(); }
                         assertNotEquals(SessionSnapshot.Status.RECOVERY_REQUIRED, SuperTokens.getSessionSnapshot(context).getStatus());

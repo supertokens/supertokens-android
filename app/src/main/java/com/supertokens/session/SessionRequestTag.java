@@ -5,13 +5,22 @@ import androidx.annotation.Nullable;
 /** Logical-request capture accepted as an OkHttp tag and URLConnection overload argument. */
 public final class SessionRequestTag {
     private final SessionSnapshot snapshot;
+    private final boolean capturedDuringPendingReplacement;
     final SessionState.Configuration configuration;
     private volatile SessionSnapshot acceptedSnapshot;
 
     SessionRequestTag(SessionSnapshot snapshot, SessionState.Configuration configuration) {
+        this(snapshot, configuration, false);
+    }
+
+    SessionRequestTag(SessionSnapshot snapshot, SessionState.Configuration configuration,
+                      boolean capturedDuringPendingReplacement) {
         this.snapshot = snapshot;
         this.configuration = configuration;
+        this.capturedDuringPendingReplacement = capturedDuringPendingReplacement;
     }
+
+    boolean capturedDuringPendingReplacement() { return capturedDuringPendingReplacement; }
 
     public SessionOwner getOwner() {
         return snapshot.getOwner();

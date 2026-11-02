@@ -496,7 +496,9 @@ final class SessionState {
             if (current == null || configuration == null) {
                 throw new IllegalStateException("SuperTokens.init function not called");
             }
-            return new SessionRequestTag(current, configuration);
+            boolean pendingReplacement = current.getStatus() == SessionSnapshot.Status.UNAVAILABLE
+                    && pending != null && current.getOwner() == transientOwner;
+            return new SessionRequestTag(current, configuration, pendingReplacement);
         } finally { lock.unlock(); }
     }
 
