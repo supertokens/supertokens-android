@@ -100,7 +100,11 @@ if (process.env.ST_MATRIX_REPORTS) {
     }
     const repository = path.resolve(__dirname, '../..');
     const ci = fs.readFileSync(path.join(repository, '.circleci/setupAndTestWithFreeCore.sh'), 'utf8');
-    assert(ci.includes('supertokens-node.git#$2') && ci.includes('git checkout $coreTag'));
+    const ciCaller = fs.readFileSync(path.join(repository, '.circleci/doTests.sh'), 'utf8');
+    assert(ciCaller.includes('driverSha=$(git rev-parse --verify HEAD^{commit})'));
+    assert(ciCaller.includes('refs/tags/$driverTag^{commit}') && ciCaller.includes('"$driverTag" "$driverSha"'));
+    assert(ci.includes('supertokens-node.git#$3') && ci.includes('git checkout $coreTag'));
+    assert(ci.includes('"$core_source" "$PWD/package-lock.json" "$5" "$6" "$2" "$4" "$3"'));
     assert(ci.includes('runOrdinary.js') && ci.includes('runOwnedTests.js" matrix'));
     assert(!/node \. &|8080|9000|ciCleanup.sh|kill |gradlew --stop/.test(ci));
     const runner = fs.readFileSync(path.join(__dirname, 'runOrdinary.js'), 'utf8');
