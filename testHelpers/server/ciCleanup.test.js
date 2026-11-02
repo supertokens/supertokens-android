@@ -4,10 +4,40 @@ const os = require("os");
 const path = require("path");
 const { spawn, spawnSync } = require("child_process");
 
+function missingPidDiagnostic(result, elapsedMs, env) {
+    const secrets = Object.entries(env)
+        .filter(([key, value]) => /secret|token|api[_-]?key|password|passwd|credential|private[_-]?key|authorization/i.test(key) && value)
+        .map(([, value]) => String(value))
+        .sort((a, b) => b.length - a.length);
+    const sanitize = value => {
+        let text = String(value ?? "");
+        for (const secret of secrets) text = text.split(secret).join("<REDACTED>");
+        return text.slice(0, 2048);
+    };
+    return `PID file missing: spawn error code=${sanitize(result.error?.code)} message=${sanitize(result.error?.message)} ` +
+        `status=${result.status} signal=${result.signal} elapsedMs=${Math.round(elapsedMs)} stderr=${sanitize(result.stderr)}`;
+}
+
+function reportMissingPid(pidFile, result, elapsedMs, env, report = console.error) {
+    if (!fs.existsSync(pidFile)) report(missingPidDiagnostic(result, elapsedMs, env));
+}
+
 const temporary = fs.mkdtempSync(path.join(os.tmpdir(), "android-ci-cleanup-"));
 const unrelated = spawn("sleep", ["60"]);
 const alive = pid => { try { process.kill(pid, 0); return true; } catch (_) { return false; } };
 try {
+    const missingSpawn = spawnSync(path.join(temporary, "nonexistent-command"));
+    assert.strictEqual(missingSpawn.error.code, "ENOENT");
+    let diagnostic;
+    reportMissingPid(path.join(temporary, "missing.pids"), {
+        ...missingSpawn, error: { ...missingSpawn.error, message: missingSpawn.error.message + " fixture-secret" },
+        stderr: "fixture-secret" + "x".repeat(3000),
+    }, 12, { API_KEY: "fixture-secret" }, message => { diagnostic = message; });
+    assert.match(diagnostic, /spawn error code=ENOENT message=.*ENOENT/);
+    assert.match(diagnostic, /status=null signal=null elapsedMs=12 stderr=<REDACTED>/);
+    assert(!diagnostic.includes("fixture-secret"));
+    assert(diagnostic.length < 2300);
+
     const bin = path.join(temporary, "bin");
     fs.mkdirSync(bin);
     fs.writeFileSync(path.join(bin, "curl"), `#!/bin/bash
@@ -55,9 +85,12 @@ fake_gradle_boundary() { return 39; }
 fake_qualification
 fake_gradle_boundary
 `;
+        const started = process.hrtime.bigint();
         const result = spawnSync("bash", ["-c", script], { encoding: "utf8", timeout: 20000,
             env: { ...process.env, PATH: bin + path.delimiter + process.env.PATH, SERVER_DIRECTORY: __dirname,
                 PID_FILE: pidFile, CLEANUP_PHASE: phase, CLEANUP_LOG: log, FAIL_CORE_CLEANUP: cleanupFails ? "1" : "0" } });
+        const elapsedMs = Number(process.hrtime.bigint() - started) / 1e6;
+        reportMissingPid(pidFile, result, elapsedMs, process.env);
         const pids = fs.readFileSync(pidFile, "utf8").split(" ").map(Number);
         try {
             assert.ifError(result.error);
