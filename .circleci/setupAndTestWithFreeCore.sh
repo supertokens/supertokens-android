@@ -61,10 +61,14 @@ fi
 cd ../project/testHelpers/server/
 nvm use 16
 npm i -d --force
-npm i git+https://github.com:supertokens/supertokens-node.git#$2
+npm i "git+https://github.com/supertokens/supertokens-node.git#$3"
+core_source="$(cd ../../../supertokens-root && pwd)"
+node "$repository/.circleci/sourceRevisionManifest.js" \
+    "$repository/owned-integration-evidence/source-revisions-$5.json" "$repository" \
+    "$core_source" "$PWD/package-lock.json" "$5" "$6" "$2" "$4" "$3" \
+    "$coreTag" "$coreVersion" "$pluginInterfaceTag" "$pluginInterfaceVersion"
 npm test
 npm run test:entrypoints
-core_source="$(cd ../../../supertokens-root && pwd)"
 cd "$repository"
 CORE_PROTOCOL_TESTS=1 ST_TEST_JAVA=/usr/java/jdk-21/bin/java \
 JAVA_HOME=/usr/java/jdk-11 PATH="/usr/java/jdk-11/bin:$PATH" \

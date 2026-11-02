@@ -73,6 +73,7 @@ jobs:
 
             echo 'export NVM_DIR="$HOME/.nvm"' >> $BASH_ENV
             echo '[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"' >> $BASH_ENV
+      - run: node .circleci/sourceRevisionManifest.test.js
       - run: node .circleci/integrationReceipt.js begin /tmp/integration-receipts '<< parameters.fdi-version >>'
       - run: (cd .circleci/ && ./doTests.sh  << parameters.fdi-version >>)
       - run: node .circleci/integrationReceipt.js write /tmp/integration-receipts '<< parameters.fdi-version >>'
@@ -89,6 +90,9 @@ jobs:
       - store_artifacts:
           path: owned-integration-evidence
           destination: owned-integration-evidence
+      - store_artifacts:
+          path: owned-integration-evidence/source-revisions-<< parameters.fdi-version >>.json
+          destination: source-revisions-<< parameters.fdi-version >>.json
       - store_artifacts:
           path: app/build/reports/tests
           destination: android-test-reports

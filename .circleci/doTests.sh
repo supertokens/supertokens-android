@@ -38,6 +38,8 @@ driverVersion=$(echo $driverInfo | jq .version | tr -d '"')
 git clone git@github.com:supertokens/supertokens-node.git
 cd supertokens-node
 git checkout $driverTag
+driverSha=$(git rev-parse --verify HEAD^{commit})
+test "$(git rev-parse --verify "refs/tags/$driverTag^{commit}")" = "$driverSha"
 coreDriverJson=`cat ./coreDriverInterfaceSupported.json`
 coreDriverLength=`echo $coreDriverJson | jq ".versions | length"`
 coreDriverArray=`echo $coreDriverJson | jq ".versions"`
@@ -56,7 +58,7 @@ then
 fi
 coreFree=$(echo $coreFree | jq .core | tr -d '"')
 
-./setupAndTestWithFreeCore.sh "$coreFree" "$driverTag"
+./setupAndTestWithFreeCore.sh "$coreFree" "$driverTag" "$driverSha" "$driverVersion" "$frontendDriverVersion" "$coreDriverVersion"
 rm -rf ../../supertokens-root
 rm -rf ../testHelpers/server/node_modules/supertokens-node
 git checkout HEAD -- ../testHelpers/server/package.json
