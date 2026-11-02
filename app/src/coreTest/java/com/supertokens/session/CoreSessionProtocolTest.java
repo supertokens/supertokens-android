@@ -30,11 +30,19 @@ public class CoreSessionProtocolTest extends CoreSessionProtocolFixture {
         String backend = backend();
         assertNotNull("Explicit live Core harness required", backend);
         OkHttpClient raw = new OkHttpClient.Builder().callTimeout(10, TimeUnit.SECONDS).build();
+        Throwable primary = null;
         try {
             exerciseWithClient(backend, raw, promotionFirst);
+        } catch (Exception | Error failure) {
+            primary = failure;
+            throw failure;
         } finally {
-            raw.connectionPool().evictAll();
-            raw.dispatcher().executorService().shutdownNow();
+            try {
+                raw.connectionPool().evictAll();
+                raw.dispatcher().executorService().shutdownNow();
+            } catch (Exception | Error cleanup) {
+                if (primary != null) primary.addSuppressed(cleanup); else throw cleanup;
+            }
         }
     }
 
