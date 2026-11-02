@@ -67,6 +67,7 @@ function harness(version = '17.1.0') {
             const createdNew = !tenants.has(id);
             if (faults.tenantCollision) { tenants.add(id); return { status: 'OK', createdNew: false }; }
             if (faults.license) throw new Error('HTTP 402 missing multitenancy license');
+            if (faults.tenantCreateDelayed) { faults.delayedTenantId = id; throw new Error('tenant response lost'); }
             tenants.add(id);
             if (faults.tenantCreateAfter) throw new Error("tenant creation response lost");
             return { status: "OK", createdNew };
@@ -105,7 +106,8 @@ async function main() {
     assert.deepStrictEqual(unknown.tenantCalls, { create: 0, delete: 0 });
     const denied = harness('22.1.2');
     denied.faults.license = true;
-    await assert.rejects(denied.owners.create('denied@example.com', async () => {}, true), /402/);
+    await assert.rejects(denied.owners.create('denied@example.com', async () => {}, true), /cleanup also failed/);
+    await assert.rejects(denied.owners.cleanupAll(), /ambiguous/);
     assert.strictEqual(denied.tenantCalls.delete, 0);
     const race = harness('22.1.2');
     race.faults.tenantCollision = true;
@@ -117,6 +119,14 @@ async function main() {
     await assert.rejects(ambiguousTenant.owners.create('ambiguous@example.com', async () => {}, true), /cleanup also failed/);
     await assert.rejects(ambiguousTenant.owners.cleanupAll(), /ambiguous/);
     assert.strictEqual(ambiguousTenant.tenantCalls.delete, 0);
+    const delayed = harness('22.1.2');
+    delayed.faults.tenantCreateDelayed = true;
+    await assert.rejects(delayed.owners.create('delayed@example.com', async () => {}, true), /cleanup also failed/);
+    await assert.rejects(delayed.owners.cleanupAll(), /ambiguous/);
+    delayed.tenants.add(delayed.faults.delayedTenantId);
+    await assert.rejects(delayed.owners.cleanupAll(), /ambiguous/);
+    assert.strictEqual(delayed.tenants.size, 1);
+    assert.strictEqual(delayed.tenantCalls.delete, 0);
     const tenant = harness();
     const createSession = async (id, tenantId) => {
         assert.notStrictEqual(tenantId, "public");

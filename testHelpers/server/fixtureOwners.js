@@ -35,8 +35,8 @@ module.exports = function fixtureOwners(SuperTokens, ThirdParty, Multitenancy, s
             owners.delete(owner.id);
             return;
         }
+        if (owner.tenantCreationAmbiguous) throw new Error('Fixture tenant ownership is ambiguous; cleanup refused');
         const tenantExists = owner.tenantId === "public" || await findFixtureTenant(Multitenancy, owner.tenantId) !== undefined;
-        if (owner.tenantCreationAmbiguous && tenantExists) throw new Error('Fixture tenant ownership is ambiguous; cleanup refused');
         if (owner.recipeUserId === undefined && tenantExists) {
             // Creation may have committed at Core before its response was lost.
             const users = await SuperTokens.listUsersByAccountInfo(owner.tenantId, {
@@ -131,6 +131,7 @@ module.exports = function fixtureOwners(SuperTokens, ThirdParty, Multitenancy, s
                     owners.delete(owner.id);
                     throw new Error('Unsupported fixture tenant configuration for SDK version');
                 }
+                // Upsert is not atomic create-only; the owned disposable Core must have no competing writers.
                 if (await findFixtureTenant(Multitenancy, owner.tenantId) !== undefined) {
                     owners.delete(owner.id);
                     throw new Error("Generated fixture tenant already exists");
