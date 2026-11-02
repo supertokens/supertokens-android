@@ -73,7 +73,7 @@ cd "$repository"
 CORE_PROTOCOL_TESTS=1 ST_TEST_JAVA=/usr/java/jdk-21/bin/java \
 JAVA_HOME=/usr/java/jdk-11 PATH="/usr/java/jdk-11/bin:$PATH" \
 node testHelpers/server/runOrdinary.js "$core_source" "$repository/owned-integration-evidence" 18081 19001 \
-    node "$repository/testHelpers/server/runOwnedTests.js" matrix "$repository" "$repository/owned-integration-evidence/release-context.json"
+    bash "$repository/.circleci/diagnoseOwnedMatrix.sh" node "$repository/testHelpers/server/runOwnedTests.js" matrix "$repository" "$repository/owned-integration-evidence/release-context.json"
 fdi=$(node -p 'JSON.parse(require("fs").readFileSync("owned-integration-evidence/release-context.json")).fdi')
 # This is reached only after runOrdinary proves successful command drain and cleanup.
 node .circleci/integrationReceipt.js finalize /tmp/integration-receipts "$fdi"
