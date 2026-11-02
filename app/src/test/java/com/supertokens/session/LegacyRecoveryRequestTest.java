@@ -142,7 +142,7 @@ public class LegacyRecoveryRequestTest extends SessionTestFixture {
         }
     }
 
-    @Test public void explicitAndTaggedRecoveryRemainErrorsAndPartialLoginCannotAdopt() throws Exception {
+    @Test public void explicitAndTaggedRecoveryRemainErrorsAndPartialLoginCanAdopt() throws Exception {
         for (boolean url : new boolean[]{false, true}) {
             for (boolean unavailable : new boolean[]{false, true}) {
                 recover(unavailable);
@@ -165,7 +165,9 @@ public class LegacyRecoveryRequestTest extends SessionTestFixture {
                 server.enqueue(promotion(tokens("partial", "new")));
                 assertEquals(200, request(url, null, "/partial"));
                 assertCredentialFree();
-                assertSame(before, SessionState.snapshot());
+                assertEquals(SessionSnapshot.Status.AVAILABLE, SessionState.snapshot().getStatus());
+                assertNull(SessionState.snapshot().getTokens());
+                assertFalse(before.isCurrent());
             }
         }
     }

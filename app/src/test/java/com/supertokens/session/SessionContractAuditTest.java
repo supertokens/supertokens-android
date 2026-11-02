@@ -84,12 +84,12 @@ public class SessionContractAuditTest {
         assertFalse(preferences.memory.containsKey(Constants.CSRF_TOKEN_PREFS_KEY));
     }
 
-    @Test public void frontOnlyResponseCannotEstablishHeaderSession() throws Exception {
+    @Test public void taggedFrontOnlyResponseCannotEstablishHeaderSession() throws Exception {
         SessionSnapshot absent = SuperTokens.getSessionSnapshot(context);
         server.enqueue(new MockResponse().setBody("malformed login")
                 .addHeader("front-token", tokens("handle-A", "A", null).getFrontToken()));
         try {
-            call(null);
+            call(SuperTokens.captureRequestTag(context));
         } catch (IOException rejectedMalformedResponse) {
             assertNotNull(rejectedMalformedResponse.getMessage());
         }

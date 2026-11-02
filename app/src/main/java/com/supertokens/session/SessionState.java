@@ -1024,7 +1024,7 @@ final class SessionState {
                 if ((current.getStatus() == SessionSnapshot.Status.RECOVERY_REQUIRED
                         || current.getStatus() == SessionSnapshot.Status.UNAVAILABLE)
                         && (candidate == null || candidate.removal
-                        || (!candidate.completeHeader
+                        || (!compatibleResponse && !candidate.completeHeader
                         && !"cookie".equalsIgnoreCase(configuration.values.tokenTransferMethod))
                         || response.code < 200 || response.code >= 300)) {
                     return new SessionCommitResult(SessionCommitResult.Status.RECOVERY_REQUIRED, current, null);
@@ -1053,7 +1053,8 @@ final class SessionState {
                 }
 
                 SessionSnapshot previous = current;
-                boolean cookieAllowed = "cookie".equalsIgnoreCase(configuration.values.tokenTransferMethod)
+                boolean cookieAllowed = (compatibleResponse && !candidate.completeHeader)
+                        || "cookie".equalsIgnoreCase(configuration.values.tokenTransferMethod)
                         || (previous.getStatus() == SessionSnapshot.Status.AVAILABLE
                         && previous.getInternalTokens() != null && !previous.getInternalTokens().hasCompleteHeaderTokens());
                 boolean headerMode = !cookieAllowed;
