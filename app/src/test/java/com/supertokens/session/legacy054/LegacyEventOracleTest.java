@@ -74,43 +74,59 @@ public class LegacyEventOracleTest extends SessionTestFixture {
         }
     }
 
-    @Test public void promotionDuringRefreshEventOrder() throws Exception {
-        List<String> events = new java.util.concurrent.CopyOnWriteArrayList<>();
-        java.util.concurrent.CountDownLatch entered = new java.util.concurrent.CountDownLatch(1);
-        java.util.concurrent.CountDownLatch release = new java.util.concurrent.CountDownLatch(1);
-        java.util.concurrent.ExecutorService worker = java.util.concurrent.Executors.newSingleThreadExecutor();
-        try (Legacy054Harness legacy = oracle(events, null)) {
-            SessionTokens initial = tokens("A", "one");
-            SessionTokens promoted = tokens("A", "two");
-            SessionTokens refreshed = tokens("A", "three");
-            server.enqueue(rotation(initial));
-            legacy.request(server.url("/login").toString());
-            events.clear();
-            server.setDispatcher(new okhttp3.mockwebserver.Dispatcher() {
-                @Override public MockResponse dispatch(okhttp3.mockwebserver.RecordedRequest request) throws InterruptedException {
-                    if (request.getPath().contains("/session/refresh")) {
-                        entered.countDown();
-                        if (!release.await(5, java.util.concurrent.TimeUnit.SECONDS)) throw new AssertionError("refresh timed out");
-                        return rotation(refreshed);
-                    }
-                    return new MockResponse().addHeader("front-token", promoted.getFrontToken())
-                            .addHeader("st-access-token", promoted.getAccessToken());
-                }
-            });
-            java.util.concurrent.Future<Object> refresh = worker.submit(() -> legacy.invoke("refresh"));
-            assertTrue(entered.await(5, java.util.concurrent.TimeUnit.SECONDS));
-            legacy.request(server.url("/update").toString());
-            release.countDown();
-            assertEquals(Boolean.TRUE, refresh.get(5, java.util.concurrent.TimeUnit.SECONDS));
-            List<String> types = new ArrayList<>();
-            for (String event : events) types.add(event.substring(0, event.indexOf(':')));
-            assertEquals(java.util.Arrays.asList("ACCESS_TOKEN_PAYLOAD_UPDATED", "ACCESS_TOKEN_PAYLOAD_UPDATED", "REFRESH_SESSION"), types);
-            assertEquals(refreshed.getAccessToken(), legacy.invoke("getAccessToken"));
-        } finally {
-            release.countDown();
-            worker.shutdownNow();
-            assertTrue(worker.awaitTermination(5, java.util.concurrent.TimeUnit.SECONDS));
+    @Test public void refreshThenRetryResponseEventsMatchPublished() throws Exception {
+        for (String transfer : new String[]{"header", "cookie"}) for (boolean url : new boolean[]{false, true}) {
+            for (String retryClaim : new String[]{"two", "three", "one"}) {
+                List<String> published = retryEvents(true, transfer, url, retryClaim);
+                List<String> candidate = retryEvents(false, transfer, url, retryClaim);
+                List<String> expected = new ArrayList<>();
+                expected.add("ACCESS_TOKEN_PAYLOAD_UPDATED:" + Thread.currentThread().getId());
+                expected.add("REFRESH_SESSION:" + Thread.currentThread().getId());
+                if (!retryClaim.equals("two")) expected.add("ACCESS_TOKEN_PAYLOAD_UPDATED:" + Thread.currentThread().getId());
+                assertEquals("published " + transfer + " url=" + url + " retry=" + retryClaim, expected, published);
+                assertEquals("candidate " + transfer + " url=" + url + " retry=" + retryClaim, published, candidate);
+            }
         }
+    }
+
+    private List<String> retryEvents(boolean published, String transfer, boolean url, String retryClaim) throws Exception {
+        SuperTokens.resetForTests();
+        context.getSharedPreferences("supertokens-android-shared-preferences", 0).edit().clear().commit();
+        List<String> events = new ArrayList<>();
+        Legacy054Harness legacy = published ? new Legacy054Harness(context) : null;
+        if (published) {
+            if (transfer.equals("cookie")) legacy.invoke("useCookies");
+            legacy.invoke("buildWithEventsForTransfer", new Class<?>[]{String.class, String.class, List.class, String.class},
+                    server.url("/").toString(), transfer, events, null);
+        }
+        java.net.CookieHandler previous = java.net.CookieHandler.getDefault();
+        if (!published && transfer.equals("cookie")) java.net.CookieHandler.setDefault(new java.net.CookieManager(
+                new com.supertokens.session.SuperTokensPersistentCookieStore(context), java.net.CookiePolicy.ACCEPT_ALL));
+        if (!published) new SuperTokens.Builder(context, server.url("/").toString()).tokenTransferMethod(transfer)
+                .eventHandler(event -> events.add(event.name() + ":" + Thread.currentThread().getId())).build();
+        try {
+            server.enqueue(eventRotation(tokens("A", "one"), transfer));
+            if (published) legacy.request(server.url("/login").toString());
+            else assertEquals(200, request(false, null, "/login"));
+            events.clear();
+            server.enqueue(new MockResponse().setResponseCode(401));
+            server.enqueue(eventRotation(tokens("A", "two"), transfer));
+            server.enqueue(eventRotation(tokens("A", retryClaim), transfer));
+            int status = published ? (url ? (Integer) legacy.invoke("requestURLConnection", new Class<?>[]{String.class}, server.url("/protected").toString())
+                    : (Integer) legacy.request(server.url("/protected").toString()).get("status")) : request(url, null, "/protected");
+            assertEquals(200, status);
+            return events;
+        } finally {
+            if (legacy != null) legacy.close();
+            else java.net.CookieHandler.setDefault(previous);
+        }
+    }
+
+    private MockResponse eventRotation(SessionTokens tokens, String transfer) {
+        if (transfer.equals("header")) return rotation(tokens);
+        return new MockResponse().addHeader("Set-Cookie", "sAccessToken=" + tokens.getAccessToken() + "; Path=/")
+                .addHeader("Set-Cookie", "sRefreshToken=" + tokens.getRefreshToken() + "; Path=/")
+                .addHeader("front-token", tokens.getFrontToken());
     }
 
     @Test public void recordThrowingHandlerState() throws Exception {
@@ -249,4 +265,43 @@ public class LegacyEventOracleTest extends SessionTestFixture {
             return outcome;
         } finally { if (legacy != null) legacy.close(); }
     }
+    @Test public void promotionDuringRefreshEventOrder() throws Exception {
+        List<String> events = new java.util.concurrent.CopyOnWriteArrayList<>();
+        java.util.concurrent.CountDownLatch entered = new java.util.concurrent.CountDownLatch(1);
+        java.util.concurrent.CountDownLatch release = new java.util.concurrent.CountDownLatch(1);
+        java.util.concurrent.ExecutorService worker = java.util.concurrent.Executors.newSingleThreadExecutor();
+        try (Legacy054Harness legacy = oracle(events, null)) {
+            SessionTokens initial = tokens("A", "one");
+            SessionTokens promoted = tokens("A", "two");
+            SessionTokens refreshed = tokens("A", "three");
+            server.enqueue(rotation(initial));
+            legacy.request(server.url("/login").toString());
+            events.clear();
+            server.setDispatcher(new okhttp3.mockwebserver.Dispatcher() {
+                @Override public MockResponse dispatch(okhttp3.mockwebserver.RecordedRequest request) throws InterruptedException {
+                    if (request.getPath().contains("/session/refresh")) {
+                        entered.countDown();
+                        if (!release.await(5, java.util.concurrent.TimeUnit.SECONDS)) throw new AssertionError("refresh timed out");
+                        return rotation(refreshed);
+                    }
+                    return new MockResponse().addHeader("front-token", promoted.getFrontToken())
+                            .addHeader("st-access-token", promoted.getAccessToken());
+                }
+            });
+            java.util.concurrent.Future<Object> refresh = worker.submit(() -> legacy.invoke("refresh"));
+            assertTrue(entered.await(5, java.util.concurrent.TimeUnit.SECONDS));
+            legacy.request(server.url("/update").toString());
+            release.countDown();
+            assertEquals(Boolean.TRUE, refresh.get(5, java.util.concurrent.TimeUnit.SECONDS));
+            List<String> types = new ArrayList<>();
+            for (String event : events) types.add(event.substring(0, event.indexOf(':')));
+            assertEquals(java.util.Arrays.asList("ACCESS_TOKEN_PAYLOAD_UPDATED", "ACCESS_TOKEN_PAYLOAD_UPDATED", "REFRESH_SESSION"), types);
+            assertEquals(refreshed.getAccessToken(), legacy.invoke("getAccessToken"));
+        } finally {
+            release.countDown();
+            worker.shutdownNow();
+            assertTrue(worker.awaitTermination(5, java.util.concurrent.TimeUnit.SECONDS));
+        }
+    }
+
 }

@@ -2,6 +2,8 @@ package com.supertokens.session;
 
 import android.content.Context;
 import java.io.IOException;
+import java.io.EOFException;
+import java.net.SocketException;
 import java.net.URL;
 
 /** Shared ownership policy; transport operations never hold the session lock. */
@@ -19,6 +21,19 @@ final class SessionTransport {
     }
 
     private SessionTransport() {}
+
+    static boolean disconnected(IOException error) {
+        for (Throwable cause = error; cause != null; cause = cause.getCause()) {
+            if (cause instanceof EOFException) return true;
+            if (cause instanceof SocketException) {
+                String message = cause.getMessage();
+                if (message != null && (message.toLowerCase(java.util.Locale.ROOT).contains("unexpected end")
+                        || message.toLowerCase(java.util.Locale.ROOT).contains("connection reset")
+                        || message.toLowerCase(java.util.Locale.ROOT).contains("broken pipe"))) return true;
+            }
+        }
+        return false;
+    }
 
     enum AuthorizationPolicy { SDK_BEARER, CALLER_NON_BEARER, FOREIGN_BEARER }
 

@@ -25,6 +25,11 @@ final class RefreshCoordinator {
         }
     }
 
+    static IOException httpFailure(int code, String message) {
+        return new IOException("Session refresh failed with response code " + code
+                + (message.isEmpty() ? "" : ": " + message));
+    }
+
     static SessionResolution resolve(Context context, SessionOwner expectedOwner,
                                      boolean forceRefresh, @Nullable String failedAccessToken,
                                      Transport transport) {
@@ -190,7 +195,9 @@ final class RefreshCoordinator {
         final SessionSnapshot captured;
         final SessionState.Configuration configuration;
         final Transport transport;
-        // Admission is shared; strict callers still validate their own result. Guarded by SessionState's lock.
+        // Admission is shared; strict callers validate their own result. A strict follower of a
+        // compatible flight shares its failure but may start a new flight immediately afterwards.
+        // Guarded by SessionState's lock.
         boolean compatibleResponses;
         private volatile boolean done;
         private volatile SessionResolution result;
@@ -226,8 +233,14 @@ final class RefreshCoordinator {
         }
 
         synchronized void fail(SessionSnapshot snapshot, IOException error, long retryNotBeforeNanos) {
+            fail(snapshot, error, retryNotBeforeNanos, false);
+        }
+
+        synchronized void fail(SessionSnapshot snapshot, IOException error, long retryNotBeforeNanos,
+                               boolean httpFailure) {
             if (done) return;
-            result = new SessionResolution(SessionResolution.Status.REFRESH_FAILED, snapshot, error);
+            result = new SessionResolution(SessionResolution.Status.REFRESH_FAILED, snapshot, error,
+                    false, false, httpFailure);
             this.retryNotBeforeNanos = retryNotBeforeNanos;
             done = true;
             notifyAll();

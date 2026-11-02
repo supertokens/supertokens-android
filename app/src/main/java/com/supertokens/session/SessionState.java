@@ -831,8 +831,7 @@ final class SessionState {
                         return LegacyEventBatch.EMPTY;
                     }
                     if (!removal) {
-                        failRefreshLocked(flight, new IOException("Session refresh failed with response code "
-                                + response.code + (response.message.isEmpty() ? "" : ": " + response.message)), 0);
+                        failRefreshLocked(flight, RefreshCoordinator.httpFailure(response.code, response.message), 0, true);
                         return compatibleResponse
                                 ? new LegacyEventBatch(configuration.values.eventHandler, EventHandler.EventType.UNAUTHORISED)
                                 : LegacyEventBatch.EMPTY;
@@ -846,10 +845,12 @@ final class SessionState {
                     return LegacyEventBatch.EMPTY;
                 }
                 if (response.code < 200 || response.code >= 300) {
-                    failRefreshLocked(flight, new IOException("Session refresh failed with response code "
-                            + response.code + (response.message.isEmpty() ? "" : ": " + response.message)),
-                            response.retryAfterMillis(System.currentTimeMillis()));
-                    return LegacyEventBatch.EMPTY;
+                    failRefreshLocked(flight, RefreshCoordinator.httpFailure(response.code, response.message),
+                            response.retryAfterMillis(System.currentTimeMillis()), true);
+                    // The published runtime reports a synthetic removal event here without clearing storage.
+                    return compatibleResponse && !response.has(Constants.FRONT_TOKEN_HEADER_KEY)
+                            ? new LegacyEventBatch(configuration.values.eventHandler, EventHandler.EventType.SIGN_OUT)
+                            : LegacyEventBatch.EMPTY;
                 }
 
                 SessionSnapshot previous = current;
@@ -916,12 +917,17 @@ final class SessionState {
 
     private static void failRefreshLocked(RefreshCoordinator.Flight flight, IOException error,
                                           long cooldown) {
+        failRefreshLocked(flight, error, cooldown, false);
+    }
+
+    private static void failRefreshLocked(RefreshCoordinator.Flight flight, IOException error,
+                                          long cooldown, boolean httpFailure) {
         if (flight.compatibleResponses) cooldown = 0;
         long now = System.nanoTime();
         long cooldownNanos = cooldown <= 0 ? 0 : cooldown * 1000000L;
         long notBefore = cooldownNanos == 0 ? 0 : now + cooldownNanos;
         if (cooldownNanos > 0 && notBefore < now) notBefore = Long.MAX_VALUE;
-        flight.fail(current, error, notBefore);
+        flight.fail(current, error, notBefore, httpFailure);
         if (refreshFlight == flight && cooldown <= 0) {
             refreshFlight = null;
         }
@@ -983,7 +989,7 @@ final class SessionState {
         try {
             SessionResponse.Candidate candidate;
             try {
-                candidate = response.ordinaryCandidate(false);
+                candidate = response.ordinaryCandidate();
             } catch (IllegalArgumentException e) {
                 lock.lock();
                 try {
@@ -1005,7 +1011,7 @@ final class SessionState {
                         || current.getStatus() == SessionSnapshot.Status.UNAVAILABLE) {
                     return new SessionCommitResult(SessionCommitResult.Status.RECOVERY_REQUIRED, current, null);
                 }
-                return clearForResponseLocked(context, tag, response.code);
+                return clearForResponseLocked(context, tag, response.code, false);
             } finally { lock.unlock(); }
 
         } finally { endMutation(); }
@@ -1054,6 +1060,7 @@ final class SessionState {
                             : LegacyEventBatch.EMPTY;
                     return new SessionCommitResult(SessionCommitResult.Status.RECOVERY_REQUIRED, current, null, events);
                 }
+                // Unlike 0.5.4, error responses cannot retarget a request by adopting credentials.
                 if (candidate == null || (response.code >= 300 && !candidate.removal)) {
                     if (current.getStatus() == SessionSnapshot.Status.ABSENT
                             && response.code == configuration.values.sessionExpiredStatusCode) {
@@ -1067,7 +1074,11 @@ final class SessionState {
                     return success();
                 }
                 if (candidate.removal) {
-                    return clearForResponseLocked(context, tag, response.code);
+                    if (compatibleResponse && current.getStatus() == SessionSnapshot.Status.ABSENT
+                            && response.code != configuration.values.sessionExpiredStatusCode) {
+                        return success();
+                    }
+                    return clearForResponseLocked(context, tag, response.code, compatibleResponse);
                 }
                 boolean refreshInFlight = refreshFlight != null && !refreshFlight.isDone()
                         && sameLineage(refreshFlight, current);
@@ -1163,7 +1174,13 @@ final class SessionState {
             current = snapshotFromRecord(record, configuration, new SessionOwner());
             LegacyEventBatch events;
             if (previous.getStatus() == SessionSnapshot.Status.AVAILABLE) {
-                events = offerPublishedLocked(current, EventHandler.EventType.ACCESS_TOKEN_PAYLOAD_UPDATED);
+                SessionTokens previousTokens = previous.getInternalTokens();
+                if (compatibleResponse && previousTokens != null
+                        && tokens.getFrontToken().equals(previousTokens.getFrontToken())) {
+                    events = offerPublishedLocked(current);
+                } else {
+                    events = offerPublishedLocked(current, EventHandler.EventType.ACCESS_TOKEN_PAYLOAD_UPDATED);
+                }
             } else {
                 events = offerPublishedLocked(current, EventHandler.EventType.SESSION_CREATED);
             }
@@ -1204,7 +1221,8 @@ final class SessionState {
     }
 
     private static SessionCommitResult clearForResponseLocked(Context context,
-                                                               SessionRequestTag tag, int code) {
+                                                               SessionRequestTag tag, int code,
+                                                               boolean compatibleResponse) {
         SessionSnapshot previous = current;
         long revision = nextRevision(previous.getRevision());
         String adoption = UUID.randomUUID().toString();
@@ -1215,8 +1233,11 @@ final class SessionState {
         try {
             writeStorage(context, absent);
             current = snapshotFromRecord(absent, configuration, new SessionOwner());
-            LegacyEventBatch events = offerPublishedLocked(current, code == configuration.values.sessionExpiredStatusCode
-                    ? EventHandler.EventType.UNAUTHORISED : EventHandler.EventType.SIGN_OUT);
+            boolean expired = code == configuration.values.sessionExpiredStatusCode;
+            LegacyEventBatch events = compatibleResponse && expired
+                    && previous.getStatus() == SessionSnapshot.Status.AVAILABLE
+                    ? offerPublishedLocked(current, EventHandler.EventType.UNAUTHORISED, EventHandler.EventType.UNAUTHORISED)
+                    : offerPublishedLocked(current, expired ? EventHandler.EventType.UNAUTHORISED : EventHandler.EventType.SIGN_OUT);
             tag.markAccepted(current);
             return success(events);
         } catch (IOException e) {
@@ -1479,6 +1500,16 @@ final class SessionState {
     static void notifyAbsentSignOutIfCurrent(SessionRequestTag captured) {
         LegacyEventBatch events = admitAbsentSignOut(captured);
         if (events != null) dispatch(events);
+    }
+
+    static void notifyFailedSignOutCheckIfCurrent(SessionRequestTag captured) {
+        LegacyEventBatch events;
+        lock.lock();
+        try {
+            if (configuration != captured.configuration || !isCurrentLocked(captured.getOwner())) return;
+            events = new LegacyEventBatch(configuration.values.eventHandler, EventHandler.EventType.SIGN_OUT);
+        } finally { lock.unlock(); }
+        dispatch(events);
     }
 
     // Null means guard rejection; exceptions from delivery are never admission results.

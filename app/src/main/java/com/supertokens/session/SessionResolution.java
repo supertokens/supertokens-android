@@ -17,6 +17,7 @@ public final class SessionResolution {
     private final IOException error;
     final boolean legacyHandlerFailure;
     final boolean pendingReplacement;
+    final boolean refreshHttpFailure;
 
     SessionResolution(Status status, @Nullable SessionSnapshot snapshot,
                       @Nullable IOException error) {
@@ -30,11 +31,18 @@ public final class SessionResolution {
 
     SessionResolution(Status status, @Nullable SessionSnapshot snapshot,
                       @Nullable IOException error, boolean legacyHandlerFailure, boolean pendingReplacement) {
+        this(status, snapshot, error, legacyHandlerFailure, pendingReplacement, false);
+    }
+
+    SessionResolution(Status status, @Nullable SessionSnapshot snapshot,
+                      @Nullable IOException error, boolean legacyHandlerFailure, boolean pendingReplacement,
+                      boolean refreshHttpFailure) {
         this.status = status;
         this.snapshot = snapshot;
         this.error = error;
         this.legacyHandlerFailure = legacyHandlerFailure;
         this.pendingReplacement = pendingReplacement;
+        this.refreshHttpFailure = refreshHttpFailure;
     }
 
     public Status getStatus() {

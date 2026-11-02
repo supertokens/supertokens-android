@@ -70,6 +70,18 @@ public class TransferMethodMismatchTest extends SessionTestFixture {
         }
     }
 
+    @Test public void legacyRemovalWinsButTaggedRemovalRemainsStrict() throws Exception {
+        for (boolean url : new boolean[]{false, true}) for (String credential : new String[]{"st-access-token", "st-refresh-token", "anti-csrf"}) {
+            SessionSnapshot before = install("removal", "before");
+            server.enqueue(new MockResponse().addHeader("front-token", "remove").addHeader(credential, "value"));
+            assertEquals(200, request(url, SuperTokens.captureRequestTag(context), "/strict"));
+            assertSame(before, SessionState.snapshot());
+            server.enqueue(new MockResponse().addHeader("front-token", "remove").addHeader(credential, "value"));
+            assertEquals(200, request(url, null, "/legacy"));
+            assertEquals(SessionSnapshot.Status.ABSENT, SessionState.snapshot().getStatus());
+        }
+    }
+
     private MockResponse session(SessionTokens tokens, boolean cookie) {
         MockResponse response = new MockResponse().addHeader("front-token", tokens.getFrontToken())
                 .addHeader("anti-csrf", tokens.getAntiCSRF());

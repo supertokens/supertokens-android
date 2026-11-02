@@ -165,9 +165,11 @@ public class SuperTokensHttpURLConnection {
         URL origin = new URL(configuration.refreshTokenUrl);
         URL url = origin;
         boolean post = true;
+        boolean retriedDisconnect = false;
         for (int redirects = 0; ; redirects++) {
             final HttpURLConnection connection = (HttpURLConnection) url.openConnection();
             java.util.concurrent.ScheduledFuture<?> timeout = null;
+            boolean receivedResponse = false;
             try {
                 requireCookieManager(configuration);
                 connection.setRequestMethod(post ? "POST" : "GET");
@@ -207,6 +209,7 @@ public class SuperTokensHttpURLConnection {
                 }
                 if (post) connection.getOutputStream().close();
                 int code = connection.getResponseCode();
+                receivedResponse = true;
                 if (!SessionTransport.isResponseInScope(origin.toString(), connection.getURL().toString(), configuration)) {
                     throw new RefreshCoordinator.ConfigurationException("Refresh response URL is outside captured session scope");
                 }
@@ -228,6 +231,11 @@ public class SuperTokensHttpURLConnection {
                 manuallySetCookiesFromResponse(url, connection, configuration);
                 if (deadline != null) deadline.remainingMillis();
                 return response;
+            } catch (IOException e) {
+                if (!legacy || !post || receivedResponse || retriedDisconnect || !SessionTransport.disconnected(e)) throw e;
+                SessionTransport.requireCurrentRefresh(tag);
+                retriedDisconnect = true;
+                redirects--;
             } catch (IllegalAccessException e) {
                 throw new RefreshCoordinator.ConfigurationException(e.getMessage());
             } finally {

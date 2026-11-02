@@ -14,7 +14,7 @@ import org.junit.Test;
 import static org.junit.Assert.*;
 
 public class SessionRefreshFailureModeTest extends SessionTestFixture {
-    public enum Fault { HTML, MISSING_HEADERS, HTTP_500, HTTP_502, HTTP_503, RETRY_AFTER, RESET, STALLED_BACKEND, FRONT_ONLY }
+    public enum Fault { HTML, MISSING_HEADERS, HTTP_500, HTTP_502, HTTP_503, RETRY_AFTER, RESET, TIMEOUT, STALLED_BACKEND, FRONT_ONLY }
     private final AtomicInteger preparations = new AtomicInteger();
 
     @Override protected void initializeSession() throws Exception {
@@ -33,6 +33,8 @@ public class SessionRefreshFailureModeTest extends SessionTestFixture {
         }).build();
         for (boolean url : new boolean[]{false, true}) {
             for (Fault fault : Fault.values()) {
+                // Legacy URLConnection refresh intentionally has no SDK deadline and cannot time out NO_RESPONSE.
+                if (url && fault == Fault.TIMEOUT) continue;
                 preparations.set(0);
                 sdkDispatches.set(0);
                 String handle = "fault-" + url + "-" + fault;
@@ -48,7 +50,6 @@ public class SessionRefreshFailureModeTest extends SessionTestFixture {
                         assertEquals("/auth/session/refresh", request.getPath());
                         refreshes.incrementAndGet();
                         assertEquals("Bearer " + before.getTokens().getRefreshToken(), request.getHeader("Authorization"));
-                        // Legacy URLConnection has no read deadline, so release the stalled request with a failure.
                         if (url && fault == Fault.STALLED_BACKEND) {
                             return new MockResponse().setResponseCode(503).setHeadersDelay(1, TimeUnit.SECONDS);
                         }
@@ -70,12 +71,14 @@ public class SessionRefreshFailureModeTest extends SessionTestFixture {
                         assertEquals("Malformed refresh response", error.getMessage());
                     }
                     assertEquals(fault.toString(), 1, protectedRequests.get());
-                    assertEquals(fault + " SDK preparations", 1, preparations.get());
-                    assertEquals(fault + " caller-chain SDK dispatches", url ? 0 : 1, sdkDispatches.get());
+                    assertEquals(fault + " SDK preparations", url && fault == Fault.RESET ? 2 : 1, preparations.get());
+                    assertEquals(fault + " caller-chain SDK dispatches", url ? 0 : fault == Fault.RESET ? 2 : 1,
+                            sdkDispatches.get());
                     // Approved 2026-10-30: these are pinned fixture observations, not a legacy wire guarantee.
                     boolean historicalReset = !url && fault == Fault.RESET
                             && "3.12.13".equals(System.getProperty("session.matrix.okhttp"));
-                    assertEquals(fault + " observed HTTP exchanges", historicalReset ? 3 : 1, refreshes.get());
+                    int expectedExchanges = fault == Fault.RESET ? (historicalReset ? 4 : 2) : 1;
+                    assertEquals(fault + " observed HTTP exchanges", expectedExchanges, refreshes.get());
                     assertSame(before, SuperTokens.getSessionSnapshot(context));
                     assertEquals(SessionSnapshot.Status.AVAILABLE, before.getStatus());
                     if (fault == Fault.RETRY_AFTER) {
@@ -83,8 +86,8 @@ public class SessionRefreshFailureModeTest extends SessionTestFixture {
                         catch (IOException expected) { assertFalse(expected instanceof StaleSessionException); }
                         assertEquals(2, protectedRequests.get());
                         assertEquals("D9: legacy requests retry immediately", 2, refreshes.get());
-                        assertEquals("D9: each legacy attempt prepares a refresh", 2, preparations.get());
-                        assertEquals("D9: each legacy OkHttp attempt dispatches a refresh", url ? 0 : 2, sdkDispatches.get());
+                        assertEquals(2, preparations.get());
+                        assertEquals(url ? 0 : 2, sdkDispatches.get());
                         assertSame(before, SuperTokens.getSessionSnapshot(context));
                     }
                     System.out.println("FAULT transport=" + (url ? "url" : "okhttp") + " fault=" + fault
@@ -167,6 +170,7 @@ public class SessionRefreshFailureModeTest extends SessionTestFixture {
             case HTTP_503: return new MockResponse().setResponseCode(503);
             case RETRY_AFTER: return new MockResponse().setResponseCode(429).setHeader("Retry-After", "3600");
             case RESET: return new MockResponse().setSocketPolicy(SocketPolicy.DISCONNECT_AFTER_REQUEST);
+            case TIMEOUT: return new MockResponse().setSocketPolicy(SocketPolicy.NO_RESPONSE);
             case STALLED_BACKEND: return new MockResponse().setSocketPolicy(SocketPolicy.NO_RESPONSE);
             case FRONT_ONLY: return new MockResponse().addHeader("front-token", ignored.getFrontToken());
             default: throw new AssertionError(fault);

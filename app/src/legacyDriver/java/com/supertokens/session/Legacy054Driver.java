@@ -3,10 +3,19 @@ package com.supertokens.session;
 import android.content.Context;
 import java.io.Closeable;
 import java.io.IOException;
+import java.net.CookieHandler;
+import java.net.CookieManager;
+import java.net.CookiePolicy;
+import java.net.HttpCookie;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import okhttp3.OkHttpClient;
+import okhttp3.Cookie;
+import okhttp3.CookieJar;
+import okhttp3.HttpUrl;
 import okhttp3.Request;
 import okhttp3.Response;
 
@@ -14,6 +23,8 @@ import okhttp3.Response;
 public final class Legacy054Driver implements Closeable {
     private final Context context;
     private OkHttpClient client;
+    private CookieHandler previousCookies;
+    private CookieManager cookies;
 
     public Legacy054Driver(Context context) {
         this.context = context;
@@ -23,6 +34,44 @@ public final class Legacy054Driver implements Closeable {
 
     public void build(String apiDomain, String transferMethod) throws Exception {
         new SuperTokens.Builder(context, apiDomain).tokenTransferMethod(transferMethod).build();
+    }
+
+    public void setReadTimeoutMillis(long millis) {
+        client = client.newBuilder().readTimeout(millis, TimeUnit.MILLISECONDS).build();
+    }
+
+    /** Opt-in because CookieHandler is process-global, including across isolated class loaders. */
+    public void useCookies() {
+        if (cookies != null) throw new IllegalStateException("Cookies already installed");
+        previousCookies = CookieHandler.getDefault();
+        cookies = new CookieManager(null, CookiePolicy.ACCEPT_ALL);
+        CookieHandler.setDefault(cookies);
+        final CookieManager manager = cookies;
+        client = client.newBuilder().cookieJar(new CookieJar() {
+            @Override public void saveFromResponse(HttpUrl url, List<Cookie> responseCookies) {
+                for (Cookie cookie : responseCookies) {
+                    List<HttpCookie> parsed = HttpCookie.parse(cookie.toString());
+                    for (HttpCookie value : parsed) manager.getCookieStore().add(url.uri(), value);
+                }
+            }
+            @Override public List<Cookie> loadForRequest(HttpUrl url) {
+                List<Cookie> result = new ArrayList<>();
+                try {
+                    Map<String, List<String>> headers = manager.get(url.uri(), java.util.Collections.<String, List<String>>emptyMap());
+                    for (Map.Entry<String, List<String>> header : headers.entrySet()) {
+                        if (!"Cookie".equalsIgnoreCase(header.getKey())) continue;
+                        for (String value : header.getValue()) for (String pair : value.split(";\\s*")) {
+                            if (pair.startsWith("$")) continue;
+                            Cookie parsed = Cookie.parse(url, pair);
+                            if (parsed != null) result.add(parsed);
+                        }
+                    }
+                } catch (IOException error) {
+                    throw new IllegalStateException("Could not read cookies", error);
+                }
+                return result;
+            }
+        }).build();
     }
 
     public void buildForUpgrade(String apiDomain, String transferMethod, okhttp3.CookieJar cookies,
@@ -51,7 +100,12 @@ public final class Legacy054Driver implements Closeable {
 
     public void buildWithEvents(String apiDomain, final java.util.List<String> events,
                                 final String throwOn) throws Exception {
-        new SuperTokens.Builder(context, apiDomain).tokenTransferMethod("header")
+        buildWithEventsForTransfer(apiDomain, "header", events, throwOn);
+    }
+
+    public void buildWithEventsForTransfer(String apiDomain, String transferMethod,
+                                          final java.util.List<String> events, final String throwOn) throws Exception {
+        new SuperTokens.Builder(context, apiDomain).tokenTransferMethod(transferMethod)
                 .eventHandler(new EventHandler() {
                     @Override public void handleEvent(EventType type) {
                         events.add(type.name() + ":" + Thread.currentThread().getId());
@@ -76,6 +130,8 @@ public final class Legacy054Driver implements Closeable {
     public boolean doesSessionExist() { return SuperTokens.doesSessionExist(context); }
     public String getUserId() { return SuperTokens.getUserId(context); }
     public String getAccessToken() { return SuperTokens.getAccessToken(context); }
+    public String getTokenForHeaderAuth() { return Utils.getTokenForHeaderAuth(Utils.TokenType.ACCESS, context); }
+    public String getAuthorizationHeaderIfExists(boolean refresh) { return Utils.getAuthorizationHeaderIfExists(refresh, context); }
 
     public String getAccessTokenPayloadSecurely() throws Exception {
         return SuperTokens.getAccessTokenPayloadSecurely(context).toString();
@@ -124,6 +180,7 @@ public final class Legacy054Driver implements Closeable {
     }
 
     @Override public void close() {
+        if (cookies != null && CookieHandler.getDefault() == cookies) CookieHandler.setDefault(previousCookies);
         client.dispatcher().cancelAll();
         client.connectionPool().evictAll();
         client.dispatcher().executorService().shutdownNow();

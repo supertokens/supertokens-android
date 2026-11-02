@@ -69,7 +69,19 @@ public class RefreshUrlConnectionParityTest extends SessionTestFixture {
 
     @Test public void replacedOwnerCannotFollowRedirect() throws Exception {
         SessionSnapshot snapshot = install("session", "before");
+        java.net.CookieHandler previous = java.net.CookieHandler.getDefault();
+        java.util.List<java.net.URI> cookieWrites = new java.util.concurrent.CopyOnWriteArrayList<>();
+        java.net.CookieHandler.setDefault(new java.net.CookieHandler() {
+            @Override public java.util.Map<String, java.util.List<String>> get(java.net.URI uri,
+                    java.util.Map<String, java.util.List<String>> headers) {
+                return java.util.Collections.emptyMap();
+            }
+            @Override public void put(java.net.URI uri, java.util.Map<String, java.util.List<String>> headers) {
+                cookieWrites.add(uri);
+            }
+        });
         server.enqueue(new MockResponse().setResponseCode(307).addHeader("Location", "/redirected")
+                .addHeader("Set-Cookie", "probe=stale; Path=/manual-only")
                 .setHeadersDelay(1, TimeUnit.SECONDS));
         java.util.concurrent.ExecutorService executor = java.util.concurrent.Executors.newSingleThreadExecutor();
         try {
@@ -85,8 +97,10 @@ public class RefreshUrlConnectionParityTest extends SessionTestFixture {
             install("replacement", "after");
             refresh.get(5, TimeUnit.SECONDS);
             assertEquals(1, server.getRequestCount());
+            for (java.net.URI uri : cookieWrites) assertNotEquals("/manual-only", uri.getPath());
         } finally {
             executor.shutdownNow();
+            java.net.CookieHandler.setDefault(previous);
         }
     }
 

@@ -170,14 +170,15 @@ public class SuperTokens {
             if (resolution.getStatus() == SessionResolution.Status.STALE_OWNER || resolution.pendingReplacement) return;
             if (resolution.getStatus() == SessionResolution.Status.RECOVERY_REQUIRED) {
                 SessionCommitResult cleared = SessionState.clear(context, tag.getOwner());
-                if (cleared.getStatus() == SessionCommitResult.Status.STALE_OWNER) return;
                 SessionState.dispatch(cleared);
-                SessionState.dispatch(new LegacyEventBatch(captured.values.eventHandler, EventHandler.EventType.SIGN_OUT));
+                if (cleared.getStatus() != SessionCommitResult.Status.STALE_OWNER) {
+                    SessionState.dispatch(new LegacyEventBatch(captured.values.eventHandler, EventHandler.EventType.SIGN_OUT));
+                }
                 return;
             }
-            if (resolution.legacyHandlerFailure) {
+            if (resolution.legacyHandlerFailure || resolution.refreshHttpFailure) {
                 // Published signOut treats a failed proactive session check as absent, without clearing credentials.
-                SessionState.dispatch(new LegacyEventBatch(captured.values.eventHandler, EventHandler.EventType.SIGN_OUT));
+                SessionState.notifyFailedSignOutCheckIfCurrent(tag);
                 return;
             }
             if (resolution.getError() != null) throw resolution.getError();

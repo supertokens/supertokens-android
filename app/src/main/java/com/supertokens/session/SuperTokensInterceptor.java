@@ -48,7 +48,7 @@ public class SuperTokensInterceptor implements Interceptor {
         Context context = SuperTokens.contextWeakReference.get();
         if (context == null) throw new IOException("Context is null");
         Request original = chain.request();
-        SessionRequestTag supplied = OkHttpSessionTags.get(original);
+        final SessionRequestTag supplied = OkHttpSessionTags.get(original);
         SessionRequestTag logical = supplied == null ? SessionState.capture() : supplied;
         final SessionState.Configuration config = logical.configuration;
         String url = original.url().toString();
@@ -143,7 +143,7 @@ public class SuperTokensInterceptor implements Interceptor {
                                     SessionState.Configuration configuration, SessionSnapshot captured)
                                     throws IOException {
                                 if (configuration != config) throw new StaleSessionException();
-                                return refresh(chain, configuration, captured);
+                                return refresh(chain, configuration, captured, supplied == null);
                             }
                         }, wire.getSnapshot().getRefreshTokenRevision(), supplied == null);
                 if (!resolution.isSuccess()) {
@@ -163,7 +163,7 @@ public class SuperTokensInterceptor implements Interceptor {
     }
 
     private SessionResponse refresh(Chain chain, SessionState.Configuration configuration,
-                                    SessionSnapshot captured) throws IOException {
+                                    SessionSnapshot captured, boolean legacy) throws IOException {
         RefreshDeadline deadline = refreshClient == null ? null : new RefreshDeadline();
         SessionRequestTag tag = new SessionRequestTag(captured, configuration);
         SessionTransport.requireCurrentRefresh(tag);
@@ -198,7 +198,7 @@ public class SuperTokensInterceptor implements Interceptor {
                 @Override public void run() { refreshCall.cancel(); }
             });
         }
-        try (Response response = refreshClient == null ? chain.proceed(request) : refreshCall.execute()) {
+        try (Response response = proceedRefresh(chain, request, refreshCall, tag, legacy)) {
             if (deadline != null) deadline.remainingMillis();
             if (!SessionTransport.isResponseInScope(request.url().toString(),
                     response.request().url().toString(), configuration)) {
@@ -211,6 +211,17 @@ public class SuperTokensInterceptor implements Interceptor {
             return SessionResponse.fromOkHttp(response);
         } finally {
             if (timeout != null) RefreshDeadline.finished(timeout);
+        }
+    }
+
+    private Response proceedRefresh(Chain chain, Request request, okhttp3.Call call,
+                                    SessionRequestTag tag, boolean legacy) throws IOException {
+        try {
+            return call == null ? chain.proceed(request) : call.execute();
+        } catch (IOException error) {
+            if (!legacy || call != null || !SessionTransport.disconnected(error)) throw error;
+            SessionTransport.requireCurrentRefresh(tag);
+            return chain.proceed(request);
         }
     }
 }

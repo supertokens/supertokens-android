@@ -15,6 +15,30 @@ import org.junit.Test;
 import static org.junit.Assert.*;
 
 public class SessionStateBoundaryTest extends SessionTestFixture {
+    @Test public void strictOrdinary401DoesNotAdoptCredentials() throws Exception {
+        SessionSnapshot before = install("A", "before");
+        SessionRequestTag tag = SuperTokens.captureRequestTag(context);
+        SessionTokens replacement = tokens("B", "replacement");
+        java.util.Map<String, java.util.List<String>> headers = new java.util.HashMap<>();
+        headers.put("front-token", java.util.Collections.singletonList(replacement.getFrontToken()));
+        headers.put("st-access-token", java.util.Collections.singletonList(replacement.getAccessToken()));
+        headers.put("st-refresh-token", java.util.Collections.singletonList(replacement.getRefreshToken()));
+        assertTrue(SessionState.applyOrdinaryResponse(context, tag, new SessionResponse(401, "", headers)).isSuccess());
+        assertSame(before, SuperTokens.getSessionSnapshot(context));
+        assertNull(tag.getAcceptedSnapshot());
+    }
+
+    @Test public void ordinary401CannotCreateSessionOnEitherTransport() throws Exception {
+        for (boolean urlConnection : new boolean[]{false, true}) {
+            SessionSnapshot before = SuperTokens.getSessionSnapshot(context);
+            SessionTokens replacement = tokens("B", "replacement");
+            server.enqueue(rotation(replacement).setResponseCode(401));
+            assertEquals(401, request(urlConnection, null, "/ordinary-401"));
+            assertSame(before, SuperTokens.getSessionSnapshot(context));
+            assertEquals(SessionSnapshot.Status.ABSENT, before.getStatus());
+        }
+    }
+
     @Test public void confirmedSignOutAfterRefreshClearsOnlyCapturedOwner() throws Exception {
         SessionSnapshot before = install("A", "before");
         SessionRequestTag signOut = SuperTokens.captureRequestTag(context);
@@ -352,7 +376,7 @@ public class SessionStateBoundaryTest extends SessionTestFixture {
         SessionSnapshot before = install("A", "before");
         SessionTokens after = tokens("A", "after");
         server.enqueue(promotion(after).addHeader("st-access-token", after.getAccessToken()));
-        assertEquals(200, request(false, null, "/profile"));
+        assertEquals(200, request(false, SuperTokens.captureRequestTag(context), "/profile"));
         assertSame(before, SuperTokens.getSessionSnapshot(context));
     }
 

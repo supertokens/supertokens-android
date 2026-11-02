@@ -34,8 +34,15 @@ final class SessionResponse {
     }
 
     static SessionResponse fromHttp(java.net.HttpURLConnection connection) {
-        return new SessionResponse(safeCode(connection), safeMessage(connection),
-                connection.getHeaderFields());
+        Map<String, List<String>> headers = new HashMap<>();
+        for (Map.Entry<String, List<String>> entry : connection.getHeaderFields().entrySet()) {
+            if (entry.getKey() == null || entry.getValue() == null) continue;
+            List<String> values = new ArrayList<>(entry.getValue());
+            String selected = connection.getHeaderField(entry.getKey());
+            if (selected != null && values.remove(selected)) values.add(selected);
+            headers.put(entry.getKey(), values);
+        }
+        return new SessionResponse(safeCode(connection), safeMessage(connection), headers);
     }
 
     private static int safeCode(java.net.HttpURLConnection connection) {
@@ -78,18 +85,22 @@ final class SessionResponse {
     }
 
     boolean isRemoval() {
+        return isRemoval(false);
+    }
+
+    private boolean isRemoval(boolean compatible) {
         if (!has(Constants.FRONT_TOKEN_HEADER_KEY)) return false;
         List<String> frontValues = values(Constants.FRONT_TOKEN_HEADER_KEY);
-        if (frontValues.size() != 1) {
+        if (!compatible && frontValues.size() != 1) {
             throw new IllegalArgumentException("Duplicate front-token header");
         }
-        return "remove".equalsIgnoreCase(frontValues.get(0));
+        return "remove".equalsIgnoreCase(frontValues.get(frontValues.size() - 1));
     }
 
     SessionResponse forSignOut() {
         if (!isRemoval() || credentialIfPresent(Constants.ACCESS_TOKEN_HEADER_KEY) == null) return this;
         // Session verification can regenerate access before sign-out adds its removal headers.
-        // Discard only that superseded credential for the confirmed sign-out path.
+        // Discard only that superseded credential; ordinary responses remain strictly validated.
         Map<String, List<String>> removalHeaders = new HashMap<>(headers);
         for (String name : headers.keySet()) {
             if (name.equalsIgnoreCase(Constants.ACCESS_TOKEN_HEADER_KEY)) removalHeaders.remove(name);
@@ -98,9 +109,14 @@ final class SessionResponse {
     }
 
     @Nullable
+    Candidate ordinaryCandidate() {
+        return ordinaryCandidate(false);
+    }
+
+    @Nullable
     Candidate ordinaryCandidate(boolean compatible) {
         if (!hasCredentialHeaders()) return null;
-        if (isRemoval()) {
+        if (isRemoval(compatible)) {
             if (compatible) return Candidate.removal();
             String access = optionalEmpty(Constants.ACCESS_TOKEN_HEADER_KEY);
             String refresh = optionalEmpty(Constants.REFRESH_TOKEN_HEADER_KEY);
@@ -111,10 +127,10 @@ final class SessionResponse {
             return Candidate.removal();
         }
 
-        String access = credentialIfPresent(Constants.ACCESS_TOKEN_HEADER_KEY);
-        String refresh = credentialIfPresent(Constants.REFRESH_TOKEN_HEADER_KEY);
-        String front = singleIfPresent(Constants.FRONT_TOKEN_HEADER_KEY);
-        String anti = singleIfPresent(Constants.CSRF_HEADER_KEY);
+        String access = credentialIfPresent(Constants.ACCESS_TOKEN_HEADER_KEY, compatible);
+        String refresh = credentialIfPresent(Constants.REFRESH_TOKEN_HEADER_KEY, compatible);
+        String front = valueIfPresent(Constants.FRONT_TOKEN_HEADER_KEY, compatible);
+        String anti = valueIfPresent(Constants.CSRF_HEADER_KEY, compatible);
         if (front == null || (access == null && refresh != null)) {
             throw new IllegalArgumentException("Incoherent session response");
         }
@@ -182,11 +198,27 @@ final class SessionResponse {
 
     @Nullable
     private String credentialIfPresent(String name) {
+        return credentialIfPresent(name, false);
+    }
+
+    @Nullable
+    private String credentialIfPresent(String name, boolean compatible) {
         if (!has(name)) return null;
         List<String> values = values(name);
-        if (values.size() != 1) throw new IllegalArgumentException("Duplicate session header: " + name);
-        if ("".equals(values.get(0))) return null;
-        return single(name);
+        if ("".equals(values.get(values.size() - 1)) && (compatible || values.size() == 1)) return null;
+        return valueIfPresent(name, compatible);
+    }
+
+    @Nullable
+    private String valueIfPresent(String name, boolean compatible) {
+        if (!has(name)) return null;
+        if (!compatible) return single(name);
+        List<String> values = values(name);
+        String value = values.get(values.size() - 1);
+        if (value == null || value.trim().isEmpty()) {
+            throw new IllegalArgumentException("Empty session header: " + name);
+        }
+        return value;
     }
 
     @Nullable
