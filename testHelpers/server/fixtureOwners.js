@@ -16,6 +16,7 @@ module.exports = function fixtureOwners(SuperTokens, ThirdParty, Multitenancy) {
 
     async function performCleanup(owner) {
         if (owner.legacy) {
+            if (owner.creationAmbiguous) throw new Error('Legacy fixture ownership is ambiguous; cleanup refused');
             if (owner.creationAttempted) {
                 const user = await ThirdParty.getUserByThirdPartyInfo('google', owner.id);
                 if (user !== undefined) {
@@ -81,9 +82,9 @@ module.exports = function fixtureOwners(SuperTokens, ThirdParty, Multitenancy) {
                 throw new Error('Generated fixture user already exists');
             }
             owner.creationAttempted = true;
+            owner.creationAmbiguous = true;
             const created = await ThirdParty.signInUp('google', owner.id, email);
             if (created.status === 'OK' && created.createdNewUser === false) {
-                owner.creationAttempted = false;
                 throw new Error('Legacy fixture user was not created');
             }
             if (created.status !== 'OK' || created.createdNewUser !== true) throw new Error('Legacy fixture creation failed');
@@ -92,6 +93,7 @@ module.exports = function fixtureOwners(SuperTokens, ThirdParty, Multitenancy) {
                 throw new Error('Legacy fixture creation identity mismatch');
             }
             owner.recipeUserId = user.id;
+            owner.creationAmbiguous = false;
             const persisted = await ThirdParty.getUserByThirdPartyInfo('google', owner.id);
             if (!persisted || persisted.id !== user.id || !persisted.thirdParty ||
                 persisted.thirdParty.id !== 'google' || persisted.thirdParty.userId !== owner.id) {
