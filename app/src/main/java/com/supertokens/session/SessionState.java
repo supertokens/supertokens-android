@@ -674,6 +674,8 @@ final class SessionState {
             return new SessionResolution(SessionResolution.Status.NO_SESSION, current, null);
         }
         if (current.getStatus() != SessionSnapshot.Status.AVAILABLE) {
+            // Only the reserved replacement view is benign at legacy entry points. A failed
+            // commit or a terminal partial raw tuple must retain its recovery error.
             boolean pendingReplacement = current.getStatus() == SessionSnapshot.Status.UNAVAILABLE
                     && pending != null && current.getOwner() == transientOwner;
             return new SessionResolution(SessionResolution.Status.RECOVERY_REQUIRED, current,
@@ -1530,7 +1532,9 @@ final class SessionState {
         try {
             if (configuration != captured.configuration || !isCurrentLocked(captured.getOwner())
                     || (current.getStatus() != SessionSnapshot.Status.ABSENT
-                    && !SessionTransport.isRecovering(current))) return LegacyEventBatch.EMPTY;
+                    && current.getStatus() != SessionSnapshot.Status.RECOVERY_REQUIRED
+                    && !(current.getStatus() == SessionSnapshot.Status.UNAVAILABLE
+                    && !(pending != null && current.getOwner() == transientOwner)))) return LegacyEventBatch.EMPTY;
             return new LegacyEventBatch(configuration.values.eventHandler, EventHandler.EventType.UNAUTHORISED);
         } finally { lock.unlock(); }
     }

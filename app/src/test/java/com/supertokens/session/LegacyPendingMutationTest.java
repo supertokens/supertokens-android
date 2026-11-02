@@ -13,8 +13,7 @@ import org.junit.Test;
 import static org.junit.Assert.*;
 
 public class LegacyPendingMutationTest extends SessionTestFixture {
-    private void assertRecoveryErrors() throws Exception {
-        // R20 treats terminal recovery as absent only for legacy entry points.
+    private void assertLegacyRefreshAndStrictRecovery() throws Exception {
         assertFalse(SuperTokens.attemptRefreshingSession(context));
         SessionSnapshot snapshot = SuperTokens.getSessionSnapshot(context);
         SessionResolution strict = SuperTokens.resolveAccessToken(context, snapshot.getOwner(), true, null);
@@ -48,6 +47,9 @@ public class LegacyPendingMutationTest extends SessionTestFixture {
                 assertTrue(transientState.isCurrent());
                 assertFalse(old.isCurrent());
                 assertNull(transientState.getTokens());
+                Utils.LocalSessionState projection = Utils.getLocalSessionState(context);
+                assertEquals(Utils.LocalSessionStateStatus.NOT_EXISTS, projection.status);
+                assertNull(projection.lastAccessTokenUpdate);
                 SessionResolution strict = SuperTokens.resolveAccessToken(context, transientState.getOwner(), true, null);
                 assertEquals(SessionResolution.Status.RECOVERY_REQUIRED, strict.getStatus());
                 assertNotNull(strict.getError());
@@ -83,7 +85,7 @@ public class LegacyPendingMutationTest extends SessionTestFixture {
                     assertEquals(replacement.getAccessToken(), SuperTokens.getSessionSnapshot(context).getTokens().getAccessToken());
                 } else if (kind == 3) {
                     assertEquals(SessionSnapshot.Status.UNAVAILABLE, SuperTokens.getSessionSnapshot(context).getStatus());
-                    assertRecoveryErrors();
+                    assertLegacyRefreshAndStrictRecovery();
                 } else assertEquals(SessionSnapshot.Status.ABSENT, SuperTokens.getSessionSnapshot(context).getStatus());
                 assertEquals(0, server.getRequestCount());
             } finally {
@@ -125,12 +127,15 @@ public class LegacyPendingMutationTest extends SessionTestFixture {
             Future<SessionCommitResult> writer = workers.submit(() -> SuperTokens.installSession(context, old.getOwner(), replacement));
             assertTrue(recoveryEntered.await(5, TimeUnit.SECONDS));
             assertEquals(SessionSnapshot.Status.RECOVERY_REQUIRED, SuperTokens.getSessionSnapshot(context).getStatus());
-            assertRecoveryErrors();
+            Utils.LocalSessionState projection = Utils.getLocalSessionState(context);
+            assertEquals(Utils.LocalSessionStateStatus.NOT_EXISTS, projection.status);
+            assertNull(projection.lastAccessTokenUpdate);
+            assertLegacyRefreshAndStrictRecovery();
             recoveryRelease.countDown();
             SessionCommitResult result = writer.get(5, TimeUnit.SECONDS);
             assertEquals(SessionCommitResult.Status.PERSISTENCE_FAILED, result.getStatus());
             assertEquals("Injected primary failure", result.getPersistenceError().getMessage());
-            assertRecoveryErrors();
+            assertLegacyRefreshAndStrictRecovery();
             SuperTokens.signOut(context);
             assertEquals(SessionSnapshot.Status.ABSENT, SuperTokens.getSessionSnapshot(context).getStatus());
             assertEquals(0, server.getRequestCount());
@@ -147,10 +152,10 @@ public class LegacyPendingMutationTest extends SessionTestFixture {
         try {
             Future<?> writer = workers.submit(() -> Utils.storeInStorage("custom", "value", context));
             assertTrue(storage.entered.await(5, TimeUnit.SECONDS));
-            assertRecoveryErrors();
+            assertLegacyRefreshAndStrictRecovery();
             storage.release.countDown();
             writer.get(5, TimeUnit.SECONDS);
-            assertRecoveryErrors();
+            assertLegacyRefreshAndStrictRecovery();
             SuperTokens.signOut(context);
             assertEquals(SessionSnapshot.Status.ABSENT, SuperTokens.getSessionSnapshot(context).getStatus());
         } finally { storage.release.countDown(); workers.shutdownNow(); }

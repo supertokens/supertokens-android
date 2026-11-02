@@ -22,46 +22,11 @@ import static org.junit.Assert.*;
 
 public class LegacyRecoveryRequestTest extends SessionTestFixture {
     private boolean cookieMode;
-    private final List<EventHandler.EventType> events = new ArrayList<>();
+    private EventHandler handler = new EventHandler.DefaultEventHandler();
 
     @Override protected void initializeSession() throws Exception {
         new SuperTokens.Builder(context, server.url("/").toString())
-                .tokenTransferMethod(cookieMode ? "cookie" : "header").eventHandler(events::add).build();
-    }
-
-    @Test public void legacyRecoveryEntryPointsBehaveAsAbsent() throws Exception {
-        for (boolean unavailable : new boolean[]{false, true}) {
-            for (boolean url : new boolean[]{false, true}) {
-                recover(unavailable);
-                events.clear();
-                assertFalse(SuperTokens.doesSessionExist(context));
-                assertNull(SuperTokens.getAccessToken(context));
-                try { SuperTokens.getUserId(context); fail("No user expected"); }
-                catch (IllegalStateException expected) { }
-                assertFalse(SuperTokens.attemptRefreshingSession(context));
-                assertEquals(Arrays.asList(EventHandler.EventType.UNAUTHORISED), events);
-                events.clear();
-                server.enqueue(new MockResponse().setResponseCode(401));
-                assertEquals(401, request(url, null, "/recovery"));
-                assertCredentialFree();
-                assertEquals(Arrays.asList(EventHandler.EventType.UNAUTHORISED), events);
-                events.clear();
-                SuperTokens.signOut(context);
-                assertEquals(Arrays.asList(EventHandler.EventType.SIGN_OUT), events);
-                assertEquals(SessionSnapshot.Status.ABSENT, SessionState.snapshot().getStatus());
-                restart(true);
-                assertEquals(SessionSnapshot.Status.ABSENT, SessionState.snapshot().getStatus());
-            }
-        }
-    }
-
-    @Test public void recoverySignOutIsBestEffortWhenPersistenceFails() throws Exception {
-        recover(false);
-        failCommits(TestPreferences.CommitMode.RETURN_FALSE);
-        events.clear();
-        SuperTokens.signOut(context);
-        assertEquals(Arrays.asList(EventHandler.EventType.SIGN_OUT), events);
-        assertEquals(SessionSnapshot.Status.RECOVERY_REQUIRED, SessionState.snapshot().getStatus());
+                .tokenTransferMethod(cookieMode ? "cookie" : "header").eventHandler(handler).build();
     }
 
     private void recover(boolean unavailable) throws Exception {
@@ -209,26 +174,6 @@ public class LegacyRecoveryRequestTest extends SessionTestFixture {
         }
     }
 
-    @Test public void failedRefreshCommitPropagatesWithoutExportingCredentials() throws Exception {
-        for (boolean url : new boolean[]{false, true}) {
-            failCommits(TestPreferences.CommitMode.ACKNOWLEDGED);
-            recover(false);
-            install("refresh", "before");
-            failCommits(TestPreferences.CommitMode.RETURN_FALSE);
-            server.enqueue(new MockResponse().setResponseCode(401));
-            server.enqueue(rotation(tokens("refresh", "after")));
-            try {
-                request(url, null, "/protected");
-                fail("Refresh persistence failure must propagate");
-            } catch (IOException expected) { }
-            assertEquals(SessionSnapshot.Status.RECOVERY_REQUIRED, SessionState.snapshot().getStatus());
-            assertNull(SessionState.snapshot().getInternalTokens());
-            assertNull(SuperTokens.getAccessToken(context));
-            assertNotNull(server.takeRequest(1, TimeUnit.SECONDS));
-            assertNotNull(server.takeRequest(1, TimeUnit.SECONDS));
-        }
-    }
-
     @Test public void failedLoginCommitCannotExportAndNextLoginRecovers() throws Exception {
         for (boolean url : new boolean[]{false, true}) {
             for (TestPreferences.CommitMode mode : TestPreferences.CommitMode.values()) {
@@ -252,6 +197,74 @@ public class LegacyRecoveryRequestTest extends SessionTestFixture {
                 restart(true);
                 assertEquals(login.getAccessToken(), SuperTokens.getAccessToken(context));
             }
+        }
+    }
+
+    @Test public void recoveryLegacyEventsAndSignOutClear() throws Exception {
+        for (boolean unavailable : new boolean[]{false, true}) {
+            List<EventHandler.EventType> events = new ArrayList<>();
+            handler = events::add;
+            recover(unavailable);
+            events.clear();
+            assertFalse(SuperTokens.doesSessionExist(context));
+            assertNull(SuperTokens.getAccessToken(context));
+            try { SuperTokens.getUserId(context); fail("No user expected"); }
+            catch (IllegalStateException expected) { }
+            Utils.LocalSessionState projection = Utils.getLocalSessionState(context);
+            assertEquals(Utils.LocalSessionStateStatus.NOT_EXISTS, projection.status);
+            assertNull(projection.lastAccessTokenUpdate);
+            int requests = server.getRequestCount();
+            assertFalse(SuperTokens.attemptRefreshingSession(context));
+            assertEquals(Arrays.asList(EventHandler.EventType.UNAUTHORISED), events);
+            events.clear();
+            for (boolean url : new boolean[]{false, true}) {
+                for (boolean removal : new boolean[]{false, true}) {
+                    MockResponse response = new MockResponse().setResponseCode(401);
+                    if (removal) response.addHeader("front-token", "remove");
+                    server.enqueue(response);
+                    assertEquals(401, request(url, null, "/recovery"));
+                    assertCredentialFree();
+                    assertEquals(Arrays.asList(EventHandler.EventType.UNAUTHORISED), events);
+                    events.clear();
+                }
+            }
+            SuperTokens.signOut(context);
+            assertEquals(Arrays.asList(EventHandler.EventType.SIGN_OUT), events);
+            assertEquals(requests + 4, server.getRequestCount());
+            assertEquals(SessionSnapshot.Status.ABSENT, SessionState.snapshot().getStatus());
+            restart(true);
+            assertEquals(SessionSnapshot.Status.ABSENT, SessionState.snapshot().getStatus());
+        }
+    }
+
+    @Test public void recoverySignOutStillNotifiesWhenClearFails() throws Exception {
+        List<EventHandler.EventType> events = new ArrayList<>();
+        handler = events::add;
+        recover(false);
+        events.clear();
+        failCommits(TestPreferences.CommitMode.RETURN_FALSE);
+        SuperTokens.signOut(context);
+        assertEquals(Arrays.asList(EventHandler.EventType.SIGN_OUT), events);
+        assertEquals(SessionSnapshot.Status.RECOVERY_REQUIRED, SessionState.snapshot().getStatus());
+    }
+
+    @Test public void failedRefreshCommitPropagatesWithoutExportingCredentials() throws Exception {
+        for (boolean url : new boolean[]{false, true}) {
+            failCommits(TestPreferences.CommitMode.ACKNOWLEDGED);
+            recover(false);
+            install("refresh", "before");
+            failCommits(TestPreferences.CommitMode.RETURN_FALSE);
+            server.enqueue(new MockResponse().setResponseCode(401));
+            server.enqueue(rotation(tokens("refresh", "after")));
+            try {
+                request(url, null, "/protected");
+                fail("Refresh persistence failure must propagate");
+            } catch (IOException expected) { }
+            assertEquals(SessionSnapshot.Status.RECOVERY_REQUIRED, SessionState.snapshot().getStatus());
+            assertNull(SessionState.snapshot().getInternalTokens());
+            assertNull(SuperTokens.getAccessToken(context));
+            assertNotNull(server.takeRequest(1, TimeUnit.SECONDS));
+            assertNotNull(server.takeRequest(1, TimeUnit.SECONDS));
         }
     }
 
