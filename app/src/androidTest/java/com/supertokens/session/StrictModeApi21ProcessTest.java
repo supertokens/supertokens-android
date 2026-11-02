@@ -48,6 +48,10 @@ public class StrictModeApi21ProcessTest {
         CountDownLatch connected = new CountDownLatch(1);
         CountDownLatch identified = new CountDownLatch(1);
         CountDownLatch dead = new CountDownLatch(1);
+        AtomicBoolean deathEntered = new AtomicBoolean();
+        CountDownLatch diagnosticReceived = new CountDownLatch(1);
+        AtomicReference<String> diagnostic = new AtomicReference<>("NO_RESPONSE");
+        AtomicReference<String> observed = new AtomicReference<>("");
         AtomicReference<IBinder> remote = new AtomicReference<>();
         AtomicReference<String> error = new AtomicReference<>();
         AtomicBoolean bound = new AtomicBoolean(true);
@@ -72,8 +76,16 @@ public class StrictModeApi21ProcessTest {
                                 error.compareAndSet(null, "wrong child process");
                         } catch (Exception e) { error.compareAndSet(null, "cannot verify child process: " + e); }
                     } else if (pid != childPid[0]) error.compareAndSet(null, "callback from another process");
-                    events.add(phase + "|" + detail);
-                    if (phase.equals("IDENTITY")) identified.countDown();
+                    if (phase.equals("DIAG")) {
+                        diagnostic.set(safeStage(detail));
+                        diagnosticReceived.countDown();
+                    } else {
+                        events.add(phase + "|" + detail);
+                        String summary = safeEvent(phase, detail, violation);
+                        String prior = observed.get();
+                        observed.set(prior.length() < 512 ? prior + summary + ";" : prior);
+                        if (phase.equals("IDENTITY")) identified.countDown();
+                    }
                 }
                 reply.writeNoException();
                 return true;
@@ -89,6 +101,7 @@ public class StrictModeApi21ProcessTest {
                 }
                 try {
                     service.linkToDeath(() -> {
+                        deathEntered.set(true);
                         try {
                             if (bound.compareAndSet(true, false)) context.unbindService(this);
                         } finally { dead.countDown(); }
@@ -112,27 +125,35 @@ public class StrictModeApi21ProcessTest {
             command(service, StrictModeApi21Service.HELLO, callback, nonce, 0);
             assertTrue("identity timeout", identified.await(10, TimeUnit.SECONDS));
             synchronized (events) {
-                assertNull(error.get(), error.get());
-                assertEquals("identity sequence: " + events, 1, events.size());
-                assertEquals("IDENTITY|", events.get(0));
+                assertTrue("callback authentication failed", error.get() == null);
+                assertEquals("identity sequence: " + observed.get(), 1, events.size());
+                assertTrue("identity event: " + observed.get(), "IDENTITY|".equals(events.get(0)));
             }
             command(service, StrictModeApi21Service.START, null, null, action);
-            assertTrue("child death timeout", dead.await(20, TimeUnit.SECONDS));
+            if (!dead.await(20, TimeUnit.SECONDS)) {
+                try {
+                    command(service, StrictModeApi21Service.DIAG, null, null, 0);
+                    diagnosticReceived.await(1, TimeUnit.SECONDS);
+                } catch (RemoteException ignored) { }
+                fail("child death timeout; events=" + observed.get() + "; child=" + diagnostic.get()
+                        + "; identityOk=" + (error.get() == null) + "; binderAlive=" + service.isBinderAlive() + "; deathEntered=" + deathEntered.get()
+                        + "; deathCompleted=" + (dead.getCount() == 0));
+            }
             deathConfirmed = !service.isBinderAlive();
             assertTrue("binder still alive", deathConfirmed);
             synchronized (events) {
-                assertNull(error.get(), error.get());
-                assertEquals("event sequence: " + events, 4, events.size());
-                assertEquals("IDENTITY|", events.get(0));
-                assertEquals("READY|", events.get(1));
-                assertEquals("POLICY|[StrictMode.ThreadPolicy; mask=71]", events.get(2));
+                assertTrue("callback authentication failed", error.get() == null);
+                assertEquals("event sequence: " + observed.get(), 4, events.size());
+                assertTrue("identity event: " + observed.get(), "IDENTITY|".equals(events.get(0)));
+                assertTrue("ready event: " + observed.get(), "READY|".equals(events.get(1)));
+                assertTrue("policy event: " + observed.get(), "POLICY|[StrictMode.ThreadPolicy; mask=71]".equals(events.get(2)));
                 String terminal = events.get(3);
-                if (violation == 0) assertEquals("SUCCESS|barrier-and-cleanup", terminal);
+                if (violation == 0) assertTrue("success event: " + observed.get(), "SUCCESS|barrier-and-cleanup".equals(terminal));
                 else {
                     String prefix = "CRASH|true|android.os.StrictMode$StrictModeViolation|policy=71 violation="
                             + violation + "|";
-                    assertTrue("wrong exception: " + terminal, terminal.startsWith(prefix));
-                    assertTrue("not a framework penaltyDeath: " + terminal,
+                    assertTrue("wrong exception: " + observed.get(), terminal.startsWith(prefix));
+                    assertTrue("not a framework penaltyDeath: " + observed.get(),
                             terminal.contains("android.os.StrictMode.executeDeathPenalty"));
                 }
             }
@@ -144,15 +165,38 @@ public class StrictModeApi21ProcessTest {
                 deathConfirmed = awaitDeath(dead, 40) && !service.isBinderAlive();
             }
             if (bound.compareAndSet(true, false)) context.unbindService(connection);
-            assertNotNull("service Binder unavailable; child death cannot be confirmed", service);
+            assertNotNull("service Binder unavailable; child death cannot be confirmed; events=" + observed.get(), service);
             if (service != null) {
-                assertTrue("owned child death unconfirmed; fixture retained", deathConfirmed);
+                assertTrue("owned child death unconfirmed; fixture retained; events=" + observed.get() + "; child=" + diagnostic.get() + "; deathEntered=" + deathEntered.get(), deathConfirmed);
                 boolean cleanedControl = deleteIfPresent(control);
                 boolean cleanedPrefs = deleteIfPresent(prefs);
                 boolean cleanedBackup = deleteIfPresent(backup);
                 assertTrue("nonce fixture cleanup failed", cleanedControl && cleanedPrefs && cleanedBackup);
             }
         }
+    }
+
+    private static String safeEvent(String phase, String detail, int violation) {
+        if ("IDENTITY".equals(phase) || "READY".equals(phase) || "SUCCESS".equals(phase)
+                || "FAIL".equals(phase)) return phase;
+        if ("POLICY".equals(phase))
+            return "POLICY(mask71=" + "[StrictMode.ThreadPolicy; mask=71]".equals(detail) + ")";
+        if ("CRASH".equals(phase)) {
+            String expected = "true|android.os.StrictMode$StrictModeViolation|policy=71 violation="
+                    + violation + "|";
+            return "CRASH(expected=" + (detail != null && detail.startsWith(expected))
+                    + ",framework=" + (detail != null && detail.contains("android.os.StrictMode.executeDeathPenalty")) + ")";
+        }
+        return "OTHER";
+    }
+
+    private static String safeStage(String stage) {
+        String[] stages = { "CREATED", "PREPARE_ENTER", "PREFS_GET", "PREFS_WARM", "RESET", "CONTROL_PREPARE",
+                "SOCKET_PREPARE", "READY_SEND", "READY_SENT", "INSTALL_ENTER",
+                "POLICY_SEND", "POLICY_SENT", "OPERATE_ENTER", "CONTROL_ENTER", "CONTROL_RETURNED",
+                "BARRIER_ENTER", "FINISH_ENTER", "CRASH_HANDLER", "CRASH_SEND", "FORWARD_HANDLER" };
+        for (String candidate : stages) if (candidate.equals(stage)) return candidate;
+        return "OTHER";
     }
 
     private static void command(IBinder service, int code, IBinder callback, String nonce, int action)

@@ -30,6 +30,7 @@ public final class StrictModeApi21Service extends Service {
     static final int START = IBinder.FIRST_CALL_TRANSACTION;
     static final int HELLO = IBinder.FIRST_CALL_TRANSACTION + 1;
     static final int STOP = IBinder.FIRST_CALL_TRANSACTION + 2;
+    static final int DIAG = IBinder.FIRST_CALL_TRANSACTION + 3;
     static final int EVENT = IBinder.FIRST_CALL_TRANSACTION;
     private final Handler main = new Handler(Looper.getMainLooper());
     private IBinder callback;
@@ -45,15 +46,21 @@ public final class StrictModeApi21Service extends Service {
     private java.net.InetSocketAddress endpoint;
     private StrictMode.ThreadPolicy policy;
 
+    private volatile String diagnosticStage = "CREATED";
     private boolean started;
     private final Object watchdogLock = new Object();
     private boolean crashing;
     private final Binder binder = new Binder() {
         @Override protected synchronized boolean onTransact(int code, Parcel data, Parcel reply, int flags) throws RemoteException {
-            if (code != START && code != HELLO && code != STOP) return super.onTransact(code, data, reply, flags);
+            if (code != START && code != HELLO && code != STOP && code != DIAG) return super.onTransact(code, data, reply, flags);
             data.enforceInterface("strictmode.probe");
             if (code == STOP) {
                 Process.killProcess(Process.myPid());
+            } else if (code == DIAG) {
+                final String snapshot = diagnosticStage;
+                if (callback != null) new Thread(() -> {
+                    try { send("DIAG", snapshot); } catch (RemoteException ignored) { }
+                }, "strictmode-diagnostic").start();
             } else if (code == HELLO) {
                 if (callback != null) throw new IllegalStateException("duplicate hello");
                 callback = data.readStrongBinder();
@@ -101,6 +108,7 @@ public final class StrictModeApi21Service extends Service {
     }
 
     private void prepare() {
+        diagnosticStage = "PREPARE_ENTER";
         try {
             String name = "strictmode-api21-" + nonce;
             fixture = new ContextWrapper(this) {
@@ -109,8 +117,11 @@ public final class StrictModeApi21Service extends Service {
                     return super.getSharedPreferences(name, mode);
                 }
             };
+            diagnosticStage = "PREFS_GET";
             preferences = fixture.getSharedPreferences(Constants.SHARED_PREFERENCES_KEY, MODE_PRIVATE);
+            diagnosticStage = "PREFS_WARM";
             preferences.getAll();
+            diagnosticStage = "RESET";
             SuperTokens.resetForTests();
             if (action == 4) {
                 new SuperTokens.Builder(fixture, "https://old-startup.invalid").build();
@@ -121,37 +132,49 @@ public final class StrictModeApi21Service extends Service {
                 SuperTokens.resetForTests();
             }
             before = preferences.getAll();
+            diagnosticStage = "CONTROL_PREPARE";
             file = new File(getCacheDir(), "strictmode-api21-" + nonce + ".bin");
             check(file.createNewFile(), "control file already exists");
             try (FileOutputStream out = new FileOutputStream(file)) { out.write(42); }
+            diagnosticStage = "SOCKET_PREPARE";
             server = new ServerSocket(0, 1, InetAddress.getByName("127.0.0.1"));
             socket = new Socket();
             endpoint = new java.net.InetSocketAddress(InetAddress.getByName("127.0.0.1"), server.getLocalPort());
+            diagnosticStage = "READY_SEND";
             send("READY", "");
+            diagnosticStage = "READY_SENT";
             check(main.post(this::install), "main looper rejected install");
         } catch (Throwable t) { fail(t); }
     }
 
     private void install() {
+        diagnosticStage = "INSTALL_ENTER";
         final Thread thread = Thread.currentThread();
         final Thread.UncaughtExceptionHandler original = thread.getUncaughtExceptionHandler();
         thread.setUncaughtExceptionHandler((t, error) -> {
             synchronized (watchdogLock) { crashing = true; }
+            diagnosticStage = "CRASH_HANDLER";
             try {
                 StrictMode.setThreadPolicy(StrictMode.ThreadPolicy.LAX);
                 StringBuilder stack = new StringBuilder();
                 for (StackTraceElement frame : error.getStackTrace()) stack.append(frame.toString()).append('\n');
+                diagnosticStage = "CRASH_SEND";
                 send("CRASH", (t == thread && Looper.myLooper() == Looper.getMainLooper()) + "|"
                         + error.getClass().getName() + "|" + error.getMessage() + "|" + stack);
             } catch (Throwable ignored) {
-            } finally { original.uncaughtException(t, error); }
+            } finally {
+                diagnosticStage = "FORWARD_HANDLER";
+                original.uncaughtException(t, error);
+            }
         });
         try {
             policy = new StrictMode.ThreadPolicy.Builder().detectDiskReads().detectDiskWrites()
                     .detectNetwork().penaltyDeath().build();
             StrictMode.setThreadPolicy(policy);
             requirePolicy();
+            diagnosticStage = "POLICY_SEND";
             send("POLICY", StrictMode.getThreadPolicy().toString());
+            diagnosticStage = "POLICY_SENT";
             check(main.post(this::operate), "main looper rejected operation");
         } catch (RemoteException e) { throw new RuntimeException(e); }
     }
@@ -161,13 +184,17 @@ public final class StrictModeApi21Service extends Service {
     }
 
     private void operate() {
+        diagnosticStage = "OPERATE_ENTER";
         requirePolicy();
         try {
+            diagnosticStage = "CONTROL_ENTER";
             if (action == 0) { try (FileInputStream in = new FileInputStream(file)) { in.read(); } }
             else if (action == 1) { try (FileOutputStream out = new FileOutputStream(file)) { out.write(1); } }
             else if (action == 2) { socket.connect(endpoint); }
             else { startup(action == 4); }
+            diagnosticStage = "CONTROL_RETURNED";
             check(main.post(() -> {
+                diagnosticStage = "BARRIER_ENTER";
                 requirePolicy();
                 StrictMode.setThreadPolicy(StrictMode.ThreadPolicy.LAX);
                 new Thread(() -> finish(), "strictmode-result").start();
@@ -191,6 +218,7 @@ public final class StrictModeApi21Service extends Service {
     }
 
     private void finish() {
+        diagnosticStage = "FINISH_ENTER";
         try {
             check(before.equals(preferences.getAll()), "preferences changed");
             socket.close();
