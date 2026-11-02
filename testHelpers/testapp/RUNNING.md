@@ -15,9 +15,10 @@ node testHelpers/server/runOrdinary.js /path/to/supertokens-root \
 ```
 
 Repeat with `retrofit` for the full optional Retrofit 2.9 / OkHttp 3.14 profile.
-Neither full suite filters tests. The existing published-upgrade exclusion remains
-assigned to its separate `upgrade` mode. These suites may skip the six opt-in
-mutation methods; those skips are not mutation acceptance.
+Both profiles explicitly exclude `BackendMutationCoverageTest`, `ExposedCookieLiveTest`,
+and `PublishedUpgradeLiveTest`; those classes belong to their dedicated modes. The
+exclusions are recorded in the test report and are not evidence of passing those lanes.
+All other skips still block the release receipt.
 
 For the dedicated **six-method optional-Retrofit mutation lane**, add the explicit
 `CORE_PROTOCOL_TESTS=1` environment assignment and replace `ordinary` with `mutation`.

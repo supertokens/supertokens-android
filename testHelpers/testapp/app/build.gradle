@@ -175,5 +175,9 @@ afterEvaluate {
     }
     tasks.withType(Test).matching { it.name != 'upgradeLiveTest' }.all {
         exclude '**/PublishedUpgradeLiveTest*'
+        if (project.hasProperty('standardIntegrationProfile')) {
+            exclude '**/BackendMutationCoverageTest*'
+            exclude '**/ExposedCookieLiveTest*'
+        }
     }
 }

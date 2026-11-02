@@ -8,7 +8,7 @@ const receipt = require('./artifactReceipt');
 const { accept, methods } = require('./mutationAcceptance');
 const { environment } = require('../server/ordinaryEnvironment');
 
-const temporary = fs.mkdtempSync(path.join(os.tmpdir(), 'entrypoint-controls-'));
+const temporary = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'entrypoint-controls-')));
 function write(root, file, text) {
     const target = path.join(root, file);
     fs.mkdirSync(path.dirname(target), { recursive: true });
@@ -17,7 +17,7 @@ function write(root, file, text) {
 try {
     const root = path.join(temporary, 'repo');
     fs.mkdirSync(root);
-    for (const file of ['runTests.js', 'artifactReceipt.js', 'mutationAcceptance.js']) {
+    for (const file of ['runTests.js', 'artifactReceipt.js', 'mutationAcceptance.js', 'exposureAcceptance.js']) {
         write(root, 'testHelpers/testapp/' + file, fs.readFileSync(path.join(__dirname, file)));
     }
     for (const file of ['app/build.gradle', 'build.gradle', 'gradle/wrapper/gradle-wrapper.properties',
@@ -38,6 +38,17 @@ require('./artifactReceipt').validate(path.resolve('../..'));
 fs.appendFileSync(${JSON.stringify(path.join(temporary, 'commands.jsonl'))}, JSON.stringify({ cwd: process.cwd(), args: process.argv.slice(2) }) + '\\n');
 if (process.env.CHANGE_ARTIFACT) fs.appendFileSync('../../app/build/outputs/aar/app-debug.aar', 'changed');
 if (process.env.FAIL_TEST) process.exit(9);
+const mode = process.env.HOST_PROFILE;
+if (['mutation', 'exposed', 'upgrade'].includes(mode)) {
+    const klass = mode === 'mutation' ? 'BackendMutationCoverageTest' : mode === 'exposed' ? 'ExposedCookieLiveTest' : 'PublishedUpgradeLiveTest';
+    const names = mode === 'mutation' ? require('./mutationAcceptance').methods : mode === 'exposed' ?
+        ['OKHTTP', 'RETROFIT', 'URLCONNECTION'].map(t => 'exposedCookieLifecycle[' + t + ']') :
+        ['LOGIN', 'REFRESH', 'SIGN_OUT', 'PAYLOAD_UPDATE'].map(f => 'publishedSessionContinuesAgainstConfiguredFdiMember[HEADER-' + f + '-/login-2.18]');
+    const cases = names.map(name => ({ className: 'com.example.example.' + klass, name, result: 'SUCCESS' }));
+    const report = { tests: cases.length, passed: cases.length, failed: 0, skipped: process.env.BAD_REPORT ? 1 : 0, cases };
+    fs.mkdirSync(process.env.ST_TEST_REPORT_DIR, { recursive: true });
+    fs.writeFileSync(path.join(process.env.ST_TEST_REPORT_DIR, mode === 'upgrade' ? 'upgradeLiveTest.json' : 'testDebugUnitTest.json'), JSON.stringify(report));
+}
 `);
     for (const file of ['gradlew', 'testHelpers/testapp/gradlew']) fs.chmodSync(path.join(root, file), 0o755);
     const env = { ...process.env };
@@ -58,6 +69,37 @@ if (process.env.FAIL_TEST) process.exit(9);
     assert(calls[0].args.includes(':app:preparePublishedUpgradeArtifacts'));
     assert(calls[1].args.includes('-PretrofitCompatibility=true'));
     assert(calls.every(call => call.args.includes('--rerun-tasks') && !call.args.includes('-x') && !call.args.includes('--offline')));
+    write(owned, 'exposure-config.json', '{}');
+    for (const mode of ['ordinary', 'mutation', 'exposed', 'upgrade']) {
+        const extra = mode === 'upgrade' ? ['-Pupgrade.loginRoute=/login-2.18'] : [];
+        const profileEnv = { ...env, HOST_PROFILE: mode, CORE_PROTOCOL_TESTS: '1', ST_TEST_INSTANCE_ID: 'host-instance',
+            ST_UPGRADE_MODE: mode === 'upgrade' ? 'HEADER' : 'EXPOSED_COOKIE', ST_UPGRADE_ROUTE: '/login-2.18' };
+        if (mode !== 'upgrade') delete profileEnv.ST_UPGRADE_ROUTE;
+        const run = more => spawnSync(process.execPath, [path.join(root, 'testHelpers/testapp/runTests.js'), mode, ...extra],
+            { env: { ...profileEnv, ...more }, encoding: 'utf8' });
+        fs.writeFileSync(path.join(temporary, 'commands.jsonl'), '');
+        result = run({});
+        assert.strictEqual(result.status, 0, mode + ': ' + result.stderr);
+        const dispatched = fs.readFileSync(path.join(temporary, 'commands.jsonl'), 'utf8').trim().split('\n').map(JSON.parse);
+        assert.strictEqual(dispatched.length, 2);
+        const args = dispatched[1].args;
+        assert(args.includes(mode === 'upgrade' ? ':app:upgradeLiveTest' : ':app:testDebugUnitTest'));
+        assert.strictEqual(args.includes('-PstandardIntegrationProfile=true'), mode === 'ordinary');
+        if (mode === 'mutation' || mode === 'exposed') assert(args.includes('--tests'));
+        if (mode === 'upgrade') assert(args.includes('-Pupgrade.loginRoute=/login-2.18'));
+        if (mode === 'upgrade') fs.unlinkSync(path.join(owned, 'upgrade-completed.json'));
+        fs.writeFileSync(path.join(temporary, 'commands.jsonl'), '');
+        result = run({ FAIL_PREP: '1' });
+        assert.strictEqual(result.status, 7, mode + ' preparation failure');
+        assert.strictEqual(fs.readFileSync(path.join(temporary, 'commands.jsonl'), 'utf8').trim().split('\n').length, 1);
+        result = run({ FAIL_TEST: '1' });
+        assert.strictEqual(result.status, 9, mode + ' test failure');
+        if (mode !== 'ordinary') {
+            result = run({ BAD_REPORT: '1' });
+            assert.notStrictEqual(result.status, 0, mode + ' skipped report');
+            if (mode === 'upgrade') assert(!fs.existsSync(path.join(owned, 'upgrade-completed.json')));
+        }
+    }
     for (const fault of ['FAIL_PREP', 'FAIL_TEST', 'CHANGE_SOURCE', 'CHANGE_ARTIFACT']) {
         result = execute({ [fault]: '1' });
         assert.notStrictEqual(result.status, 0, fault);
@@ -82,6 +124,8 @@ if (process.env.FAIL_TEST) process.exit(9);
     assert.throws(() => commands('upgrade', ['--tests=anything']), /exclusions/);
     assert.throws(() => commands('unknown', []), /Choose/);
     assert(commands('upgrade', ['-Pupgrade.legacy218Evidence=/receipt'])[1].includes('-Pupgrade.legacy218Evidence=/receipt'));
+    for (const mode of ['ordinary', 'retrofit']) assert(commands(mode, [])[1].includes('-PstandardIntegrationProfile=true'));
+    for (const mode of ['upgrade', 'exposed']) assert(!commands(mode, [])[1].includes('-PstandardIntegrationProfile=true'));
     const previousProtocol = process.env.CORE_PROTOCOL_TESTS;
     const previousRun = process.env.ST_TEST_RUN_ID;
     try {

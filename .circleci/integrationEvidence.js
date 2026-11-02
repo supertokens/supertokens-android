@@ -7,6 +7,8 @@ const { validateUpgrade } = require('./upgradeEvidence');
 const lanes = ['root-build', 'ordinary', 'retrofit', 'node-core', 'core-classes', 'mutation', 'proxy-qualification', 'core-baseline', 'published-upgrade'];
 const baseline = ['root-build', 'ordinary', 'retrofit', 'core-baseline', 'published-upgrade'];
 const exactCases = {
+    exposed: ['OKHTTP', 'RETROFIT', 'URLCONNECTION'].map(transport =>
+        'com.example.example.ExposedCookieLiveTest.exposedCookieLifecycle[' + transport + ']'),
     'core-baseline': ['urlConnectionHeaderLoginRefreshProtectedAndSignout', 'urlConnectionCookieLoginRefreshProtectedAndSignout',
         'okHttpHeaderLoginProtectedAndSignout', 'okHttpCookieLoginProtectedAndSignout'].map(name => 'com.supertokens.session.CoreSdkCompatibilityTest.' + name),
     'core-classes': ['com.supertokens.session.CoreSessionProtocolTest.candidateKeepsUsableCoreLineagePromotionDeliveredFirst',
@@ -42,14 +44,20 @@ function contextValid(context) {
         sha256(context.sources) && /^[a-f0-9]{48}$/.test(context.nonce || '') &&
         context.backend === 'http://127.0.0.1:18081' && context.core === 'http://127.0.0.1:19001', 'Malformed integration context');
 }
-function validateReport(report, identities) {
+function validateReport(report, identities, name) {
     requireTrue(report && positive(report.tests) && report.passed === report.tests && report.failed === 0 && report.skipped === 0 &&
         Array.isArray(report.cases) && report.cases.length === report.tests && report.cases.every(item => item.result === 'SUCCESS') &&
         (!identities || (report.tests === identities.length &&
             JSON.stringify(report.cases.map(row => row.className + '.' + row.name).sort()) === JSON.stringify([...identities].sort()))), 'Unexecuted/failed/skipped or wrong test identities');
-    for (const key of ['excluded', 'excludedTasks', 'excludes']) {
+    for (const key of ['excluded', 'excludedTasks']) {
         requireTrue(report[key] === undefined || (Array.isArray(report[key]) && report[key].length === 0), 'Excluded test evidence');
     }
+    const allowed = name === 'ordinary' || name === 'retrofit'
+        ? ['**/BackendMutationCoverageTest*', '**/ExposedCookieLiveTest*', '**/PublishedUpgradeLiveTest*']
+        : name === 'mutation' || name === 'exposed' ? ['**/PublishedUpgradeLiveTest*'] : [];
+    requireTrue(report.excludes === undefined || (Array.isArray(report.excludes) &&
+        new Set(report.excludes).size === report.excludes.length && report.excludes.every(item => allowed.includes(item))),
+        'Excluded test evidence');
 }
 function validateEvidence(evidence, expected, required, upgradePlan) {
     contextValid(expected);
@@ -95,7 +103,8 @@ function validateEvidence(evidence, expected, required, upgradePlan) {
         } else {
             requireTrue(Array.isArray(lane.reports) && lane.reports.length > 0, 'Missing actual test report: ' + name);
             if (exactCases[name]) requireTrue(lane.reports.length === 1, 'Duplicate exact-suite reports');
-            for (const report of lane.reports) validateReport(report, exactCases[name]);
+            for (const report of lane.reports) validateReport(report, exactCases[name], name);
+            if (name === 'ordinary') validateReport(lane.exposedReport, exactCases.exposed, 'exposed');
         }
         if (name === 'proxy-qualification') {
             const final = lane.finalState;
@@ -126,7 +135,7 @@ function produce({ root, env, capabilities, statuses, evidence, contextFile, sta
         const prepared = JSON.parse(fs.readFileSync(path.join(directory, 'preparation.json')));
         const completed = JSON.parse(fs.readFileSync(path.join(directory, 'completed.json')));
         requireTrue(prepared.nonce === name && completed.nonce === name && prepared.sources === context.sources, 'Stale/incomplete testapp report');
-        return { mode: prepared.mode, report: JSON.parse(fs.readFileSync(path.join(directory, 'reports/testDebugUnitTest.json'))) };
+        return { mode: prepared.mode, prepared, report: JSON.parse(fs.readFileSync(path.join(directory, 'reports/testDebugUnitTest.json'))) };
     });
     function reports(directory) {
         return fs.readdirSync(directory).filter(name => fs.existsSync(path.join(directory, name, 'result.json')))
@@ -144,6 +153,21 @@ function produce({ root, env, capabilities, statuses, evidence, contextFile, sta
             const matches = fresh.filter(item => item.mode === name);
             requireTrue(matches.length === 1, 'Missing/duplicate fresh testapp execution');
             lane.reports = [matches[0].report];
+            if (name === 'ordinary') {
+                const exposed = fresh.filter(item => item.mode === 'exposed');
+                requireTrue(exposed.length === 1, 'Missing/duplicate fresh exposed-cookie execution');
+                const exposureBytes = fs.readFileSync(path.join(env.INSTALL_PATH, 'exposure-config.json'));
+                const exposure = JSON.parse(exposureBytes);
+                requireTrue(exposure.runId === env.ST_TEST_RUN_ID && exposure.instance === env.ST_TEST_INSTANCE_ID &&
+                    exposed[0].prepared.runId === env.ST_TEST_RUN_ID && exposed[0].prepared.instance === env.ST_TEST_INSTANCE_ID &&
+                    exposed[0].prepared.exposureConfigSha256 === hash(exposureBytes) &&
+                    JSON.stringify(exposure.identity) === JSON.stringify(qualified.identity) && exposure.profile === 'exposed' &&
+                    exposure.selected && exposure.selected.mode === 'EXPOSED_COOKIE' && exposure.selected.exposed === true &&
+                    exposure.flags && exposure.flags.sessionJwt === true && exposure.capabilities &&
+                    exposure.capabilities.compatible === true && exposure.capabilities.qualificationProxy === false,
+                    'Exposed-cookie fixture identity/configuration mismatch');
+                lane.exposedReport = exposed[0].report;
+            }
         } else if (name !== 'node-core') lane.reports = reports(path.join(evidence, name === 'proxy-qualification' ? 'proxy-tests' : name));
         if (name === 'proxy-qualification') lane.finalState = JSON.parse(fs.readFileSync(path.join(evidence, 'proxy-final-state.json')));
         return lane;

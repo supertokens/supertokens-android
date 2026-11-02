@@ -16,6 +16,7 @@ function commands(mode, extra, backend) {
     return [common.concat(':app:preparePublishedUpgradeArtifacts'), common.concat(
         mode === 'upgrade' ? ':app:upgradeLiveTest' : ':app:testDebugUnitTest',
         ['retrofit', 'mutation', 'exposed'].includes(mode) ? ['-PretrofitCompatibility=true'] : [],
+        ['ordinary', 'retrofit'].includes(mode) ? ['-PstandardIntegrationProfile=true'] : [],
         mode === 'exposed' ? ['--tests', 'com.example.example.ExposedCookieLiveTest'] : [],
         mode === 'mutation' ? ['-PmutationAcceptance=true', '-Pm6BackendUrl=' + backend,
             '--tests', 'com.example.example.BackendMutationCoverageTest'] : [], extra)];
@@ -90,6 +91,8 @@ function main() {
         if (java.status !== 0) throw new Error('Cannot record Java version');
         javaVersion = java.stderr;
         const receipt = { schema: 1, root, nonce, mode, started, prepared: new Date().toISOString(), sources,
+            ...(mode === 'exposed' ? { runId: envSource.ST_TEST_RUN_ID, instance: envSource.ST_TEST_INSTANCE_ID,
+                exposureConfigSha256: crypto.createHash('sha256').update(fs.readFileSync(path.join(envSource.INSTALL_PATH, 'exposure-config.json'))).digest('hex') } : {}),
             artifacts: artifactDigest(root), artifactHashes: artifactHashes(root),
             versionSources: Object.fromEntries(['app/build.gradle', 'build.gradle', 'gradle/wrapper/gradle-wrapper.properties',
                 'testHelpers/testapp/build.gradle', 'testHelpers/testapp/gradle/wrapper/gradle-wrapper.properties']
@@ -112,6 +115,10 @@ function main() {
         if (mode === 'mutation') {
             require('./mutationAcceptance').accept(JSON.parse(fs.readFileSync(path.join(env.ST_TEST_REPORT_DIR, 'testDebugUnitTest.json'), 'utf8')));
         }
+        if (mode === 'exposed' && receipt.exposureConfigSha256 !== crypto.createHash('sha256')
+            .update(fs.readFileSync(path.join(envSource.INSTALL_PATH, 'exposure-config.json'))).digest('hex')) {
+            throw new Error('Exposure configuration changed during execution');
+        }
         validate(root, env);
         fs.writeFileSync(path.join(evidence, 'completed.json'), JSON.stringify({ nonce, completed: new Date().toISOString() }));
         if (mode === 'upgrade') {
@@ -123,6 +130,12 @@ function main() {
         console.log('Fresh build/test receipts: ' + evidence);
     } finally {
         if (!composite) fs.rmSync(lock, { recursive: true });
+    }
+    if (mode === 'retrofit' && envSource.CORE_PROTOCOL_TESTS === '1') {
+        const result = spawnSync(process.execPath, [path.join(root, 'testHelpers/server/runOwnedTests.js'), 'exposed', root],
+            { cwd: root, env: envSource, stdio: 'inherit' });
+        if (result.error) throw result.error;
+        if (result.status !== 0) throw new Error('Owned exposed-cookie execution failed: ' + (result.signal || result.status));
     }
 }
 module.exports = { commands };

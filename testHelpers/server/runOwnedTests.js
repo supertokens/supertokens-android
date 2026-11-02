@@ -34,6 +34,20 @@ async function main(args = process.argv.slice(2), executeUpgrade) {
     }
     if (['upgrade', 'exposed'].includes(mode)) {
         if (env.CORE_PROTOCOL_TESTS !== '1') throw new Error('Explicit CORE_PROTOCOL_TESTS=1 required');
+        let exposedNodeVersion;
+        if (selected.exposed) {
+            const version = require(path.join(backend, 'node_modules/supertokens-node/lib/build/version')).version;
+            const match = typeof version === 'string' && /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*))*))?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/.exec(version);
+            if (!match || !Number.isSafeInteger(Number(match[1])) || Number(match[1]) < 14) {
+                throw new Error('Exposed cookie requires a valid Node SDK version with major >= 14');
+            }
+            const before = await (await request('/test/capabilities')).json();
+            if (before.nodeVersion !== version) throw new Error('Exposed cookie Node SDK version changed or unavailable');
+            if (before.ownedExposedCleanup !== true) {
+                throw new Error('Exposed cookie cleanup/fixture lease contract not implemented; required lane blocked');
+            }
+            exposedNodeVersion = version;
+        }
         await request('/beforeeach', {});
         await request('/startst', { accessTokenValidity: 3600, enableAntiCsrf: false, enableJWT: selected.exposed });
         const identity = qualification.identity();
@@ -45,8 +59,8 @@ async function main(args = process.argv.slice(2), executeUpgrade) {
             !Array.isArray(observed.coreCdiVersions) || !observed.coreCdiVersions.includes('2.18'))) {
             throw new Error('Historical route requires reachable Core advertising CDI 2.18');
         }
-        if (flags.sessionJwt !== selected.exposed || !observed.compatible || !observed.mappedGoogleSession ||
-            (selected.exposed && Number(observed.nodeVersion.split('.')[0]) < 14)) {
+        if (flags.sessionJwt !== selected.exposed || !observed.compatible || (mode === 'upgrade' && !observed.mappedGoogleSession) ||
+            (selected.exposed && observed.nodeVersion !== exposedNodeVersion)) {
             throw new Error('Selected exposure configuration unavailable; not a passing/skipped row');
         }
         if (JSON.stringify(identity) !== JSON.stringify(qualification.identity())) throw new Error('Instance changed during exposure qualification');

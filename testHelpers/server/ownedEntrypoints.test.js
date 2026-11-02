@@ -17,14 +17,19 @@ try {
     for (const name of ['accountLinking.live.test.js', 'accountLinking.gate.js']) write(path.join(backend, name), record);
     write(path.join(backend, 'coreRuntimeIdentity.js'), 'exports.serverIdentity = () => true;');
     write(path.join(backend, 'accountLinkingQualification.js'), 'exports.identity = () => ({ pair: "actual-stub-instance" });');
-    write(path.join(backend, 'node_modules/node-fetch/index.js'), `module.exports = async (url, options) => {
+    write(path.join(backend, 'node_modules/supertokens-node/lib/build/version.js'),
+        'exports.version = process.env.NODE_SDK_VERSION === "<missing>" ? undefined : process.env.NODE_SDK_VERSION === "<number>" ? 14 : (process.env.NODE_SDK_VERSION ?? "99.1.0");');
+    write(path.join(backend, 'node_modules/node-fetch/index.js'), `let jwt = false;
+    module.exports = async (url, options) => {
         require('assert').strictEqual(new URL(url).origin, 'http://127.0.0.1:18081');
         require('assert').strictEqual(options.headers['x-st-test-run-id'], 'owned-control');
         require('fs').appendFileSync(${JSON.stringify(log)}, JSON.stringify({ route: new URL(url).pathname }) + '\\n');
-        return { ok: true, json: async () => ({ enabled: true, compatible: true, qualificationProxy: process.env.PROXY === '1',
-            nodeVersion: '99.1.0', coreReachable: true, sessionJwt: false,
+        if (new URL(url).pathname === '/startst') jwt = JSON.parse(options.body).enableJWT === true;
+        return { ok: true, json: async () => ({ enabled: true, compatible: process.env.INCOMPATIBLE !== '1', qualificationProxy: process.env.PROXY === '1',
+            ownedExposedCleanup: process.env.CLEANUP_CAPABILITY === 'missing' ? undefined : process.env.CLEANUP_CAPABILITY !== 'false',
+            nodeVersion: process.env.OBSERVED_NODE_VERSION === '<missing>' ? undefined : (process.env.OBSERVED_NODE_VERSION ?? process.env.NODE_SDK_VERSION ?? '99.1.0'), coreReachable: true, sessionJwt: jwt,
             coreCdiVersions: process.env.NO_CDI === '1' ? ['5.0'] : ['2.18'],
-            mappedGoogleSession: true, nonPublicTenantSession: process.env.NO_TENANT !== '1' }) };
+            mappedGoogleSession: process.env.NO_MAPPED !== '1', nonPublicTenantSession: process.env.NO_TENANT !== '1' }) };
     };`);
     for (const file of [path.join(temporary, 'bin/npm'), path.join(root, 'gradlew')]) {
         write(file, `#!${process.execPath}\n${record}`);
@@ -43,7 +48,7 @@ if (process.env.ST_MATRIX_REPORTS) {
         passed: cases.length, failed: 0, skipped: 0, cases }));
 }
 `);
-    write(path.join(root, 'testHelpers/testapp/runTests.js'), record);
+    write(path.join(root, 'testHelpers/testapp/runTests.js'), record + '\nif (process.env.FAIL_PROFILE === process.argv[2]) process.exit(9);');
     function run(mode, extra = {}, options = []) {
         fs.writeFileSync(log, '');
         fs.rmSync(path.join(owned, 'matrix'), { recursive: true, force: true });
@@ -74,6 +79,14 @@ if (process.env.ST_MATRIX_REPORTS) {
     assert.strictEqual(coreTests.length, 2);
     assert(coreTests[0].args.includes('com.supertokens.session.CoreSdkCompatibilityTest'));
     assert.deepStrictEqual(coreTests.map(event => event.args.filter(arg => arg === '--tests').length), [1, 2]);
+    for (const [failed, expected] of [
+        ['mutation', ['mutation']],
+        ['ordinary', ['mutation', 'ordinary']],
+        ['retrofit', ['mutation', 'ordinary', 'retrofit']],
+    ]) {
+        assert.notStrictEqual(run('matrix', { FAIL_PROFILE: failed }).status, 0, failed);
+        assert.deepStrictEqual(calls().filter(event => event.name === 'runTests.js').map(event => event.args[0]), expected);
+    }
     result = run('mutation');
     assert.strictEqual(result.status, 0, result.stderr);
     assert.deepStrictEqual(calls().filter(event => event.name === 'runTests.js').map(event => event.args), [['mutation']]);
@@ -93,6 +106,47 @@ if (process.env.ST_MATRIX_REPORTS) {
         assert.notStrictEqual(run('upgrade', fault, historical).status, 0);
         assert(!calls().some(event => event.name === 'runTests.js'));
     }
+    // This capability is synthetic; the real backend does not yet implement the lease contract.
+    for (const capability of ['missing', 'false']) {
+        for (const [mode, options] of [['exposed', []], ['upgrade', ['EXPOSED_COOKIE', '4.1', '5', '5', '5']]]) {
+            result = run(mode, { CLEANUP_CAPABILITY: capability }, options);
+            assert.notStrictEqual(result.status, 0);
+            assert.match(result.stderr, /cleanup\/fixture lease contract not implemented/);
+            assert.deepStrictEqual(calls().map(event => event.route), ['/test/capabilities']);
+        }
+    }
+    result = run('exposed', { NO_MAPPED: '1', NO_TENANT: '1' });
+    assert.strictEqual(result.status, 0, result.stderr);
+    assert.deepStrictEqual(calls().filter(event => event.name === 'runTests.js').map(event => event.args), [['exposed']]);
+    assert.strictEqual(JSON.parse(fs.readFileSync(path.join(owned, 'exposure-config.json'))).capabilities.mappedGoogleSession, false);
+    for (const fault of [{ PROXY: '1' }, { CORE_PROTOCOL_TESTS: '0' }, { INCOMPATIBLE: '1' }]) {
+        assert.notStrictEqual(run('exposed', { NO_MAPPED: '1', ...fault }).status, 0);
+        assert(!calls().some(event => event.name === 'runTests.js'));
+    }
+    for (const version of ['13.99.99', '0.0.0', '<missing>', '<number>', '', 'not-a-version', '14', '14.0', '14.x.0',
+        '14.0.0junk', ' 14.0.0', '014.0.0', '14.0.0-01', '14.0.0+', '999999999999999999999.0.0']) {
+        for (const [mode, options] of [['exposed', []], ['upgrade', ['EXPOSED_COOKIE', '4.1', '5', '5', '5']]]) {
+            result = run(mode, { NODE_SDK_VERSION: version }, options);
+            assert.notStrictEqual(result.status, 0, mode + ': ' + version);
+            assert.match(result.stderr, /valid Node SDK version/);
+            assert.deepStrictEqual(calls(), [], 'Invalid version must fail before fixture requests or test dispatch');
+        }
+    }
+    for (const version of ['14.0.0', '14.0.1', '15.0.0', '99.1.0', '14.0.0-rc.1', '15.1.0-beta.2+build.01']) {
+        result = run('exposed', { NODE_SDK_VERSION: version });
+        assert.strictEqual(result.status, 0, result.stderr);
+        assert.deepStrictEqual(calls().filter(event => event.name === 'runTests.js').map(event => event.args), [['exposed']]);
+    }
+    result = run('upgrade', { NODE_SDK_VERSION: '14.0.0' }, ['EXPOSED_COOKIE', '4.1', '5', '5', '5']);
+    assert.strictEqual(result.status, 0, result.stderr);
+    assert.strictEqual(calls().filter(event => event.name === 'runTests.js')[0].args[0], 'upgrade');
+    for (const observed of ['15.0.0', 'not-a-version', '<missing>', '']) {
+        result = run('exposed', { NODE_SDK_VERSION: '14.0.0', OBSERVED_NODE_VERSION: observed });
+        assert.notStrictEqual(result.status, 0);
+        assert.deepStrictEqual(calls().map(event => event.route), ['/test/capabilities']);
+    }
+    assert.notStrictEqual(run('upgrade', { NO_MAPPED: '1' }, historical).status, 0);
+    assert(!calls().some(event => event.name === 'runTests.js'));
     for (const handoff of ['5', '{"LOGIN":"2"}', '{"LOGIN":"2","REFRESH":"ABSENT","SIGN_OUT":"5","PAYLOAD_UPDATE":"5"}']) {
         const invalid = [...historical]; invalid[3] = handoff;
         assert.notStrictEqual(run('upgrade', {}, invalid).status, 0);

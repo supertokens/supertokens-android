@@ -91,7 +91,8 @@ public class ExposedCookieLiveTest {
         };
         CookieHandler.setDefault(cookies);
         List<EventHandler.EventType> events = new ArrayList<>();
-        try (UpgradeFixture fixture = UpgradeFixture.open(base)) {
+        try {
+            String userId = "exposed-" + UUID.randomUUID();
             SuperTokens.resetForTests();
             new SuperTokens.Builder(context, base).tokenTransferMethod("cookie").eventHandler(events::add).build();
             client = new OkHttpClient.Builder().callTimeout(15, TimeUnit.SECONDS).cookieJar(new CookieJar() {
@@ -133,10 +134,10 @@ public class ExposedCookieLiveTest {
                 }
                 return response;
             }).build();
-            call(true, fixture.userId);
+            call(true, userId);
             SessionSnapshot before = SuperTokens.getSessionSnapshot(context);
             assertEquals(SessionSnapshot.Status.AVAILABLE, before.getStatus());
-            assertEquals(fixture.userId, before.getUserId());
+            assertEquals(userId, before.getUserId());
             assertEquals(exposed, SuperTokens.getAccessToken(context));
             assertEquals(Collections.singletonList(EventHandler.EventType.SESSION_CREATED), events);
             assertNull("Cookie session has no complete header token pair", before.getTokens());

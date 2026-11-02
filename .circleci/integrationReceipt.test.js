@@ -64,6 +64,9 @@ function fixture(fdi = '4.1') {
                         const full = identities ? identities[index] : 'example.Test.case' + index;
                         return { className: full.slice(0, full.lastIndexOf('.')), name: full.slice(full.lastIndexOf('.') + 1), result: 'SUCCESS' };
                     }) }],
+                ...(name === 'ordinary' ? { exposedReport: { tests: 3, passed: 3, failed: 0, skipped: 0,
+                    cases: exactCases.exposed.map(full => ({ className: full.slice(0, full.lastIndexOf('.')),
+                        name: full.slice(full.lastIndexOf('.') + 1), result: 'SUCCESS' })) } } : {}),
                 ...(name === 'published-upgrade' ? { upgrade: upgradeFixture(context) } : {}),
                 ...(name === 'proxy-qualification' ? { finalState: { owners: { fixtures: [], unresolvedCreations: 0 },
                     state: { active: 0, upstreamActive: 0, ownedFixtures: 0, ownerReservations: 0, unresolvedCreations: 0,
@@ -74,6 +77,34 @@ function fixture(fdi = '4.1') {
 function receipt(f) { return { fdi: f.context.fdi, status: 'requirements-satisfied', context: f.context, evidence: f.evidence }; }
 test('all required executions and reports pass', () => {
     const f = fixture(); validate([receipt(f)], ['4.1'], f.context.sha, f.context.workflow, policy);
+});
+test('testapp profiles permit only their named dedicated-lane exclusions', () => {
+    const f = fixture();
+    for (const name of ['ordinary', 'retrofit']) {
+        f.evidence.lanes.find(lane => lane.name === name).reports[0].excludes = [
+            '**/PublishedUpgradeLiveTest*', '**/BackendMutationCoverageTest*', '**/ExposedCookieLiveTest*'];
+    }
+    f.evidence.lanes.find(lane => lane.name === 'mutation').reports[0].excludes = ['**/PublishedUpgradeLiveTest*'];
+    validate([receipt(f)], ['4.1'], f.context.sha, f.context.workflow, policy);
+    for (const name of ['ordinary', 'retrofit', 'mutation', 'core-baseline']) {
+        const report = f.evidence.lanes.find(lane => lane.name === name).reports[0];
+        const original = report.excludes;
+        report.excludes = [...(original || []), '**/OtherTest*'];
+        assert.throws(() => validate([receipt(f)], ['4.1'], f.context.sha, f.context.workflow, policy), /Excluded/);
+        report.excludes = original;
+    }
+});
+for (const [scenario, mutate] of [
+    ['missing', report => null],
+    ['wrong identity', report => { report.cases[0].name = 'unrelated'; return report; }],
+    ['duplicate identity', report => { report.cases[0] = report.cases[1]; return report; }],
+    ['skipped', report => { report.skipped = 1; return report; }],
+    ['excluded', report => { report.excludes = ['**/ExposedCookieLiveTest*']; return report; }],
+]) test('exposed-cookie ' + scenario + ' evidence rejects receipt', () => {
+    const f = fixture();
+    const lane = f.evidence.lanes.find(item => item.name === 'ordinary');
+    lane.exposedReport = mutate(lane.exposedReport);
+    assert.throws(() => validate([receipt(f)], ['4.1'], f.context.sha, f.context.workflow, policy));
 });
 test('empty FDI matrix cannot pass vacuously', () => assert.throws(() => validate([], [], 'a'.repeat(40), 'workflow', policy)));
 for (const [name, mutate] of [
@@ -171,6 +202,13 @@ test('baseline test identities are required even on older FDI with unavailable R
     f.evidence.lanes[7].reports[0].cases[0].name = 'unrelatedPassingTest';
     assert.throws(() => validate([receipt(f)], ['1.16'], f.context.sha, f.context.workflow, policy), /identities/);
 });
+test('older FDI without mapped-owner capability still requires exposed-cookie evidence', () => {
+    const f = fixture('1.16'); f.evidence.capabilities.mappedGoogleSession = false;
+    for (const lane of f.evidence.lanes.filter(lane => r7.includes(lane.name))) { lane.status = 'excluded'; lane.reason = 'Unavailable'; }
+    validate([receipt(f)], ['1.16'], f.context.sha, f.context.workflow, policy);
+    delete f.evidence.lanes.find(lane => lane.name === 'ordinary').exposedReport;
+    assert.throws(() => validate([receipt(f)], ['1.16'], f.context.sha, f.context.workflow, policy), /Unexecuted/);
+});
 test('baseline and upgrade cannot be removed by a weaker policy', () => {
     const f = fixture();
     assert.throws(() => validateEvidence(f.evidence, f.context, ['root-build', 'ordinary', 'retrofit'], policy.policy.upgrade['4.1']), /weakened/);
@@ -236,6 +274,16 @@ for (const excluded of [true, false]) test('real evidence producer preserves ' +
             for (const lane of f.evidence.lanes.filter(lane => r7.includes(lane.name))) { lane.status = 'excluded'; lane.reason = 'Unsupported pair'; }
         }
         json(path.join(owned, 'qualified-instance.json'), { identity: { testRuntime: 'fake-owned-core' }, capabilities: f.evidence.capabilities });
+        const exposure = { runId: f.evidence.identity.runId, instance: f.evidence.identity.instance,
+            identity: { testRuntime: 'fake-owned-core' }, profile: 'exposed',
+            selected: { mode: 'EXPOSED_COOKIE', exposed: true }, flags: { sessionJwt: true },
+            capabilities: { compatible: true, qualificationProxy: false } };
+        json(path.join(owned, 'exposure-config.json'), exposure);
+        const exposedDir = path.join(receiptRoot, 'fresh-exposed');
+        json(path.join(exposedDir, 'preparation.json'), { nonce: 'fresh-exposed', mode: 'exposed', sources: f.context.sources,
+            runId: exposure.runId, instance: exposure.instance, exposureConfigSha256: hash(fs.readFileSync(path.join(owned, 'exposure-config.json'))) });
+        json(path.join(exposedDir, 'completed.json'), { nonce: 'fresh-exposed' });
+        json(path.join(exposedDir, 'reports/testDebugUnitTest.json'), f.evidence.lanes.find(lane => lane.name === 'ordinary').exposedReport);
         for (const lane of f.evidence.lanes) {
             if (lane.status !== 'passed' || ['node-core', 'published-upgrade'].includes(lane.name)) continue;
             if (['ordinary', 'retrofit', 'mutation'].includes(lane.name)) {
@@ -254,10 +302,19 @@ for (const excluded of [true, false]) test('real evidence producer preserves ' +
         const moduleObject = { exports: {} };
         const load = name => name === 'child_process' ? { execFileSync: () => f.context.sha } : require(name);
         new Function('require', 'module', fs.readFileSync(path.join(__dirname, 'integrationEvidence.js'), 'utf8'))(load, moduleObject);
-        moduleObject.exports.produce({ root: directory, evidence, contextFile: path.join(directory, 'context.json'), startedReceipts: [],
+        const produce = () => moduleObject.exports.produce({ root: directory, evidence, contextFile: path.join(directory, 'context.json'), startedReceipts: [],
             capabilities: f.evidence.capabilities, statuses: f.evidence.lanes,
             env: { INSTALL_PATH: owned, ST_TEST_RUN_ID: f.evidence.identity.runId, ST_TEST_INSTANCE_ID: f.evidence.identity.instance,
                 ST_TEST_BACKEND_URL: f.context.backend, CORE_CONNECTION_URI: f.context.core } });
+        const preparationFile = path.join(exposedDir, 'preparation.json');
+        const preparation = JSON.parse(fs.readFileSync(preparationFile));
+        for (const change of [{ instance: '0'.repeat(48) }, { runId: '0'.repeat(48) },
+            { exposureConfigSha256: '0'.repeat(64) }, { sources: '0'.repeat(64) }]) {
+            json(preparationFile, { ...preparation, ...change });
+            assert.throws(produce);
+        }
+        json(preparationFile, preparation);
+        produce();
         const actual = JSON.parse(fs.readFileSync(path.join(evidence, 'release-evidence.json')));
         assert.equal(actual.candidateAarSha256, hash('synthetic baseline AAR bytes'));
         assert.throws(() => writeReceipt(f.context, actual, policy, path.join(directory, 'receipts')), /cleanup/);
@@ -275,7 +332,7 @@ for (const excluded of [true, false]) test('real evidence producer preserves ' +
     } finally { fs.rmSync(directory, { recursive: true }); }
 });
 
-for (const scenario of ['success', 'r7-excluded', 'missing-baseline', 'excluded-baseline', 'missing-upgrade', 'excluded-upgrade', 'stale-upgrade', 'cleanup-failed', 'upgrade-cleanup-failed', 'known-COOKIE', 'known-EXPOSED_COOKIE']) test(`composition: zero-exit matrix ${scenario} -> publisher`, () => {
+for (const scenario of ['success', 'r7-excluded', 'missing-baseline', 'excluded-baseline', 'missing-upgrade', 'excluded-upgrade', 'stale-upgrade', 'cleanup-failed', 'upgrade-cleanup-failed', 'known-COOKIE', 'known-EXPOSED_COOKIE', 'disabled-composite']) test(`composition: zero-exit matrix ${scenario} -> publisher`, () => {
     const excluded = scenario !== 'success';
     const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'composed-release-'));
     try {
@@ -283,7 +340,8 @@ for (const scenario of ['success', 'r7-excluded', 'missing-baseline', 'excluded-
         fs.mkdirSync(scripts); fs.mkdirSync(bin); fs.mkdirSync(receipts); fs.mkdirSync(path.join(directory, 'app'));
         fs.mkdirSync(path.join(directory, 'testHelpers/testapp'), { recursive: true });
         fs.copyFileSync(path.join(__dirname, '../testHelpers/testapp/upgradeHandoff.js'), path.join(directory, 'testHelpers/testapp/upgradeHandoff.js'));
-        for (const name of ['markAsSuccess.sh', 'integrationReceipt.js', 'integrationEvidence.js', 'integration-policy.json', 'requiredCompatibility.js', 'upgradeEvidence.js']) {
+        fs.copyFileSync(path.join(__dirname, '../testHelpers/testapp/exposureAcceptance.js'), path.join(directory, 'testHelpers/testapp/exposureAcceptance.js'));
+        for (const name of ['markAsSuccess.sh', 'integrationReceipt.js', 'integrationEvidence.js', 'integration-policy.json', 'requiredCompatibility.js', 'upgradeEvidence.js', 'nativeUpgradeEvidence.js']) {
             fs.copyFileSync(path.join(__dirname, name), path.join(scripts, name));
         }
         const versions = Object.keys(policy.policy.required);
@@ -303,6 +361,7 @@ for (const scenario of ['success', 'r7-excluded', 'missing-baseline', 'excluded-
                 else if (scenario === 'stale-upgrade') f.evidence.lanes[8].upgrade.attempt = 41;
                 else if (scenario === 'cleanup-failed') f.evidence.cleanup.backendStopped = false;
                 else if (scenario === 'upgrade-cleanup-failed') f.evidence.lanes[8].upgrade.selections[0].ownedCleanup = false;
+                else if (scenario === 'disabled-composite') f.evidence.lanes[8].upgrade = { schema: 2 };
                 else if (scenario.startsWith('known-')) {
                     const mode = scenario.slice('known-'.length);
                     f.evidence.lanes[8].upgrade.selections.find(value => value.mode === mode).report = knownCookieFailures[mode].report;
@@ -313,8 +372,10 @@ for (const scenario of ['success', 'r7-excluded', 'missing-baseline', 'excluded-
             const result = spawnSync(process.execPath, ['-e', 'require("fs").writeFileSync(process.argv[1],process.argv[2])', evidenceFile, JSON.stringify(f.evidence)]);
             assert.equal(result.status, 0);
             if (excluded && fdi === '4.1') {
-                assert.throws(() => writeReceipt(f.context, JSON.parse(fs.readFileSync(evidenceFile)), policy, receipts));
+                assert.throws(() => writeReceipt(f.context, JSON.parse(fs.readFileSync(evidenceFile)), policy, receipts),
+                    scenario === 'disabled-composite' ? /Composite acceptance is not enabled/ : undefined);
                 assert.equal(fs.existsSync(path.join(receipts, '4.1.json')), false);
+                if (scenario === 'disabled-composite') fs.writeFileSync(path.join(receipts, '4.1.json'), JSON.stringify(receipt(f)));
             } else writeReceipt(f.context, JSON.parse(fs.readFileSync(evidenceFile)), policy, receipts);
         }
         fs.writeFileSync(path.join(bin, 'git'), '#!/bin/bash\nprintf "%s\\n" "$CIRCLE_SHA1"\n', { mode: 0o700 });
