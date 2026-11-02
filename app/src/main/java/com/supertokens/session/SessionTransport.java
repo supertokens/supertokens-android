@@ -49,6 +49,10 @@ final class SessionTransport {
         if (!SessionState.isCurrent(tag.getOwner(), tag.configuration)) throw new StaleSessionException();
     }
 
+    static void requireCurrentRefresh(SessionRequestTag tag) throws StaleSessionException {
+        if (!SessionState.isCurrentRefresh(tag)) throw new StaleSessionException();
+    }
+
     static SessionRequestTag nextWire(SessionRequestTag logical) throws StaleSessionException {
         return nextWire(logical, true);
     }

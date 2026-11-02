@@ -789,6 +789,14 @@ final class SessionState {
         } finally { lock.unlock(); }
     }
 
+    static boolean isCurrentRefresh(SessionRequestTag tag) {
+        lock.lock();
+        try {
+            return configuration == tag.configuration && isCurrentLocked(tag.getOwner())
+                    && current.getRefreshTokenRevision() == tag.getSnapshot().getRefreshTokenRevision();
+        } finally { lock.unlock(); }
+    }
+
     static LegacyEventBatch completeRefresh(Context context, RefreshCoordinator.Flight flight,
                                 @Nullable SessionResponse response, @Nullable IOException error) {
         beginMutation();
@@ -1061,8 +1069,9 @@ final class SessionState {
                 if (candidate.removal) {
                     return clearForResponseLocked(context, tag, response.code);
                 }
-                if (refreshFlight != null && !refreshFlight.isDone()
-                        && sameLineage(refreshFlight, current)) {
+                boolean refreshInFlight = refreshFlight != null && !refreshFlight.isDone()
+                        && sameLineage(refreshFlight, current);
+                if (refreshInFlight && (!compatibleResponse || candidate.rotatesRefresh)) {
                     return success();
                 }
                 if (response.code < 200 || response.code >= 300) {
@@ -1091,6 +1100,7 @@ final class SessionState {
                 boolean established = previous.getStatus() != SessionSnapshot.Status.AVAILABLE;
                 boolean identityChanged = !established && (!sameStoredIdentity(previous, identity)
                         || (candidate.completeHeader && previous.getTokens() == null));
+                if (refreshInFlight && (established || identityChanged)) return success();
                 if (established) {
                     if (!candidate.completeHeader && headerMode) {
                         return new SessionCommitResult(SessionCommitResult.Status.INVALID_SESSION,

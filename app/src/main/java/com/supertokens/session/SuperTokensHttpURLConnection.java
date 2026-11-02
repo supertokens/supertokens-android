@@ -152,7 +152,7 @@ public class SuperTokensHttpURLConnection {
                                    SessionSnapshot captured) throws IOException {
         RefreshDeadline deadline = new RefreshDeadline();
         SessionRequestTag tag = new SessionRequestTag(captured, configuration);
-        SessionTransport.requireCurrent(tag);
+        SessionTransport.requireCurrentRefresh(tag);
         URL url = new URL(configuration.refreshTokenUrl);
         final HttpURLConnection connection = (HttpURLConnection) url.openConnection();
         java.util.concurrent.ScheduledFuture<?> timeout = null;
@@ -184,7 +184,7 @@ public class SuperTokensHttpURLConnection {
                     connection.setRequestProperty(entry.getKey(), entry.getValue());
                 }
             }
-            SessionTransport.requireCurrent(tag);
+            SessionTransport.requireCurrentRefresh(tag);
             int remaining = (int) deadline.remainingMillis();
             connection.setConnectTimeout(remaining);
             connection.setReadTimeout(remaining);

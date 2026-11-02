@@ -46,7 +46,9 @@ public class SessionRefreshPolicyTest extends SessionTestFixture {
                 if (ordinaryFirst) {
                     releaseOrdinary.countDown();
                     assertEquals(Integer.valueOf(200), ordinary.get(5, TimeUnit.SECONDS));
-                    assertEquals("active refresh excludes ordinary promotion", a.getRevision(), SuperTokens.getSessionSnapshot(context).getRevision());
+                    SessionSnapshot interim = SuperTokens.getSessionSnapshot(context);
+                    assertEquals(promoted.getAccessToken(), interim.getTokens().getAccessToken());
+                    assertEquals(a.getRefreshTokenRevision(), interim.getRefreshTokenRevision());
                     releaseRefresh.countDown();
                     assertTrue(refresh.get(5, TimeUnit.SECONDS).isSuccess());
                 } else {

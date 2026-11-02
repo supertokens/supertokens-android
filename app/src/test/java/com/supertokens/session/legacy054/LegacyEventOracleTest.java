@@ -74,6 +74,45 @@ public class LegacyEventOracleTest extends SessionTestFixture {
         }
     }
 
+    @Test public void promotionDuringRefreshEventOrder() throws Exception {
+        List<String> events = new java.util.concurrent.CopyOnWriteArrayList<>();
+        java.util.concurrent.CountDownLatch entered = new java.util.concurrent.CountDownLatch(1);
+        java.util.concurrent.CountDownLatch release = new java.util.concurrent.CountDownLatch(1);
+        java.util.concurrent.ExecutorService worker = java.util.concurrent.Executors.newSingleThreadExecutor();
+        try (Legacy054Harness legacy = oracle(events, null)) {
+            SessionTokens initial = tokens("A", "one");
+            SessionTokens promoted = tokens("A", "two");
+            SessionTokens refreshed = tokens("A", "three");
+            server.enqueue(rotation(initial));
+            legacy.request(server.url("/login").toString());
+            events.clear();
+            server.setDispatcher(new okhttp3.mockwebserver.Dispatcher() {
+                @Override public MockResponse dispatch(okhttp3.mockwebserver.RecordedRequest request) throws InterruptedException {
+                    if (request.getPath().contains("/session/refresh")) {
+                        entered.countDown();
+                        if (!release.await(5, java.util.concurrent.TimeUnit.SECONDS)) throw new AssertionError("refresh timed out");
+                        return rotation(refreshed);
+                    }
+                    return new MockResponse().addHeader("front-token", promoted.getFrontToken())
+                            .addHeader("st-access-token", promoted.getAccessToken());
+                }
+            });
+            java.util.concurrent.Future<Object> refresh = worker.submit(() -> legacy.invoke("refresh"));
+            assertTrue(entered.await(5, java.util.concurrent.TimeUnit.SECONDS));
+            legacy.request(server.url("/update").toString());
+            release.countDown();
+            assertEquals(Boolean.TRUE, refresh.get(5, java.util.concurrent.TimeUnit.SECONDS));
+            List<String> types = new ArrayList<>();
+            for (String event : events) types.add(event.substring(0, event.indexOf(':')));
+            assertEquals(java.util.Arrays.asList("ACCESS_TOKEN_PAYLOAD_UPDATED", "ACCESS_TOKEN_PAYLOAD_UPDATED", "REFRESH_SESSION"), types);
+            assertEquals(refreshed.getAccessToken(), legacy.invoke("getAccessToken"));
+        } finally {
+            release.countDown();
+            worker.shutdownNow();
+            assertTrue(worker.awaitTermination(5, java.util.concurrent.TimeUnit.SECONDS));
+        }
+    }
+
     @Test public void recordThrowingHandlerState() throws Exception {
         List<String> events = new ArrayList<>();
         try (Legacy054Harness oracle = oracle(events, "SESSION_CREATED")) {

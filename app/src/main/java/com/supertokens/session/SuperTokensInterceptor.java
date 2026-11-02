@@ -166,7 +166,7 @@ public class SuperTokensInterceptor implements Interceptor {
                                     SessionSnapshot captured) throws IOException {
         RefreshDeadline deadline = refreshClient == null ? null : new RefreshDeadline();
         SessionRequestTag tag = new SessionRequestTag(captured, configuration);
-        SessionTransport.requireCurrent(tag);
+        SessionTransport.requireCurrentRefresh(tag);
         RequestBody body = new RequestBody() {
             @Override public MediaType contentType() { return MediaType.parse("application/x-www-form-urlencoded"); }
             @Override public long contentLength() { return 0; }
@@ -189,7 +189,7 @@ public class SuperTokensInterceptor implements Interceptor {
         if (!SessionTransport.matches(request.header("Authorization"), auth)) {
             throw new RefreshCoordinator.ConfigurationException("Refresh callback changed authorization");
         }
-        SessionTransport.requireCurrent(tag);
+        SessionTransport.requireCurrentRefresh(tag);
         final okhttp3.Call refreshCall = refreshClient == null ? null : refreshClient.newCall(request);
         java.util.concurrent.ScheduledFuture<?> timeout = null;
         if (refreshCall != null) {
