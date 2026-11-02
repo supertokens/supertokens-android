@@ -717,7 +717,7 @@ final class SessionState {
                             new SessionResolution(SessionResolution.Status.REFRESH_FAILED,
                                     current, error));
                 }
-                if (!refreshFlight.isDone() || refreshFlight.isInCooldown(now)) {
+                if (!refreshFlight.isDone() || (!compatibleResponse && refreshFlight.isInCooldown(now))) {
                     if (!refreshFlight.isDone() && compatibleResponse) refreshFlight.compatibleResponses = true;
                     return new RefreshCoordinator.Acquisition(refreshFlight, false, null);
                 }
@@ -910,6 +910,7 @@ final class SessionState {
 
     private static void failRefreshLocked(RefreshCoordinator.Flight flight, IOException error,
                                           long cooldown) {
+        if (flight.compatibleResponses) cooldown = 0;
         long now = System.nanoTime();
         long cooldownNanos = cooldown <= 0 ? 0 : cooldown * 1000000L;
         long notBefore = cooldownNanos == 0 ? 0 : now + cooldownNanos;

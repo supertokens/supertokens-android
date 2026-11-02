@@ -75,12 +75,12 @@ public class SessionRefreshFailureModeTest extends SessionTestFixture {
                     assertSame(before, SuperTokens.getSessionSnapshot(context));
                     assertEquals(SessionSnapshot.Status.AVAILABLE, before.getStatus());
                     if (fault == Fault.RETRY_AFTER) {
-                        try { request(url, null, "/protected"); fail("Cooldown must preserve failure"); }
+                        try { request(url, null, "/protected"); fail("Refresh must fail again"); }
                         catch (IOException expected) { assertFalse(expected instanceof StaleSessionException); }
                         assertEquals(2, protectedRequests.get());
-                        assertEquals("Retry-After must suppress an immediate second refresh", 1, refreshes.get());
-                        assertEquals(1, preparations.get());
-                        assertEquals(url ? 0 : 1, sdkDispatches.get());
+                        assertEquals("D9: legacy requests retry immediately", 2, refreshes.get());
+                        assertEquals("D9: each legacy attempt prepares a refresh", 2, preparations.get());
+                        assertEquals("D9: each legacy OkHttp attempt dispatches a refresh", url ? 0 : 2, sdkDispatches.get());
                         assertSame(before, SuperTokens.getSessionSnapshot(context));
                     }
                     System.out.println("FAULT transport=" + (url ? "url" : "okhttp") + " fault=" + fault
