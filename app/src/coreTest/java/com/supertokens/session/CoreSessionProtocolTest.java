@@ -6,6 +6,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import okhttp3.MediaType;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
@@ -29,6 +30,15 @@ public class CoreSessionProtocolTest extends CoreSessionProtocolFixture {
         String backend = backend();
         assertNotNull("Explicit live Core harness required", backend);
         OkHttpClient raw = new OkHttpClient.Builder().callTimeout(10, TimeUnit.SECONDS).build();
+        try {
+            exerciseWithClient(backend, raw, promotionFirst);
+        } finally {
+            raw.connectionPool().evictAll();
+            raw.dispatcher().executorService().shutdownNow();
+        }
+    }
+
+    private void exerciseWithClient(String backend, OkHttpClient raw, boolean promotionFirst) throws Exception {
         try (Response response = raw.newCall(new Request.Builder().url(backend + "/test/capabilities").build()).execute()) {
             assertEquals(200, response.code());
             JSONObject capabilities = new JSONObject(response.body().string());
@@ -36,9 +46,8 @@ public class CoreSessionProtocolTest extends CoreSessionProtocolFixture {
                     && capabilities.getBoolean("mappedGoogleSession"));
             assertFalse("This test does not qualify the proxy", capabilities.getBoolean("qualificationProxy"));
             if (usesPayloadPromotion(capabilities)) {
-                // CDI 5.6+ exercises partial adoption on both transports, not the child-lineage race.
-                try { exercisePayloadPromotion(backend, raw, promotionFirst); }
-                finally { raw.connectionPool().evictAll(); raw.dispatcher().executorService().shutdownNow(); }
+                exercisePayloadPromotion(backend, raw, promotionFirst, false);
+                exercisePayloadPromotion(backend, raw, promotionFirst, true);
                 return;
             }
         }
@@ -48,6 +57,7 @@ public class CoreSessionProtocolTest extends CoreSessionProtocolFixture {
         CountDownLatch releasePromotion = new CountDownLatch(1);
         CountDownLatch releaseRefresh = new CountDownLatch(1);
         String handle = null;
+        Throwable primary = null;
         try {
             JSONObject owner;
             JSONObject input = new JSONObject().put("email", "sdk-lineage-" + UUID.randomUUID() + "@example.com")
@@ -124,19 +134,33 @@ public class CoreSessionProtocolTest extends CoreSessionProtocolFixture {
             assertEquals("Candidate selected access remains usable at Core", 200, request(false, null, "/test/protected"));
             assertTrue("Candidate selected refresh remains usable after child access use",
                     SuperTokens.resolveAccessToken(context, initial.getOwner(), true, null).isSuccess());
+        } catch (Exception | Error failure) {
+            primary = failure;
+            throw failure;
         } finally {
-            releasePromotion.countDown(); releaseRefresh.countDown();
-            workers.shutdownNow(); assertTrue(workers.awaitTermination(10, TimeUnit.SECONDS));
-            if (handle != null) {
-                try (Response ignored = raw.newCall(jsonPost(backend + "/test/revoke-session",
-                        new JSONObject().put("handle", handle))).execute()) { }
+            try {
+                releasePromotion.countDown(); releaseRefresh.countDown();
+                workers.shutdownNow(); assertTrue(workers.awaitTermination(10, TimeUnit.SECONDS));
+                if (handle != null) {
+                    try (Response ignored = raw.newCall(jsonPost(backend + "/test/revoke-session",
+                            new JSONObject().put("handle", handle))).execute()) { }
+                }
+            } catch (Exception | Error cleanup) {
+                if (primary != null) primary.addSuppressed(cleanup); else throw cleanup;
             }
-            raw.connectionPool().evictAll(); raw.dispatcher().executorService().shutdownNow();
         }
     }
 
-    private void exercisePayloadPromotion(String backend, OkHttpClient raw, boolean urlConnection) throws Exception {
+    private void exercisePayloadPromotion(String backend, OkHttpClient raw, boolean promotionFirst,
+                                          boolean urlConnection) throws Exception {
         JSONObject owner = null;
+        ExecutorService workers = Executors.newFixedThreadPool(2);
+        CountDownLatch promotionReady = new CountDownLatch(1), refreshReady = new CountDownLatch(1);
+        CountDownLatch releasePromotion = new CountDownLatch(1), releaseRefresh = new CountDownLatch(1);
+        AtomicReference<String> promotedAccess = new AtomicReference<>();
+        AtomicReference<SessionTokens> rotated = new AtomicReference<>();
+        AtomicReference<Throwable> dispatchFailure = new AtomicReference<>();
+        Throwable primary = null;
         try {
             JSONObject input = new JSONObject().put("email", "sdk-payload-" + UUID.randomUUID() + "@example.com")
                     .put("recipe", "google");
@@ -158,7 +182,7 @@ public class CoreSessionProtocolTest extends CoreSessionProtocolFixture {
             assertFalse(accessPayload(child.getAccessToken()).optBoolean("fixturePayloadProbe", false));
             final JSONObject expectedOwner = owner;
             server.setDispatcher(new Dispatcher() {
-                @Override public MockResponse dispatch(RecordedRequest incoming) {
+                @Override public MockResponse dispatch(RecordedRequest incoming) throws InterruptedException {
                     try {
                         Request.Builder forwarded = new Request.Builder().url(backend + incoming.getPath())
                                 .header("st-auth-mode", "header").header("rid", "session");
@@ -180,28 +204,86 @@ public class CoreSessionProtocolTest extends CoreSessionProtocolFixture {
                                 JSONObject actual = new JSONObject(body);
                                 assertEquals(expectedOwner.getString("userId"), actual.getString("userId"));
                                 assertEquals(expectedOwner.getString("handle"), actual.getString("handle"));
+                                promotedAccess.set(result.header("st-access-token"));
+                                assertTrue(accessPayload(promotedAccess.get()).getBoolean("fixturePayloadProbe"));
+                                promotionReady.countDown();
+                                if (!releasePromotion.await(10, TimeUnit.SECONDS)) return new MockResponse().setResponseCode(504);
+                            } else if (incoming.getPath().equals("/auth/session/refresh") && refreshReady.getCount() != 0) {
+                                assertEquals(200, result.code());
+                                SessionTokens tokens = credentials(result);
+                                assertNotNull(tokens.getAccessToken());
+                                assertNotNull(tokens.getRefreshToken());
+                                assertNotNull(tokens.getFrontToken());
+                                assertFalse("Core refresh rotates the credential", child.getRefreshToken().equals(tokens.getRefreshToken()));
+                                assertTrue("Refresh reflects Core payload update",
+                                        accessPayload(tokens.getAccessToken()).getBoolean("fixturePayloadProbe"));
+                                rotated.set(tokens);
+                                refreshReady.countDown();
+                                if (!releaseRefresh.await(10, TimeUnit.SECONDS)) return new MockResponse().setResponseCode(504);
                             }
                             return out;
                         }
-                    } catch (Exception failure) { return new MockResponse().setResponseCode(502); }
+                    } catch (Exception | Error failure) {
+                        dispatchFailure.compareAndSet(null, failure);
+                        promotionReady.countDown(); refreshReady.countDown();
+                        return new MockResponse().setResponseCode(502);
+                    }
                 }
             });
-            assertEquals(200, request(urlConnection, null, "/test/payload-promotion"));
-            SessionSnapshot promoted = SuperTokens.getSessionSnapshot(context);
-            assertSame(initial.getOwner(), promoted.getOwner());
-            assertEquals(initial.getSessionHandle(), promoted.getSessionHandle());
-            assertEquals(child.getRefreshToken(), promoted.getTokens().getRefreshToken());
-            assertNotEquals(child.getAccessToken(), promoted.getTokens().getAccessToken());
-            JSONObject payload = accessPayload(promoted.getTokens().getAccessToken());
-            assertTrue(payload.getBoolean("fixturePayloadProbe"));
+            Future<Integer> ordinary = workers.submit(() -> request(urlConnection, null, "/test/payload-promotion"));
+            assertTrue("Core processed promotion", promotionReady.await(10, TimeUnit.SECONDS));
+            assertNull("Promotion forwarding", dispatchFailure.get());
+            assertNotNull(promotedAccess.get());
+            assertFalse("Core promotion changes access", child.getAccessToken().equals(promotedAccess.get()));
+            Future<SessionResolution> refresh = workers.submit(() -> SuperTokens.resolveAccessToken(context,
+                    initial.getOwner(), true, null));
+            assertTrue("Core processed refresh while promotion was held", refreshReady.await(10, TimeUnit.SECONDS));
+            assertNull("Refresh forwarding", dispatchFailure.get());
+            assertNotNull(rotated.get());
+            SessionSnapshot completedRefresh = null;
+            if (promotionFirst) {
+                releasePromotion.countDown();
+                assertEquals(200, (int) ordinary.get(5, TimeUnit.SECONDS));
+                SessionSnapshot promoted = SuperTokens.getSessionSnapshot(context);
+                assertSame(initial.getOwner(), promoted.getOwner());
+                assertEquals(initial.getSessionHandle(), promoted.getSessionHandle());
+                assertEquals(initial.getRefreshTokenRevision(), promoted.getRefreshTokenRevision());
+                assertTrue("Promotion retains refresh", child.getRefreshToken().equals(promoted.getTokens().getRefreshToken()));
+                assertTrue("Promotion is adopted during refresh", promotedAccess.get().equals(promoted.getTokens().getAccessToken()));
+                releaseRefresh.countDown();
+            } else {
+                releaseRefresh.countDown();
+                assertTrue(refresh.get(5, TimeUnit.SECONDS).isSuccess());
+                completedRefresh = SuperTokens.getSessionSnapshot(context);
+                releasePromotion.countDown();
+            }
+            assertEquals(200, (int) ordinary.get(5, TimeUnit.SECONDS));
+            assertTrue("Core refresh accepted", refresh.get(5, TimeUnit.SECONDS).isSuccess());
+            SessionSnapshot accepted = SuperTokens.getSessionSnapshot(context);
+            assertSame(initial.getOwner(), accepted.getOwner());
+            assertEquals(initial.getSessionHandle(), accepted.getSessionHandle());
+            assertNotEquals(initial.getRefreshTokenRevision(), accepted.getRefreshTokenRevision());
+            if (completedRefresh != null) {
+                assertEquals("Late promotion must be fenced", completedRefresh.getRevision(), accepted.getRevision());
+            }
+            assertTrue("Actual Core refresh remains selected", rotated.get().getRefreshToken().equals(accepted.getTokens().getRefreshToken()));
+            assertTrue("Actual Core access remains selected", rotated.get().getAccessToken().equals(accepted.getTokens().getAccessToken()));
             assertEquals(200, request(urlConnection, null, "/test/protected"));
-            assertTrue("Retained refresh remains usable", SuperTokens.resolveAccessToken(context, initial.getOwner(), true, null).isSuccess());
-            assertNotEquals(child.getRefreshToken(), SuperTokens.getSessionSnapshot(context).getTokens().getRefreshToken());
+            assertTrue("Rotated refresh remains usable", SuperTokens.resolveAccessToken(context, initial.getOwner(), true, null).isSuccess());
+        } catch (Exception | Error failure) {
+            primary = failure;
+            throw failure;
         } finally {
-            if (owner != null) try (Response response = raw.newCall(jsonPost(backend + "/test/cleanup-owner",
-                    new JSONObject().put("fixtureId", owner.getString("fixtureId")))).execute()) {
-                assertEquals("Owner cleanup", 200, response.code());
-                assertTrue("Owner cleanup acknowledged", new JSONObject(response.body().string()).getBoolean("cleaned"));
+            try {
+                releasePromotion.countDown(); releaseRefresh.countDown();
+                workers.shutdownNow(); assertTrue(workers.awaitTermination(10, TimeUnit.SECONDS));
+                if (owner != null) try (Response response = raw.newCall(jsonPost(backend + "/test/cleanup-owner",
+                        new JSONObject().put("fixtureId", owner.getString("fixtureId")))).execute()) {
+                    assertEquals("Owner cleanup", 200, response.code());
+                    assertTrue("Owner cleanup acknowledged", new JSONObject(response.body().string()).getBoolean("cleaned"));
+                }
+            } catch (Exception | Error cleanup) {
+                if (primary != null) primary.addSuppressed(cleanup); else throw cleanup;
             }
         }
     }
