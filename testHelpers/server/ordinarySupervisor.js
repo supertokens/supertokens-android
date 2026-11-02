@@ -3,7 +3,10 @@ let child;
 function send(message) {
     if (!process.connected) return;
     process.send(message, error => {
-        if (error && error.code !== 'ERR_IPC_CHANNEL_CLOSED' && error.code !== 'ERR_IPC_DISCONNECTED') throw error;
+        if (!error) return;
+        if (!['EPIPE', 'ERR_IPC_CHANNEL_CLOSED', 'ERR_IPC_DISCONNECTED'].includes(error.code)) throw error;
+        if (process.connected) process.disconnect();
+        if (!child) process.exit(0);
     });
 }
 // The group leader must outlive the command and its workers, including after TERM.

@@ -19,7 +19,8 @@ function linuxProcessIdentity(pid) {
     const stat = fs.readFileSync(`/proc/${pid}/stat`).toString('utf8');
     const close = stat.lastIndexOf(')');
     const fields = stat.slice(close + 1).trim().split(/\s+/);
-    if (close < 0 || !/^\d+$/.test(fields[2]) || !/^\d+$/.test(fields[19])) {
+    if (!stat.startsWith(`${pid} (`) || close < stat.indexOf('(') ||
+        !/^\d+$/.test(fields[2]) || !/^\d+$/.test(fields[19])) {
         throw new Error(`Invalid process identity for ${pid}; command drain unproven`);
     }
     return { group: Number(fields[2]), startTicks: fields[19] };
@@ -32,13 +33,14 @@ function linuxIdentityMatches(member, tagged) {
     return current.group === member.group && current.startTicks === member.startTicks;
 }
 
-function taggedPids(token) {
+function taggedPids(token, bound) {
     // Read-only discovery. Never persist environment output or use it as a kill command.
     if (process.platform === 'linux') {
         const tagged = new Map();
         for (const pid of fs.readdirSync('/proc').filter(name => /^\d+$/.test(name))) {
             try {
                 const before = linuxProcessIdentity(pid);
+                if (bound && BigInt(before.startTicks) < BigInt(bound.startTicks)) continue;
                 const environment = fs.readFileSync(`/proc/${pid}/environ`);
                 if (!environment.toString('utf8').split('\0').includes('ST_TEST_COMMAND_ID=' + token)) continue;
                 const after = linuxProcessIdentity(pid);
@@ -93,6 +95,27 @@ class OwnedCommandGroup {
 
     cancelStart() { this.cancelled = true; }
 
+    verifyLinuxLeader() {
+        this.owner.verify();
+        const identity = linuxProcessIdentity(this.group);
+        if (identity.group !== this.group || (this.linuxBound &&
+            (this.linuxBound.pid !== this.group || this.linuxBound.group !== identity.group ||
+                this.linuxBound.startTicks !== identity.startTicks))) {
+            throw new Error('Owned supervisor identity changed; command drain unproven');
+        }
+        if (!this.linuxBound) this.linuxBound = { pid: this.group, ...identity };
+    }
+
+    discover() {
+        if (process.platform !== 'linux') return taggedPids(this.token);
+        if (!this.linuxBound) throw new Error('Owned supervisor identity unavailable; command drain unproven');
+        const alive = () => this.owner.child.exitCode === null && this.owner.child.signalCode === null;
+        if (alive()) this.verifyLinuxLeader();
+        const tagged = taggedPids(this.token, this.linuxBound);
+        if (alive()) this.verifyLinuxLeader();
+        return tagged;
+    }
+
     verifyGroup() {
         this.owner.verify();
         const table = processTable();
@@ -101,6 +124,7 @@ class OwnedCommandGroup {
         if (!leader || leader.group !== leader.pid || leader.parent !== process.pid || !caller || caller.group === this.group) {
             throw new Error('Not an isolated owned process group');
         }
+        if (process.platform === 'linux') this.verifyLinuxLeader();
         const descendants = new Set([this.group]);
         for (let changed = true; changed;) {
             changed = false;
@@ -108,7 +132,7 @@ class OwnedCommandGroup {
                 descendants.add(row.pid); changed = true;
             }
         }
-        const tagged = taggedPids(this.token);
+        const tagged = this.discover();
         if (!tagged.has(this.group)) throw new Error('Owned group run identity unavailable');
         if (table.some(row => descendants.has(row.pid) && row.group !== this.group && !row.zombie && !tagged.has(row.pid))) {
             throw new Error('Unidentified escaped descendant; retain fixture for recovery');
@@ -132,7 +156,7 @@ class OwnedCommandGroup {
             for (const member of members.filter(row => row.group !== this.group)) {
                 const current = processTable().find(row => row.pid === member.pid);
                 if (!current || current.zombie) continue;
-                const tagged = taggedPids(this.token);
+                const tagged = this.discover();
                 if (current.identity !== member.identity || current.group !== member.group || !tagged.has(member.pid) || member.pid === process.pid ||
                     (process.platform === 'linux' && !linuxIdentityMatches(member, tagged))) {
                     throw new Error('Escaped worker identity changed; refusing signal');
@@ -144,13 +168,14 @@ class OwnedCommandGroup {
             const deadline = Date.now() + duration;
             if (signal === 'SIGKILL') {
                 while (Date.now() < deadline) {
-                    const tagged = taggedPids(this.token);
+                    // Let Node observe the supervisor's exit before validating discovery.
+                    await delay(25);
+                    const tagged = this.discover();
                     const remaining = processTable().filter(row => (row.group === this.group || tagged.has(row.pid)) && !row.zombie);
                     if (!remaining.length) {
                         this.evidence({ action: 'DRAINED', group: this.group });
                         return;
                     }
-                    await delay(25);
                 }
                 throw new Error('Command group did not drain; Core cleanup prohibited');
             }
@@ -163,7 +188,7 @@ class OwnedCommandGroup {
         this.owner.child.send({ type: 'exit' });
         const deadline = Date.now() + 2000;
         while (Date.now() < deadline && this.owner.child.exitCode === null && this.owner.child.signalCode === null) await delay(25);
-        const tagged = taggedPids(this.token);
+        const tagged = this.discover();
         if (processTable().some(row => (row.group === this.group || tagged.has(row.pid)) && !row.zombie)) {
             throw new Error('Command group still live; Core cleanup prohibited');
         }
