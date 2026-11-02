@@ -10,7 +10,7 @@ const failures = require('./fixtures/published-cookie-failures.json');
 const { normalize } = require('../testHelpers/testapp/upgradeHandoff');
 
 function fixture(mode = 'COOKIE', route = '/login') {
-    const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'upgrade-export-'));
+    const directory = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'upgrade-export-')));
     const root = path.join(directory, 'repo'), owned = path.join(directory, 'owned');
     const nonce = 'b'.repeat(48), runId = 'c'.repeat(48), instance = 'd'.repeat(48);
     const context = { schema: 1, sha: 'e'.repeat(40), workflow: 'fake-workflow', attempt: 12, fdi: '4.1',

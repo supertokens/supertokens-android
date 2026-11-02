@@ -167,7 +167,8 @@ class CommandOwnership(unittest.TestCase):
         descendant = 'import os,time; open(' + repr(str(pidfile)) + ',"w").write(str(os.getpid())); time.sleep(30)'
         verifier = 'import subprocess,sys,time; subprocess.Popen([sys.executable,"-c",' + repr(descendant) + ']); time.sleep(30)'
         bridge = 'import sys; from native_verifier_process import supervise; sys.exit(supervise([sys.executable,"-c",' + repr(verifier) + '], .5))'
-        result = subprocess.run([sys.executable, '-c', bridge], capture_output=True, timeout=10)
+        result = subprocess.run([sys.executable, '-c', bridge], cwd=Path(__file__).resolve().parent,
+                                capture_output=True, timeout=10)
         self.assertEqual(124, result.returncode, result.stderr)
         pid = int(pidfile.read_text())
         state = subprocess.run(['ps', '-p', str(pid), '-o', 'stat='], capture_output=True, text=True).stdout.strip()
@@ -178,7 +179,8 @@ class CommandOwnership(unittest.TestCase):
         descendant = 'import os,time; open(' + repr(str(pidfile)) + ',"w").write(str(os.getpid())); time.sleep(30)'
         verifier = 'import subprocess,sys,time; subprocess.Popen([sys.executable,"-c",' + repr(descendant) + ']); time.sleep(30)'
         bridge = 'import sys; from native_verifier_process import supervise; sys.exit(supervise([sys.executable,"-c",' + repr(verifier) + ']))'
-        process = subprocess.Popen([sys.executable, '-c', bridge], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        process = subprocess.Popen([sys.executable, '-c', bridge], cwd=Path(__file__).resolve().parent,
+                                   stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         try:
             deadline = time.monotonic() + 5
             while not pidfile.exists() and time.monotonic() < deadline:
@@ -192,7 +194,7 @@ class CommandOwnership(unittest.TestCase):
         finally:
             if process.poll() is None:
                 process.terminate()
-                process.communicate(timeout=10)
+            process.communicate(timeout=10)
 
     def test_timeout_drains_owned_group(self):
         code, proof = native_device.run_command([sys.executable, '-c', 'import time; time.sleep(10)'], .1, self.log, shared.Cancellation())

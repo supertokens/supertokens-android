@@ -87,7 +87,8 @@ class BackendArchiveControls(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory(prefix='native-backend-parser-', dir=os.environ.get('TEST_TMPDIR'))
         self.addCleanup(self.temp.cleanup)
-        self.owned = Path(self.temp.name) / 'owned'
+        self.root = Path(self.temp.name).resolve()
+        self.owned = self.root / 'owned'
         self.source = config()
         self.stages = [stage(self.source, action) for action in ['seed', 'check-initial', 'cleanup']]
         self.directory = write_backend(self.owned, self.source, self.stages, 1000, 3000)
@@ -142,8 +143,8 @@ class BackendArchiveControls(unittest.TestCase):
                 if flow == 'SIGN_OUT':
                     source['plan']['phases']['publishedHandoff'] = 'ABSENT'
                 stages = [stage(source, action) for action in ['seed', 'check-initial', 'cleanup']]
-                owned = Path(self.temp.name) / ('actual-' + flow)
-                sibling = Path(self.temp.name) / ('archive-' + flow) / source['nativeNonce']
+                owned = self.root / ('actual-' + flow)
+                sibling = self.root / ('archive-' + flow) / source['nativeNonce']
                 result = subprocess.run(['node', str(Path(__file__).parent / 'tests/native_backend_fixture.js')],
                     input=json.dumps(dict(owned=str(owned), source=source, stages=stages, sibling=str(sibling))),
                     capture_output=True, text=True, timeout=30)
