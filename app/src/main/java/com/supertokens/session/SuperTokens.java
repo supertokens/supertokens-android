@@ -192,7 +192,7 @@ public class SuperTokens {
         Map<String, String> provided = captured.values.customHeaderMapper
                 .getRequestHeaders(CustomHeaderProvider.RequestType.SIGN_OUT);
         Map<String, String> headers = provided == null ? java.util.Collections.<String, String>emptyMap()
-                : new java.util.HashMap<>(provided);
+                : new java.util.LinkedHashMap<>(provided);
         int attempts = 0;
         while (signOutRequest(context, responseTag, headers)) {
             if (!SessionState.isCurrent(tag.getOwner(), captured)) return;
@@ -265,14 +265,6 @@ public class SuperTokens {
                 connection.setDoOutput(true);
                 connection.setFixedLengthStreamingMode(0);
             }
-            for (Map.Entry<String, String> header : headers.entrySet()) {
-                String name = header.getKey();
-                if (name.equalsIgnoreCase("Authorization") || name.equalsIgnoreCase(Constants.CSRF_HEADER_KEY)
-                        || name.equalsIgnoreCase("rid") || name.equalsIgnoreCase("st-auth-mode")
-                        || name.equalsIgnoreCase("Host") || name.equalsIgnoreCase("Content-Length")
-                        || name.equalsIgnoreCase("Transfer-Encoding")) continue;
-                connection.setRequestProperty(name, header.getValue());
-            }
             connection.setRequestProperty("rid", "session");
             connection.setRequestProperty("st-auth-mode", captured.values.tokenTransferMethod);
             SessionTokens tokens = responseTag.getSnapshot().getInternalTokens();
@@ -280,6 +272,13 @@ public class SuperTokens {
             if (authorization != null) connection.setRequestProperty("Authorization", authorization);
             if (tokens != null && tokens.getAntiCSRF() != null) {
                 connection.setRequestProperty(Constants.CSRF_HEADER_KEY, tokens.getAntiCSRF());
+            }
+            for (Map.Entry<String, String> header : headers.entrySet()) {
+                String name = header.getKey();
+                if (name.equalsIgnoreCase(Constants.CSRF_HEADER_KEY) || name.equalsIgnoreCase("st-auth-mode")
+                        || name.equalsIgnoreCase("Host") || name.equalsIgnoreCase("Content-Length")
+                        || name.equalsIgnoreCase("Transfer-Encoding")) continue;
+                connection.setRequestProperty(name, header.getValue());
             }
             // Ambient cookie jars remain outside process-owner credential fencing.
             if (!SessionState.isCurrent(responseTag.getOwner(), captured)) return new SignOutRedirect(null, 0, false);
