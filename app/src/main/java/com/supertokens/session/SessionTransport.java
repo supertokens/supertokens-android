@@ -39,10 +39,13 @@ final class SessionTransport {
         URL received = new URL(finalUrl);
         int sentPort = sent.getPort() < 0 ? sent.getDefaultPort() : sent.getPort();
         int receivedPort = received.getPort() < 0 ? received.getDefaultPort() : received.getPort();
-        // Outbound compatibility trusts hosts; redirected responses additionally require the sent origin.
-        return sent.getProtocol().equalsIgnoreCase(received.getProtocol())
-                && sent.getHost().equalsIgnoreCase(received.getHost()) && sentPort == receivedPort
-                && received.getUserInfo() == null;
+        boolean sameOrigin = sent.getProtocol().equalsIgnoreCase(received.getProtocol())
+                && sentPort == receivedPort;
+        boolean secureUpgrade = sent.getProtocol().equalsIgnoreCase("http")
+                && received.getProtocol().equalsIgnoreCase("https")
+                && sentPort == 80 && receivedPort == 443;
+        return (sameOrigin || secureUpgrade)
+                && sent.getHost().equalsIgnoreCase(received.getHost()) && received.getUserInfo() == null;
     }
 
     static void requireCurrent(SessionRequestTag tag) throws StaleSessionException {
