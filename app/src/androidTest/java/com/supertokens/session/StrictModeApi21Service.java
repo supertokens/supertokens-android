@@ -41,6 +41,7 @@ public final class StrictModeApi21Service extends Service {
     private Map<String, ?> before;
     private String adoption;
     private File file;
+    private FileOutputStream controlOutput;
     private ServerSocket server;
     private Socket socket;
     private java.net.InetSocketAddress endpoint;
@@ -136,6 +137,8 @@ public final class StrictModeApi21Service extends Service {
             file = new File(getCacheDir(), "strictmode-api21-" + nonce + ".bin");
             check(file.createNewFile(), "control file already exists");
             try (FileOutputStream out = new FileOutputStream(file)) { out.write(42); }
+            // API 21 checks disk reads as well as writes when opening an output stream.
+            if (action == 1) controlOutput = new FileOutputStream(file);
             diagnosticStage = "SOCKET_PREPARE";
             server = new ServerSocket(0, 1, InetAddress.getByName("127.0.0.1"));
             socket = new Socket();
@@ -189,7 +192,7 @@ public final class StrictModeApi21Service extends Service {
         try {
             diagnosticStage = "CONTROL_ENTER";
             if (action == 0) { try (FileInputStream in = new FileInputStream(file)) { in.read(); } }
-            else if (action == 1) { try (FileOutputStream out = new FileOutputStream(file)) { out.write(1); } }
+            else if (action == 1) { controlOutput.write(1); }
             else if (action == 2) { socket.connect(endpoint); }
             else { startup(action == 4); }
             diagnosticStage = "CONTROL_RETURNED";
@@ -220,6 +223,10 @@ public final class StrictModeApi21Service extends Service {
     private void finish() {
         diagnosticStage = "FINISH_ENTER";
         try {
+            if (controlOutput != null) {
+                controlOutput.close();
+                controlOutput = null;
+            }
             check(before.equals(preferences.getAll()), "preferences changed");
             socket.close();
             server.close();
@@ -240,6 +247,10 @@ public final class StrictModeApi21Service extends Service {
     }
 
     private void fail(Throwable t) {
+        if (controlOutput != null) {
+            try { controlOutput.close(); } catch (IOException ignored) { }
+            controlOutput = null;
+        }
         try { send("FAIL", t.toString()); } catch (Throwable ignored) { }
         Process.killProcess(Process.myPid());
     }
