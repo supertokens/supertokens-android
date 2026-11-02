@@ -39,6 +39,10 @@ public final class Legacy054Driver implements Closeable {
         client = client.newBuilder().readTimeout(millis, TimeUnit.MILLISECONDS).build();
     }
 
+    public void setCallTimeoutMillis(long millis) {
+        client = client.newBuilder().callTimeout(millis, TimeUnit.MILLISECONDS).build();
+    }
+
     /** Opt-in because CookieHandler is process-global, including across isolated class loaders. */
     public void useCookies() {
         if (cookies != null) throw new IllegalStateException("Cookies already installed");

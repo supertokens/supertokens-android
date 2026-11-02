@@ -8,6 +8,35 @@ import org.junit.Test;
 import static org.junit.Assert.*;
 
 public class RefreshUrlConnectionParityTest extends SessionTestFixture {
+    @Test public void legacyRefreshDoesNotReplayAfterResponseHeaders() throws Exception {
+        SessionSnapshot snapshot = install("session", "before");
+        java.net.CookieHandler previous = java.net.CookieHandler.getDefault();
+        java.net.CookieHandler.setDefault(new java.net.CookieHandler() {
+            @Override public java.util.Map<String, java.util.List<String>> get(java.net.URI uri,
+                    java.util.Map<String, java.util.List<String>> headers) {
+                return java.util.Collections.emptyMap();
+            }
+            @Override public void put(java.net.URI uri, java.util.Map<String, java.util.List<String>> headers)
+                    throws IOException {
+                if ("/manual-only".equals(uri.getPath())) throw new IOException("Connection reset");
+            }
+        });
+        try {
+            server.enqueue(new MockResponse().setResponseCode(200)
+                    .addHeader("Set-Cookie", "probe=value; Path=/manual-only"));
+            server.enqueue(new MockResponse().setResponseCode(200));
+            try {
+                SuperTokensHttpURLConnection.refresh(context, SessionState.capture().configuration, snapshot, true);
+                fail("post-response error was ignored");
+            } catch (IOException expected) {
+                assertEquals("Connection reset", expected.getMessage());
+            }
+            assertEquals(1, server.getRequestCount());
+        } finally {
+            java.net.CookieHandler.setDefault(previous);
+        }
+    }
+
     @Test public void legacyRefreshFollowsSameOriginRedirect() throws Exception {
         SessionSnapshot snapshot = install("session", "before");
         server.enqueue(new MockResponse().setResponseCode(307).addHeader("Location", "/redirected"));
@@ -67,6 +96,14 @@ public class RefreshUrlConnectionParityTest extends SessionTestFixture {
         }
     }
 
+    @Test public void onlyDefaultPortSameHostTlsUpgradeIsInScope() throws Exception {
+        SessionState.Configuration config = SessionState.capture().configuration;
+        assertTrue(SessionTransport.isResponseInScope("http://localhost/a", "https://localhost/b", config));
+        assertFalse(SessionTransport.isResponseInScope("https://localhost/a", "http://localhost/b", config));
+        assertFalse(SessionTransport.isResponseInScope("http://localhost:8080/a", "https://localhost/b", config));
+        assertFalse(SessionTransport.isResponseInScope("http://localhost/a", "https://localhost:444/b", config));
+        assertFalse(SessionTransport.isResponseInScope("http://localhost/a", "https://127.0.0.1/b", config));
+    }
     @Test public void replacedOwnerCannotFollowRedirect() throws Exception {
         SessionSnapshot snapshot = install("session", "before");
         java.net.CookieHandler previous = java.net.CookieHandler.getDefault();

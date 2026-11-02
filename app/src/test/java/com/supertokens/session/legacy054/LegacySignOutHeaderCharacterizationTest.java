@@ -16,9 +16,6 @@ import static org.junit.Assert.*;
 
 public class LegacySignOutHeaderCharacterizationTest {
     @Test public void providerHeadersOnWire() throws Exception {
-        java.net.CookieHandler previous = java.net.CookieHandler.getDefault();
-        java.net.CookieHandler.setDefault(new java.net.CookieManager());
-        try {
         for (boolean cookie : new boolean[]{false, true}) for (boolean duplicates : new boolean[]{false, true}) {
             Map<String, Object> initial = new LinkedHashMap<>();
             initial.put(OraclePreferences.FRONT, Base64.getEncoder().encodeToString(
@@ -31,6 +28,7 @@ public class LegacySignOutHeaderCharacterizationTest {
             OraclePreferences store = new OraclePreferences(initial);
             try (MockWebServer server = new MockWebServer(); Legacy054Harness legacy = new Legacy054Harness(store.context)) {
                 server.start();
+                legacy.invoke("useCookies");
                 ClassLoader loader = legacy.sdkClass().getClassLoader();
                 Class<?> provider = loader.loadClass("com.supertokens.session.CustomHeaderProvider");
                 Map<String, String> headers = new LinkedHashMap<>();
@@ -56,6 +54,5 @@ public class LegacySignOutHeaderCharacterizationTest {
                         request.getHeaders().values("rid"));
             }
         }
-        } finally { java.net.CookieHandler.setDefault(previous); }
     }
 }

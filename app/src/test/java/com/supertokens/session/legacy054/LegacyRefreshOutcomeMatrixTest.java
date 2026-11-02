@@ -361,6 +361,93 @@ public class LegacyRefreshOutcomeMatrixTest extends SessionTestFixture {
         assertEquals(expected, actual);
     }
 
+    private String callTimeout(boolean legacy) throws Exception {
+        String fresh = front();
+        AtomicInteger refreshes = new AtomicInteger();
+        AtomicInteger protectedRequests = new AtomicInteger();
+        List<String> events = new ArrayList<>();
+        List<String> wire = java.util.Collections.synchronizedList(new ArrayList<>());
+        java.util.concurrent.CountDownLatch refreshEntered = new java.util.concurrent.CountDownLatch(1);
+        java.util.concurrent.CountDownLatch releaseRefresh = new java.util.concurrent.CountDownLatch(1);
+        server.setDispatcher(new Dispatcher() {
+            @Override public MockResponse dispatch(RecordedRequest request) {
+                wire.add(request.getPath() + ":authorization=" + request.getHeader("Authorization")
+                        + ":csrf=" + request.getHeader("anti-csrf"));
+                if (request.getPath().equals("/login")) return login(fresh);
+                if (request.getPath().contains("/session/refresh")) {
+                    if (refreshes.incrementAndGet() == 1) {
+                        refreshEntered.countDown();
+                        try {
+                            if (!releaseRefresh.await(20, TimeUnit.SECONDS)) {
+                                return new MockResponse().setResponseCode(503);
+                            }
+                        } catch (InterruptedException error) {
+                            Thread.currentThread().interrupt();
+                            return new MockResponse().setResponseCode(503);
+                        }
+                        return login(fresh);
+                    }
+                    return login(fresh);
+                }
+                return new MockResponse().setResponseCode(protectedRequests.incrementAndGet() <= 2 ? 401 : 200);
+            }
+        });
+        try (Legacy054Harness old = legacy ? new Legacy054Harness(context) : null) {
+            if (legacy) {
+                old.invoke("setCallTimeoutMillis", new Class<?>[]{long.class}, 5000L);
+                old.invoke("buildWithEvents", new Class<?>[]{String.class, List.class, String.class},
+                        server.url("/").toString(), events, null);
+                old.request(server.url("/login").toString());
+            } else {
+                client = client.newBuilder().callTimeout(5, TimeUnit.SECONDS).build();
+                new SuperTokens.Builder(context, server.url("/").toString()).tokenTransferMethod("header")
+                        .eventHandler(event -> events.add(event.name())).build();
+                request(false, null, "/login");
+            }
+            events.clear();
+            java.util.concurrent.ExecutorService worker = java.util.concurrent.Executors.newSingleThreadExecutor();
+            long submittedAt = System.nanoTime();
+            java.util.concurrent.Future<String> firstCall = worker.submit(() -> requestOutcome(old));
+            String first;
+            try {
+                assertTrue("refresh was not entered", refreshEntered.await(8, TimeUnit.SECONDS));
+                assertTrue("refresh entry observed too late to establish deadline ordering",
+                        System.nanoTime() - submittedAt < TimeUnit.SECONDS.toNanos(5));
+                assertTrue("call completed before refresh entry was observed", !firstCall.isDone());
+                first = firstCall.get(12, TimeUnit.SECONDS);
+            } finally {
+                releaseRefresh.countDown();
+                firstCall.cancel(true);
+                worker.shutdownNow();
+                assertTrue("request worker did not stop", worker.awaitTermination(5, TimeUnit.SECONDS));
+            }
+            int firstRefreshes = refreshes.get();
+            List<String> firstEvents = new ArrayList<>();
+            for (String event : events) firstEvents.add(event.split(":")[0]);
+            android.content.SharedPreferences prefs = context.getSharedPreferences("supertokens-android-shared-preferences", 0);
+            String stored = ":front=" + prefs.getString("supertokens-android-fronttoken-key", null)
+                    + ":access=" + prefs.getString("st-storage-item-st-access-token", null)
+                    + ":refresh=" + prefs.getString("st-storage-item-st-refresh-token", null)
+                    + ":csrf=" + prefs.getString("supertokens-android-anticsrf-key", null);
+            String second = requestOutcome(old);
+            List<String> allEvents = new ArrayList<>();
+            for (String event : events) allEvents.add(event.split(":")[0]);
+            return first + stored + ":firstRefreshes=" + firstRefreshes + ":firstEvents=" + firstEvents
+                    + ":second=" + second + ":refreshes=" + refreshes.get() + ":events=" + allEvents + ":wire=" + wire;
+        }
+    }
+
+    @Test public void callerOwnedOkHttpCallTimeoutRetainsSessionAndNext401Retries() throws Exception {
+        String expected = callTimeout(true);
+        context.getSharedPreferences("supertokens-android-shared-preferences", 0).edit().clear().commit();
+        SuperTokens.resetForTests();
+        String actual = callTimeout(false);
+        assertTrue(expected, expected.startsWith("java.io.InterruptedIOException:")
+                && expected.contains(":front=" + front()) && expected.contains(":firstRefreshes=1:")
+                && expected.contains(":second=200:refreshes=2:"));
+        assertEquals(expected, actual);
+    }
+
     private String cookieUrlRow(boolean legacy, Caller caller, Outcome result) throws Exception {
         AtomicInteger refreshes = new AtomicInteger();
         AtomicInteger protectedRequests = new AtomicInteger();
@@ -448,6 +535,110 @@ public class LegacyRefreshOutcomeMatrixTest extends SessionTestFixture {
                 context.getSharedPreferences("supertokens-android-shared-preferences", 0).edit().clear().commit();
                 SuperTokens.resetForTests();
                 String actual = cookieUrlRow(false, caller, outcome);
+                if (!expected.equals(actual)) differences.add(caller + " " + outcome + " expected=" + expected + " actual=" + actual);
+            }
+        }
+        assertTrue(differences.toString(), differences.isEmpty());
+    }
+
+    private String exposedCookieRow(boolean legacy, Caller caller, Outcome result) throws Exception {
+        String fresh = front();
+        String expired = Base64.getEncoder().encodeToString(
+                "{\"uid\":\"user\",\"ate\":1,\"up\":{}}".getBytes("UTF-8"));
+        boolean proactive = caller == Caller.EXISTS || caller == Caller.ACCESS
+                || caller == Caller.PAYLOAD || caller == Caller.SIGN_OUT;
+        AtomicInteger refreshes = new AtomicInteger();
+        AtomicInteger protectedRequests = new AtomicInteger();
+        List<String> wire = java.util.Collections.synchronizedList(new ArrayList<>());
+        List<String> events = new ArrayList<>();
+        server.setDispatcher(new Dispatcher() {
+            @Override public MockResponse dispatch(RecordedRequest request) {
+                String path = request.getPath();
+                wire.add(path + ":cookie=" + request.getHeader("Cookie")
+                        + ":authorization=" + request.getHeader("Authorization")
+                        + ":csrf=" + request.getHeader("anti-csrf"));
+                if (path.equals("/login")) return new MockResponse()
+                        .addHeader("front-token", proactive ? expired : fresh)
+                        .addHeader("st-access-token", "exposed-initial")
+                        .addHeader("anti-csrf", "csrf-initial")
+                        .addHeader("Set-Cookie", "sAccessToken=cookie-initial; Path=/")
+                        .addHeader("Set-Cookie", "sRefreshToken=refresh-initial; Path=/");
+                if (path.contains("/session/refresh")) {
+                    if (refreshes.incrementAndGet() == 1 && result != Outcome.FRONT_ONLY) {
+                        return outcome(result, fresh);
+                    }
+                    return new MockResponse().addHeader("front-token", fresh)
+                            .addHeader("st-access-token", "exposed-rotated")
+                            .addHeader("anti-csrf", "csrf-rotated")
+                            .addHeader("Set-Cookie", "sAccessToken=cookie-rotated; Path=/")
+                            .addHeader("Set-Cookie", "sRefreshToken=refresh-rotated; Path=/");
+                }
+                return new MockResponse().setResponseCode(protectedRequests.incrementAndGet() == 1 ? 401 : 200);
+            }
+        });
+        CookieHandler previous = CookieHandler.getDefault();
+        try (Legacy054Harness old = legacy ? new Legacy054Harness(context) : null) {
+            if (legacy) {
+                old.invoke("useCookies");
+                old.invoke("buildWithEventsForTransfer", new Class<?>[]{String.class, String.class, List.class, String.class},
+                        server.url("/").toString(), "cookie", events, null);
+                old.invoke("requestURLConnection", new Class<?>[]{String.class}, server.url("/login").toString());
+            } else {
+                CookieHandler.setDefault(new CookieManager(null, CookiePolicy.ACCEPT_ALL));
+                new SuperTokens.Builder(context, server.url("/").toString()).tokenTransferMethod("cookie")
+                        .eventHandler(event -> events.add(event.name())).build();
+                request(true, null, "/login");
+            }
+            events.clear();
+            String first = caller == Caller.INTERCEPTOR ? urlOutcome(old) : invokeCaller(old, caller);
+            int firstRefreshes = refreshes.get();
+            assertTrue(caller + " " + result + " did not refresh", firstRefreshes > 0);
+            List<String> firstEvents = new ArrayList<>();
+            for (String event : events) firstEvents.add(event.split(":")[0]);
+            android.content.SharedPreferences prefs = context.getSharedPreferences("supertokens-android-shared-preferences", 0);
+            String projection = ":front=" + prefs.getString("supertokens-android-fronttoken-key", null)
+                    + ":access=" + prefs.getString("st-storage-item-st-access-token", null)
+                    + ":refresh=" + prefs.getString("st-storage-item-st-refresh-token", null)
+                    + ":csrf=" + prefs.getString("supertokens-android-anticsrf-key", null);
+            int firstWireSize = wire.size();
+            protectedRequests.set(0);
+            String second = urlOutcome(old);
+            boolean initialRefreshCookie = false;
+            boolean subsequentAccessCookie = false;
+            synchronized (wire) {
+                for (int i = 0; i < wire.size(); i++) {
+                    String request = wire.get(i);
+                    if (request.contains("/session/refresh") && request.contains("sRefreshToken=refresh-initial")) {
+                        initialRefreshCookie = true;
+                    }
+                    if (i >= firstWireSize && request.startsWith("/protected:")
+                            && request.contains("sAccessToken=cookie-rotated")) subsequentAccessCookie = true;
+                }
+            }
+            assertTrue("initial refresh cookie not sent: " + wire, initialRefreshCookie);
+            if (result == Outcome.FRONT_ONLY && caller != Caller.SIGN_OUT) {
+                assertTrue("rotated access cookie not sent on subsequent protected request: " + wire, subsequentAccessCookie);
+            }
+            List<String> allEvents = new ArrayList<>();
+            for (String event : events) allEvents.add(event.split(":")[0]);
+            return first + projection + ":firstRefreshes=" + firstRefreshes + ":firstEvents=" + firstEvents
+                    + ":second=" + second + ":refreshes=" + refreshes.get() + ":events=" + allEvents + ":wire=" + wire;
+        } finally {
+            CookieHandler.setDefault(previous);
+        }
+    }
+
+    @Test public void exposedCookieRefreshOutcomesAndSubsequentWireCredentials() throws Exception {
+        List<String> differences = new ArrayList<>();
+        for (Caller caller : Caller.values()) {
+            for (Outcome outcome : new Outcome[]{Outcome.FRONT_ONLY, Outcome.REMOVAL, Outcome.BARE_401,
+                    Outcome.FORBIDDEN, Outcome.RATE_LIMIT, Outcome.SERVER_ERROR}) {
+                context.getSharedPreferences("supertokens-android-shared-preferences", 0).edit().clear().commit();
+                SuperTokens.resetForTests();
+                String expected = exposedCookieRow(true, caller, outcome);
+                context.getSharedPreferences("supertokens-android-shared-preferences", 0).edit().clear().commit();
+                SuperTokens.resetForTests();
+                String actual = exposedCookieRow(false, caller, outcome);
                 if (!expected.equals(actual)) differences.add(caller + " " + outcome + " expected=" + expected + " actual=" + actual);
             }
         }
