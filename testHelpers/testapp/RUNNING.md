@@ -38,6 +38,14 @@ or unreachable backends fail. The proxy uses backend port + 1 (also required unu
 is identity-checked before requests/signals and stopped before final backend cleanup.
 This is CircleCI's selected Node/Core matrix path. Per-step reports, exclusions and
 proxy cleanup receipts live in the owned installation's `matrix/` directory.
+The matrix also runs the reporting contract as a gate after the root build. To run
+it separately, first bootstrap the Gradle 6.5 wrapper distribution, then use JDK 11:
+
+```sh
+JAVA_HOME=/path/to/jdk11 ./gradlew --version
+(cd testHelpers/server && JAVA_HOME=/path/to/jdk11 npm run test:reporting-contract)
+```
+
 `qualify` performs the same exact-instance qualification without Gradle execution.
 Every invocation owns a new instance; qualification is not reusable after a restart.
 
@@ -55,6 +63,10 @@ Fresh per-run XML, task selection, cases, classpath and artifact receipts live u
 qualification, logs and cleanup audits live under the selected evidence directory.
 Retain both, including failures. Receipt digests detect accidental staleness; they
 are not a security boundary against a caller deliberately forging build inputs.
+For testapp runs, `<nonce>/reports/progress/` contains best-effort, nonce-bound
+per-task progress: a `.json` snapshot of active tests and a `.jsonl` history capped
+at 10,000 records. Updates occur on test events, not a heartbeat; files may be
+missing or stale. They are diagnostics, not acceptance evidence.
 
 Published upgrade callers use `node testHelpers/testapp/runTests.js upgrade
 -Pupgrade.baseUrl=... -Pupgrade.fdiVersion=...` within their separately provisioned
