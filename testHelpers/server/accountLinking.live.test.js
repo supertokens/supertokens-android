@@ -11,7 +11,7 @@ const { cdiSupported } = require("supertokens-node/lib/build/version");
 if (!process.env.CORE_CONNECTION_URI) throw new Error("Set CORE_CONNECTION_URI to a disposable live test Core");
 
 async function main() {
-    const pair = qualification.identity();
+    const pair = qualification.identity(stage => console.error("Pair identity unavailable stage: " + stage));
     if (!pair) throw new Error("Exact pair identity unavailable for this Core installation and backend instance");
     const allowedCoreURLs = process.env.ST_TEST_RUN_ID
         ? ['http://127.0.0.1:' + process.env.ST_TEST_CORE_PORT]

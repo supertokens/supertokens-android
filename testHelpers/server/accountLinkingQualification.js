@@ -12,29 +12,35 @@ const qualifierDigest = () => crypto.createHash("sha256").update([
     "accountLinkingQualification.js", "coreRuntimeIdentity.js", "accountLinkingSdk.js"
 ].map(name => name + ":" + digest(path.join(__dirname, name))).join("\n")).digest("hex");
 
-function identity() {
-    if (!process.env.INSTALL_PATH) return undefined;
+function identity(onUnavailable) {
+    let stage = "install_path";
+    const unavailable = () => {
+        try { if (onUnavailable) onUnavailable(stage); } catch (_) {}
+        return undefined;
+    };
+    if (!process.env.INSTALL_PATH) return unavailable();
     try {
+        const run = (name, fn) => { stage = name; return fn(); };
         const root = path.resolve(process.env.INSTALL_PATH);
-        const versions = fs.readFileSync(path.join(root, "version.yaml"), "utf8");
+        const versions = run("version_file", () => fs.readFileSync(path.join(root, "version.yaml"), "utf8"));
         const core = versions.match(/^core_version:\s*([\d.]+)\s*$/m);
         const plugin = versions.match(/^plugin_interface_version:\s*([\d.]+)\s*$/m);
-        if (!core || !plugin) return undefined;
+        if (!core || !plugin) { stage = !core ? "core_version" : "plugin_version"; return unavailable(); }
         const coreJar = path.join(root, "core", "core-" + core[1] + ".jar");
         const pluginJar = path.join(root, "plugin-interface", "plugin-interface-" + plugin[1] + ".jar");
         return {
-            ...serverIdentity(root),
-            nodeSdkVersion: require("supertokens-node/lib/build/version").version,
+            ...run("backend_identity", () => serverIdentity(root)),
+            nodeSdkVersion: run("sdk_version", () => require("supertokens-node/lib/build/version").version),
             coreVersion: core[1],
-            coreSha256: digest(coreJar),
+            coreSha256: run("core_artifact", () => digest(coreJar)),
             pluginInterfaceVersion: plugin[1],
-            pluginInterfaceSha256: digest(pluginJar),
-            coreRuntimeId: runtimeIdentity(root),
-            effectiveClasspathSha256: effectiveArtifacts(root).digest,
-            sdkApiInventory: sdk.inspect().inventory,
-            qualifierSha256: qualifierDigest()
+            pluginInterfaceSha256: run("plugin_artifact", () => digest(pluginJar)),
+            coreRuntimeId: run("core_runtime", () => runtimeIdentity(root)),
+            effectiveClasspathSha256: run("effective_artifacts", () => effectiveArtifacts(root).digest),
+            sdkApiInventory: run("sdk_inventory", () => sdk.inspect().inventory),
+            qualifierSha256: run("qualifier_digest", () => qualifierDigest())
         };
-    } catch (_) { return undefined; }
+    } catch (_) { return unavailable(); }
 }
 
 function readEvidence() {
