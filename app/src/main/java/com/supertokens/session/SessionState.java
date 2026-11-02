@@ -39,6 +39,34 @@ final class SessionState {
     private static final int MAX_ACTIVE_FLIGHTS = 8;
     private static long lastAccessMarker;
     private static String committedMarker;
+    private static volatile long followerObserverEpoch;
+    private static final ThreadLocal<FollowerObserver> followerObserver = new ThreadLocal<>();
+
+    private static final class FollowerObserver {
+        final long epoch;
+        final Runnable callback;
+
+        FollowerObserver(long epoch, Runnable callback) {
+            this.epoch = epoch;
+            this.callback = callback;
+        }
+    }
+
+    // Test callbacks must not block or throw. The registering thread must clear its registration.
+    static void observeNextFollowerForTests(Runnable callback) {
+        followerObserver.set(new FollowerObserver(followerObserverEpoch, callback));
+    }
+
+    static void clearFollowerObserverForTests() {
+        followerObserver.remove();
+    }
+
+    static void notifyFollowerAcquiredForTests() {
+        FollowerObserver observer = followerObserver.get();
+        followerObserver.remove();
+        // Reset invalidates registrations best-effort; it cannot revoke a callback already admitted.
+        if (observer != null && observer.epoch == followerObserverEpoch) observer.callback.run();
+    }
 
     private SessionState() {}
 
@@ -1596,6 +1624,8 @@ final class SessionState {
                 readySubscriptions.clear();
                 dispatching = false;
                 storage = new SharedPreferencesSessionStorage();
+                followerObserverEpoch++;
+                followerObserver.remove();
                 unconfiguredWriteFailed = false;
                 lastAccessMarker = 0;
                 committedMarker = null;

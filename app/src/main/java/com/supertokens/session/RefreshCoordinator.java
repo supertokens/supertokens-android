@@ -80,6 +80,7 @@ final class RefreshCoordinator {
             return validateForCaller(acquisition.immediate, compatibleResponse);
         }
         Flight flight = acquisition.flight;
+        if (!acquisition.leader) SessionState.notifyFollowerAcquiredForTests();
         if (acquisition.leader && SessionState.startRefresh(flight, budget)) {
             SessionResponse response = null;
             IOException error = null;
