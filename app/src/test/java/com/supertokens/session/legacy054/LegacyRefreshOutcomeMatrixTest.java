@@ -442,7 +442,10 @@ public class LegacyRefreshOutcomeMatrixTest extends SessionTestFixture {
         context.getSharedPreferences("supertokens-android-shared-preferences", 0).edit().clear().commit();
         SuperTokens.resetForTests();
         String actual = callTimeout(false);
-        assertTrue(expected, expected.startsWith("java.io.InterruptedIOException:")
+        // OkHttp 3.12 can end the caller-owned outer call before interceptor refresh, leaving its read timeout in effect.
+        String firstType = "3.12.13".equals(System.getProperty("session.matrix.okhttp"))
+                ? "java.net.SocketTimeoutException:" : "java.io.InterruptedIOException:";
+        assertTrue(expected, expected.startsWith(firstType)
                 && expected.contains(":front=" + front()) && expected.contains(":firstRefreshes=1:")
                 && expected.contains(":second=200:refreshes=2:"));
         assertEquals(expected, actual);
