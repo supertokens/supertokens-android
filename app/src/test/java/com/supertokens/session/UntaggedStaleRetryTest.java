@@ -110,7 +110,7 @@ public class UntaggedStaleRetryTest extends SessionTestFixture {
                     }));
                 } else {
                     SuperTokensInterceptor interceptor = new SuperTokensInterceptor();
-                    interceptor.beforeDispatchForTests = () -> assertTrue(SuperTokens.installSession(
+                    SessionTransport.beforeDispatchForTests = () -> assertTrue(SuperTokens.installSession(
                             context, SessionState.snapshot().getOwner(), replacement).isSuccess());
                     okhttp3.OkHttpClient.Builder builder = client.newBuilder();
                     builder.interceptors().clear();
@@ -119,7 +119,7 @@ public class UntaggedStaleRetryTest extends SessionTestFixture {
                             .header("Authorization", auth).build()).execute()) {
                         assertEquals(401, response.code());
                         assertEquals("readable rejection", response.body().string());
-                    } finally { interceptor.beforeDispatchForTests = null; }
+                    } finally { SessionTransport.beforeDispatchForTests = null; }
                 }
                 RecordedRequest sent = server.takeRequest(1, TimeUnit.SECONDS);
                 assertNotNull(sent);
@@ -193,7 +193,7 @@ public class UntaggedStaleRetryTest extends SessionTestFixture {
         CountDownLatch entered = new CountDownLatch(1), release = new CountDownLatch(1);
         AtomicInteger dispatches = new AtomicInteger();
         SuperTokensInterceptor interceptor = new SuperTokensInterceptor();
-        interceptor.beforeDispatchForTests = () -> {
+        SessionTransport.beforeDispatchForTests = () -> {
             if (dispatches.incrementAndGet() != (retry ? 2 : 1)) return;
             entered.countDown();
             try { assertTrue(release.await(5, TimeUnit.SECONDS)); }
@@ -229,7 +229,7 @@ public class UntaggedStaleRetryTest extends SessionTestFixture {
         } finally {
             release.countDown();
             worker.shutdownNow();
-            interceptor.beforeDispatchForTests = null;
+            SessionTransport.beforeDispatchForTests = null;
         }
     }
 

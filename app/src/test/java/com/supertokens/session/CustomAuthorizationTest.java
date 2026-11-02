@@ -116,13 +116,14 @@ public class CustomAuthorizationTest extends SessionTestFixture {
                 try { assertEquals(200, connection.getResponseCode()); } finally { connection.disconnect(); }
             } else {
                 SuperTokensInterceptor interceptor = new SuperTokensInterceptor();
-                interceptor.beforeDispatchForTests = () -> {
+                SessionTransport.beforeDispatchForTests = () -> {
                     try { install("replacement", "after"); } catch (Exception e) { throw new AssertionError(e); }
                 };
                 OkHttpClient original = client;
                 client = new OkHttpClient.Builder().addInterceptor(interceptor).build();
                 try { assertEquals(200, custom(false, "Basic caller", null)); }
                 finally {
+                    SessionTransport.beforeDispatchForTests = null;
                     client.connectionPool().evictAll();
                     client.dispatcher().executorService().shutdownNow();
                     client = original;

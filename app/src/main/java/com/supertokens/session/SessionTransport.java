@@ -6,6 +6,13 @@ import java.net.URL;
 
 /** Shared ownership policy; transport operations never hold the session lock. */
 final class SessionTransport {
+    static volatile Runnable beforeDispatchForTests;
+
+    static void beforeDispatch() {
+        Runnable hook = beforeDispatchForTests;
+        if (hook != null) hook.run();
+    }
+
     static String retryLimitMessage(String url, int attempts) {
         return "Received a 401 response from " + url + ". Attempted to refresh the session and retry the request with the updated session tokens "
                 + attempts + " times, but each attempt resulted in a 401 error. The maximum session refresh limit has been reached. Please investigate your API. To increase the session refresh attempts, update maxRetryAttemptsForSessionRefresh in the config.";

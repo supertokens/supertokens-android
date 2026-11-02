@@ -70,8 +70,6 @@ public class SuperTokens {
             Utils.NormalisedInputType values = Utils.NormalisedInputType.normaliseInputOrThrowError(
                     apiDomain, apiBasePath, sessionExpiredStatusCode, maxRetryAttemptsForSessionRefresh,
                     sessionTokenBackendDomain, tokenTransferMethod, customHeaderProvider, eventHandler);
-            // The legacy testapp resets only isInitCalled and supplies a fresh preferences context.
-            if (config != null) SessionState.resetForTests();
             result = configureLocked(applicationContext, values, false);
         } finally { SessionState.endMutation(); }
         SessionState.dispatch(result);

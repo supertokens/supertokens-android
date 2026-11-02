@@ -31,7 +31,6 @@ import okio.BufferedSink;
 @SuppressWarnings("unused")
 public class SuperTokensInterceptor implements Interceptor {
     private final OkHttpClient refreshClient;
-    Runnable beforeDispatchForTests;
 
     public SuperTokensInterceptor() {
         refreshClient = null;
@@ -85,7 +84,7 @@ public class SuperTokensInterceptor implements Interceptor {
             }
             Request request = builder.build();
             try {
-                if (beforeDispatchForTests != null) beforeDispatchForTests.run();
+                SessionTransport.beforeDispatch();
             } catch (RuntimeException | Error error) {
                 if (previous != null) previous.close();
                 throw error;

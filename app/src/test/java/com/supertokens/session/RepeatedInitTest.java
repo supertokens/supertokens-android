@@ -1,7 +1,6 @@
 package com.supertokens.session;
 
 import android.content.Context;
-import java.lang.reflect.Field;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -55,13 +54,11 @@ public class RepeatedInitTest extends SessionTestFixture {
         assertTrue(SuperTokens.isInitCalled);
     }
 
-    @Test public void testappFlagResetReadsNewContextAndConfiguration() throws Exception {
+    @Test public void testappResetReadsNewContextAndConfiguration() throws Exception {
         SessionSnapshot before = install("A", "active");
         Context fresh = mock(Context.class);
         when(fresh.getSharedPreferences(anyString(), anyInt())).thenReturn(preferences());
-        Field initialized = SuperTokens.class.getDeclaredField("isInitCalled");
-        initialized.setAccessible(true);
-        initialized.set(null, false);
+        SuperTokens.resetForTests();
         new SuperTokens.Builder(fresh, server.url("/").toString()).apiBasePath("/new")
                 .tokenTransferMethod("cookie").build();
         assertFalse(before.isCurrent());

@@ -22,7 +22,6 @@ import com.google.gson.Gson;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.lang.reflect.Field;
 import java.net.HttpURLConnection;
 import java.net.URL;
 
@@ -65,14 +64,7 @@ public class TestUtils {
     }
 
     public static void setInitToFalse() throws NoSuchFieldException, IllegalAccessException, ClassNotFoundException {
-            Class<?> forName = Class.forName("com.supertokens.session.SuperTokens");
-            Field[] declaredFields = forName.getDeclaredFields();
-            for (Field field : declaredFields) {
-                if (field.getName().equals("isInitCalled")) {
-                    field.setAccessible(true);
-                    field.set(null, false);
-                }
-            }
+        SuperTokens.resetForTests();
     }
 
     public static void beforeAll() {
