@@ -37,6 +37,7 @@ let noOfTimesRefreshCalledDuringTest = 0;
 let noOfTimesGetSessionCalledDuringTest = 0;
 let noOfTimesRefreshAttemptedDuringTest = 0;
 let customRefreshHeaderValue = "";
+let transferMethod = process.env.TRANSFER_METHOD;
 let supertokens_node_version = require("supertokens-node/lib/build/version").version;
 let Multitenancy, MultitenancyRaw, multitenancySupported;
 try {
@@ -56,9 +57,10 @@ app.use(coreProtocol.native.middleware);
 app.use(urlencodedParser);
 app.use(jsonParser);
 app.use(cookieParser());
+app.use(require('./requestBarrier')(process.env.ST_TEST_RUN_ID));
 let lifecycleBusy = false;
 const lifecyclePaths = new Set(['/startst', '/stopst', '/beforeeach', '/after', '/test/startServer',
-    '/stop', '/test/shutdown-core', '/reinitialiseBackendConfig']);
+    '/stop', '/test/shutdown-core', '/reinitialiseBackendConfig', '/test/transfer-method']);
 function lifecycleGuard(req, res, next) {
     if (req.get('x-st-test-run-id') !== process.env.ST_TEST_RUN_ID) return res.status(403).send('Foreign run');
     if (lifecycleBusy) return res.status(409).send('Lifecycle operation in progress');
@@ -95,7 +97,7 @@ function getConfig(enableAntiCsrf, enableJWT, jwtPropertyName) {
             recipeList: [
                 Session.init({
                     exposeAccessTokenToFrontendInCookieBasedAuth: true,
-                    getTokenTransferMethod: process.env.TRANSFER_METHOD ? () => process.env.TRANSFER_METHOD : undefined,
+                    getTokenTransferMethod: transferMethod ? () => transferMethod : undefined,
                     errorHandlers: {
                         onUnauthorised: (err, req, res) => {
                             res.setStatusCode(401);
@@ -202,6 +204,8 @@ function getConfig(enableAntiCsrf, enableJWT, jwtPropertyName) {
         },
         recipeList: [
             Session.init({
+                ...(maxVersion(supertokens_node_version, "14.0") === supertokens_node_version && transferMethod
+                    ? { getTokenTransferMethod: () => transferMethod } : {}),
                 errorHandlers: {
                     onUnauthorised: (err, req, res) => {
                         res.setStatusCode(401);
@@ -310,8 +314,21 @@ app.post("/reinitialiseBackendConfig", async (req, res) => {
     res.send("");
 });
 
+app.post("/test/transfer-method", async (req, res) => {
+    const method = req.body.method;
+    if (method !== null && method !== "cookie" && method !== "header") return res.sendStatus(400);
+    if (method !== null && maxVersion(supertokens_node_version, "14.0") !== supertokens_node_version) {
+        return res.status(422).send("Transfer method override is unsupported by this Node SDK");
+    }
+    transferMethod = method === null ? process.env.TRANSFER_METHOD : method;
+    resetRecipes();
+    SuperTokens.init(coreProtocol.configure(getConfig(lastSetEnableAntiCSRF, lastSetEnableJWT)));
+    res.json({ method: transferMethod || null });
+});
+
 app.post("/beforeeach", async (req, res, next) => {
     try { await coreProtocol.cleanupOwners(); } catch (error) { return next(error); }
+    transferMethod = process.env.TRANSFER_METHOD;
     noOfTimesRefreshCalledDuringTest = 0;
     noOfTimesGetSessionCalledDuringTest = 0;
     noOfTimesRefreshAttemptedDuringTest = 0;

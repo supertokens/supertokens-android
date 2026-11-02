@@ -54,6 +54,7 @@ function harness(faultPoint, cleanupFails) {
     };
     const dependencies = {
         "./fixtureOwners": fixtureOwners,
+        "./nativeEvidence": options => require("./nativeEvidence")({ ...options, env: {} }),
         "./accountLinkingCapability": () => ({}),
         "./accountLinkingQualification": { identity: () => ({}), readEvidence: () => ({}) },
         "node-fetch": async () => ({ ok: true, json: async () => ({ versions: ["test-cdi"] }) }),

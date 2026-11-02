@@ -145,10 +145,12 @@ test('owned runner opts into capability-only gate solely for qualify, never matr
             '/host-install/backend/node_modules/node-fetch': fetchDouble,
             './ownedExposure': { select: () => ({}) }, './ownedMatrix': async () => {}
         };
-        await vm.runInNewContext(fs.readFileSync(path.join(__dirname, 'runOwnedTests.js'), 'utf8'), {
+        const context = {
             require: name => { assert.ok(name in requires, name); return requires[name]; },
-            process: processDouble, console: { error: error => { throw error; } }
-        });
+            module: { exports: {} }, process: processDouble, console: { error: error => { throw error; } }
+        };
+        vm.runInNewContext(fs.readFileSync(path.join(__dirname, 'runOwnedTests.js'), 'utf8'), context);
+        await context.module.exports.main();
         const command = commands.find(args => args[1] === 'accountLinking.gate.js');
         assert.ok(command);
         assert.strictEqual(command.includes('--capability'), mode === 'qualify');
