@@ -1,17 +1,78 @@
 import groovy.json.JsonOutput
+import groovy.json.JsonSlurper
+import java.nio.charset.StandardCharsets
+import java.time.Instant
+
+def cleanIdentifier = { value ->
+    value == null ? null : value.toString().take(240).replaceFirst('[^A-Za-z0-9_.$#-].*', '')
+}
 
 gradle.projectsEvaluated {
     allprojects {
         tasks.withType(Test).all { task ->
-            def directory = new File(System.getenv('ST_MATRIX_REPORTS'), task.name)
+            def matrixRoot = System.getenv('ST_MATRIX_REPORTS')
+            def testRoot = System.getenv('ST_TEST_REPORT_DIR')
+            if (!matrixRoot && !testRoot) return
+            def directory = new File(matrixRoot ?: testRoot, task.name)
             def cases = []
-            task.reports.junitXml.destination = new File(directory, 'xml')
-            task.reports.html.destination = new File(directory, 'html')
+            if (matrixRoot) {
+                task.reports.junitXml.destination = new File(directory, 'xml')
+                task.reports.html.destination = new File(directory, 'html')
+            }
+            def binding = [kind: 'matrix', profile: cleanIdentifier(new File(matrixRoot ?: testRoot).name)]
+            if (testRoot && !matrixRoot) {
+                def invocation = new JsonSlurper().parse(new File(new File(testRoot).parentFile, 'invocation.json'))
+                if (!(invocation.nonce ==~ /[a-f0-9]{48}/) || !(invocation.mode in ['ordinary', 'retrofit', 'mutation', 'upgrade', 'exposed']) ||
+                    !(invocation.sources instanceof String) || !(invocation.sources ==~ /[a-f0-9]{64}/)) {
+                    throw new IllegalStateException('Invalid test progress invocation binding')
+                }
+                binding = [kind: 'testapp', invocation: invocation.nonce, profile: invocation.mode, sources: invocation.sources]
+            }
+            def progressDir = new File(matrixRoot ?: testRoot, 'progress')
+            progressDir.mkdirs()
+            def progress = new File(progressDir, cleanIdentifier(task.path.replace(':', '.')) + '-' + UUID.randomUUID() + '.jsonl')
+            def lock = new Object()
+            def active = new IdentityHashMap()
+            long sequence = 0
+            long nextTest = 0
+            def transport = { descriptor ->
+                def name = (descriptor.className ?: '').toLowerCase(Locale.ROOT)
+                name.contains('retrofit') ? 'retrofit' : name.contains('okhttp') ? 'okhttp' :
+                    name.contains('httpurlconnection') ? 'httpurlconnection' : null
+            }
+            def emit = { event ->
+                synchronized (lock) {
+                    if (sequence >= 10000) return
+                    sequence++
+                    if (sequence == 10000) event = [event: 'truncated']
+                    def record = [schema: 1, binding: binding, task: cleanIdentifier(task.path.replace(':', '.')), sequence: sequence,
+                                  timestamp: Instant.now().toString(), monotonicNanos: System.nanoTime()] + event
+                    def stream = new FileOutputStream(progress, true)
+                    try {
+                        stream.write((JsonOutput.toJson(record) + '\n').getBytes(StandardCharsets.UTF_8))
+                        stream.flush()
+                    } finally { stream.close() }
+                }
+            }
+            task.beforeTest { descriptor ->
+                synchronized (lock) {
+                    def id = ++nextTest
+                    active.put(descriptor, id)
+                    emit([event: 'start', test: id, className: cleanIdentifier(descriptor.className),
+                          method: cleanIdentifier(descriptor.name), transportHint: transport(descriptor)])
+                }
+            }
             task.afterTest { descriptor, result ->
                 cases.add([name: descriptor.name, className: descriptor.className, result: result.resultType.toString()])
+                synchronized (lock) {
+                    def id = active.remove(descriptor)
+                    emit([event: 'finish', test: id, className: cleanIdentifier(descriptor.className),
+                          method: cleanIdentifier(descriptor.name), transportHint: transport(descriptor),
+                          result: result.resultType.toString()])
+                }
             }
             task.afterSuite { descriptor, result ->
-                if (descriptor.parent == null) {
+                if (matrixRoot && descriptor.parent == null) {
                     directory.mkdirs()
                     new File(directory, 'result.json').text = JsonOutput.prettyPrint(JsonOutput.toJson([
                         tests: result.testCount, passed: result.successfulTestCount, skipped: result.skippedTestCount,
