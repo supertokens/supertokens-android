@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "sourceEvidenceRoot": "/private/var/folders/5r/6bl83v_92vg_zgq58303jlc00000gn/T/opencode/upgrade-activation-5oxbst6c",
+  "sourceEvidenceRoot": "historical external evidence bundle: upgrade-activation-5oxbst6c",
   "transform": "app/src/test/compatibility/upgrade/sanitize_captures.py",
   "transformSha256": "e06afad8242d11fcac7116f2066b7f79b4e6b1d623dc325485a15543583f038c",
   "shiftSeconds": 2309157068,

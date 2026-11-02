@@ -6,7 +6,10 @@ published mutation → candidate device run. **Sanitized, not raw/bit-identical.
 installed app APK hash, sanitized XML hash, XML key/type map and transformation
 script digest. Raw private evidence remains outside the repository:
 
-`/private/var/folders/5r/6bl83v_92vg_zgq58303jlc00000gn/T/opencode/upgrade-activation-5oxbst6c`
+`historical external evidence: upgrade-activation-5oxbst6c`
+
+The manifest's evidence root is a bundle identifier, not a local path. The
+recorded transform digest identifies the original script and is unchanged.
 
 ## Layout and actual observed coverage
 
@@ -32,7 +35,7 @@ The reproducible sanitizer is included in the integration patch at
 From the repository root, regenerate with:
 
 ```sh
-python3 app/src/test/compatibility/upgrade/sanitize_captures.py --source "$PRIVATE_CAPTURE_ROOT"
+python3 app/src/test/compatibility/upgrade/sanitize_captures.py --source "$PRIVATE_CAPTURE_ROOT" --bundle-id YOUR_BUNDLE_ID
 ```
 
 Optional `--output` overrides the repository resource destination. It reads private originals

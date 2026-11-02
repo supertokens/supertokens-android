@@ -61,7 +61,7 @@ lint issues. AAPT also emitted its existing unknown-chunk warning.
 
 ## Private evidence
 
-Root: `/private/var/folders/5r/6bl83v_92vg_zgq58303jlc00000gn/T/opencode/m6-device-death-YVbjkwUj`
+Root: `historical external evidence: m6-device-death-YVbjkwUj`
 
 - `fresh-060/`: candidate AAR, source/build receipt and forced build log.
 - `artifacts-060/`: APKs, manifests, signing reports, hashes, installation logs,

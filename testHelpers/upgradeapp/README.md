@@ -25,7 +25,7 @@ export JAVA_HOME=$(/usr/libexec/java_home -v 11)
 export ANDROID_SDK_ROOT="$HOME/Library/Android/sdk"
 
 # Coordinator-approved build lane only. This command RUNS Gradle.
-BUILD_EVIDENCE="/private/var/folders/5r/6bl83v_92vg_zgq58303jlc00000gn/T/opencode/candidate-build-$(date +%Y%m%d-%H%M%S)"
+BUILD_EVIDENCE="${TMPDIR:-/tmp}/candidate-build-$(date +%Y%m%d-%H%M%S)"
 python3 testHelpers/upgradeapp/tools/build_provenance.py --output "$BUILD_EVIDENCE"
 CANDIDATE_AAR="$BUILD_EVIDENCE/candidate.aar"
 CANDIDATE_BUILD="$BUILD_EVIDENCE/candidate-build.json"
@@ -67,7 +67,7 @@ export ADB="$ANDROID_SDK_ROOT/platform-tools/adb"
 export AAPT="$ANDROID_SDK_ROOT/build-tools/30.0.2/aapt"
 export APKSIGNER="$ANDROID_SDK_ROOT/build-tools/30.0.2/apksigner"
 # Select installed build-tools paths if 30.0.2 is unavailable.
-EVIDENCE="/private/var/folders/5r/6bl83v_92vg_zgq58303jlc00000gn/T/opencode/upgrade-$(date +%Y%m%d-%H%M%S)"
+EVIDENCE="${TMPDIR:-/tmp}/upgrade-$(date +%Y%m%d-%H%M%S)"
 sh testHelpers/device/upgrade.sh \
   --serial emulator-5580 --backend http://10.0.2.2:8080 \
   --sdk-apk "$APKS/sdk054/debug/app-sdk054-debug.apk" \

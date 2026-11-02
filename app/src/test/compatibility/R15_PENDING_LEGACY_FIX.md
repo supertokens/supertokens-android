@@ -87,7 +87,7 @@ seeds; these are bounded stress results, not proof of every interleaving.
 ## Evidence and artifact
 
 Root:
-`/private/var/folders/5r/6bl83v_92vg_zgq58303jlc00000gn/T/opencode/r15-pending-legacy-followup`
+`historical external evidence: r15-pending-legacy-followup`
 
 - `base/`: reviewed legacy-stale candidate dependency; `candidate/`: staged fix.
   The three production base files matched the newly integrated shared tree exactly.

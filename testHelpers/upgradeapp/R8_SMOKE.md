@@ -57,7 +57,7 @@ This separate production edge case remains open; it is not an R8 defect or fix.
 
 Private root (contains live-token history; do not commit XML/log contents):
 
-`/private/var/folders/5r/6bl83v_92vg_zgq58303jlc00000gn/T/opencode/r8-smoke-stage`
+`historical external evidence: r8-smoke-stage`
 
 - `before-fix/`, `after-fix/`: fresh source/build receipts, logs and AARs from
   `build_provenance.py`, including dirty-tree/untracked hashes and build interval.

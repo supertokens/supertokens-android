@@ -55,7 +55,7 @@ With Temurin 11 and Android SDK 32:
 ./gradlew --no-daemon -PcoreProtocolUrl=http://127.0.0.1:8080 :app:testDebugUnitTest --tests '*CoreLostRefreshResponseTest' :app:compileDebugAndroidTestJavaWithJavac
 ```
 
-Evidence: `/private/var/folders/5r/6bl83v_92vg_zgq58303jlc00000gn/T/opencode/m6-partial-lost-refresh-9cj3xrrl`
+Evidence: `historical external evidence: m6-partial-lost-refresh-9cj3xrrl`
 (build/gate logs, oracle/live JUnit XML, capabilities, post-run health).
 Post-run Express `/healthz` and Core `/hello`: both 200.
 

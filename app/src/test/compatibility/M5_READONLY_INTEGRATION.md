@@ -70,7 +70,7 @@ Original APK SHA-256: `645cb031bef039cf16ac90d264077e3f8d728399cda761a40d9b6294f
 Its prior **2/2 StrictMode result is INVALID performance evidence**, superseded below.
 
 Immutable artifact copies and full result XML:
-`/private/var/folders/5r/6bl83v_92vg_zgq58303jlc00000gn/T/opencode/android-m5-readonly/integration/`.
+`historical external evidence: android-m5-readonly/integration/`.
 Parent directory holds `focused-integrated.log`, `full-integrated.log`, staging
 oracle/failing-before evidence and `HANDOFF.md`.
 
@@ -119,7 +119,7 @@ Fresh green APK SHA-256:
 
 Private immutable APKs, source snapshots, build/install/instrumentation logs and
 parsed `red-result.json` / `green-result.json`:
-`/private/var/folders/5r/6bl83v_92vg_zgq58303jlc00000gn/T/opencode/android-m5-strictmode-review/`.
+`historical external evidence: android-m5-strictmode-review/`.
 
 Green result manifest SHA-256:
 `2371a065e546e15f68f55828eefaaf595896693743541b09d17eb6b45e729833`

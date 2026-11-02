@@ -82,7 +82,7 @@ maps; primary scalar CLI normalization remains supported.
 ## Proof and review handoff
 
 Audit directory:
-`/private/var/folders/5r/6bl83v_92vg_zgq58303jlc00000gn/T/opencode/release-gate-integration.b6ec680c`
+`historical external evidence: release-gate-integration.b6ec680c`
 
 Contains `pre-source-hashes.json`, exact `before/` snapshots, `task.diff`,
 `post-source-hashes.json`, `proof-sha256.txt`, `validation.txt`, host TAP/npm logs,

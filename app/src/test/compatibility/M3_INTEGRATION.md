@@ -46,7 +46,7 @@ assertions were not edited during this integration.
 - `git diff --check` passed.
 
 Logs and archived JVM/oracle/live XML:
-`/private/var/folders/5r/6bl83v_92vg_zgq58303jlc00000gn/T/opencode/android-m3/`
+`historical external evidence: android-m3/`
 (`targeted-integrated.log`, `full-integrated.log`, `live-testapp.log`,
 `instrumentation-build.log`). Old release-unit-test reports were not counted.
 

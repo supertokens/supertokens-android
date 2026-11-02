@@ -4,12 +4,20 @@ import argparse
 import hashlib
 import json
 from pathlib import Path
+import re
 import struct
 import uuid
 import xml.etree.ElementTree as ET
 
+def bundle_identifier(value):
+    if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_-]{0,127}', value):
+        raise argparse.ArgumentTypeError('Expected a bundle identifier, not a path')
+    return value
+
+
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--source', required=True, type=Path, help='Private device evidence root')
+parser.add_argument('--bundle-id', required=True, type=bundle_identifier, help='Non-sensitive evidence bundle identifier')
 parser.add_argument('--output', type=Path, default=Path(__file__).resolve().parents[5] / 'app/src/test/resources/upgrade')
 args = parser.parse_args()
 SOURCE = args.source.resolve()
@@ -231,7 +239,7 @@ for row in rows:
     if PREFIX + 'fingerprint' in original:
         assert (original[PREFIX + 'fingerprint'] == fingerprint(original)) == (updated[PREFIX + 'fingerprint'] == fingerprint(updated))
 
-manifest = dict(schema=1, sourceEvidenceRoot=str(SOURCE), transform='app/src/test/compatibility/upgrade/sanitize_captures.py',
+manifest = dict(schema=1, sourceEvidenceRoot=args.bundle_id, transform='app/src/test/compatibility/upgrade/sanitize_captures.py',
                 transformSha256=sha(Path(__file__).read_bytes()), shiftSeconds=SHIFT_SECONDS,
                 candidateAarSha256='9d4aaaaf43e6a72d4ab3f5d2621c157301b3da600a9128341cc6503747921ac1',
                 publishedAarSha256='2f3b4a94a036d21ced610f9c41707d7e1ccf7c9c0256e47e5686c1c76b8224b9',

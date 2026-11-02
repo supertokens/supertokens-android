@@ -72,7 +72,7 @@ claim about the final integrated tree.
 ## Release provenance / later upgrade rerun
 
 Evidence root:
-`/private/var/folders/5r/6bl83v_92vg_zgq58303jlc00000gn/T/opencode/m5-r15-staged/integration`
+`historical external evidence: m5-r15-staged/integration`
 
 - `app-release.aar` SHA256:
   `c6f709ec800ba004fc804c6f35499d4d696c539f950a512ee65c2bf8c4685e99`

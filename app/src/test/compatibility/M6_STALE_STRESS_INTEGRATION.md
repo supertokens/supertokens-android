@@ -16,7 +16,7 @@ Latest crash/lost-refresh tests, consumer R8 rules, CI configuration/docs and th
 ## Integrated evidence
 
 Evidence directory:
-`/private/var/folders/5r/6bl83v_92vg_zgq58303jlc00000gn/T/opencode/m6-legacy-stale-integrated/`
+`historical external evidence: m6-legacy-stale-integrated/`
 
 * `source-state.json`: source receipt, HEAD plus per-file hashes; **36 production Java files / 68 JVM-test Java files**. Dirty-tree identity is the receipt, not HEAD alone.
 * `focused.log`, `focused-results/`: **123 methods, zero failures/errors/skips**, Gradle testDebugUnitTest. Includes all four new regression classes, signout refresh/redirect/cookie/body/transport, stale retry, ownership, state boundaries and LegacyEventContractTest. Public callback identity and B-retention tests pass.

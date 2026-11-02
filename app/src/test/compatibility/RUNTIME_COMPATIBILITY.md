@@ -42,12 +42,12 @@ The standalone probe now accepts `--artifact-jar` and optional `--mockable-andro
 ```sh
 python3 app/src/test/compatibility/runtime/probe.py --source-root . \
   --artifact-jar "$STAGE/release-classes.jar" --output "$STAGE/artifact-session-probe" \
-  --java-home /Users/bogdan/.local/share/mise/installs/java/temurin-11.0.25+9 \
-  --android-jar /Users/bogdan/Library/Android/sdk/platforms/android-32/android.jar \
-  --mockable-android-jar /Users/bogdan/.gradle/caches/transforms-2/files-2.1/f4764c590c0ddeeb831f8f8b2babb075/android.jar
+  --java-home "$JAVA_HOME" \
+  --android-jar "$ANDROID_SDK_ROOT/platforms/android-32/android.jar" \
+  --mockable-android-jar "$MOCKABLE_ANDROID_JAR"
 ```
 
-Set `STAGE` to the evidence directory below. **All seven exact dependency lanes listed in the initial checks passed against the extracted release JAR**, not freshly recompiled production sources. Log: `artifact-session-probe.log`; dependency hashes: `artifact-session-probe/dependencies.sha256`.
+Set `STAGE` to the evidence directory below and `MOCKABLE_ANDROID_JAR` to the mockable Android JAR. **All seven exact dependency lanes listed in the initial checks passed against the extracted release JAR**, not freshly recompiled production sources. Log: `artifact-session-probe.log`; dependency hashes: `artifact-session-probe/dependencies.sha256`.
 
 Each lane additionally runs actual SDK login/adoption → protected 401 → header refresh → retry → token rotation → sign-out, preserving an arbitrary application tag. `HistoricalSessionProbe` uses a JDK HTTP server, the existing TestPreferences/Base64 test shims and AGP's mockable Android JAR. The first fixture attempt omitted the sign-out `front-token: remove` header and correctly failed its logout assertion; the final server emits the protocol header. These are JVM HTTP/header-mode smoke tests, not Android, TLS, cookie, persistence-device, or complete cross-version suite certification.
 
@@ -57,7 +57,7 @@ Remaining: physical/emulated API 17, historical consumer build pipelines, R8 opt
 
 Staging directory:
 
-`/private/var/folders/5r/6bl83v_92vg_zgq58303jlc00000gn/T/opencode/android-runtime-d5`
+`historical external evidence: android-runtime-d5`
 
 - `runtime-compatibility.patch`: assigned production files, two new internal adapters, production Java 7/test Java 8 Gradle configuration.
 - `source7-inference-approval.patch`: **separate scope approval required**, one explicit `<String, String>` type argument on `Collections.emptyMap()` in `SuperTokens.java`. Without it, the current full production snapshot fails source-7 compilation. No behavioural change intended.
@@ -100,14 +100,14 @@ Isolated bytecode contains no `invokedynamic`, `Chain.call`, or compiler-generat
 
 ## Executed isolated checks
 
-Temurin JDK **11.0.25+9**, SDK-32 `android.jar`, no Gradle. Exact invocation:
+Temurin JDK **11.0.25+9**, SDK-32 `android.jar`, no Gradle. Equivalent invocation (set `STAGE`, `JAVA_HOME`, and `ANDROID_SDK_ROOT` first):
 
 ```sh
 python3 app/src/test/compatibility/runtime/probe.py \
-  --source-root /private/var/folders/5r/6bl83v_92vg_zgq58303jlc00000gn/T/opencode/android-runtime-d5/candidate \
-  --output /private/var/folders/5r/6bl83v_92vg_zgq58303jlc00000gn/T/opencode/android-runtime-d5/probe \
-  --java-home /Users/bogdan/.local/share/mise/installs/java/temurin-11.0.25+9 \
-  --android-jar /Users/bogdan/Library/Android/sdk/platforms/android-32/android.jar
+  --source-root "$STAGE/candidate" \
+  --output "$STAGE/probe" \
+  --java-home "$JAVA_HOME" \
+  --android-jar "$ANDROID_SDK_ROOT/platforms/android-32/android.jar"
 ```
 
 Results:

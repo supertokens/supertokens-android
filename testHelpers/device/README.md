@@ -152,7 +152,7 @@ integrated uncommitted working tree.
 
 Evidence directory:
 
-`/private/var/folders/5r/6bl83v_92vg_zgq58303jlc00000gn/T/opencode/device-restart-api34-pnvu2iuy`
+`historical external evidence: device-restart-api34-pnvu2iuy`
 
 It contains the exact APK, `artifact.sha256`, `provenance.json`, `command.json`,
 `runner.log`, and `results/` with every instrumentation/install/force-stop output,

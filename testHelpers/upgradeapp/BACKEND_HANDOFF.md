@@ -6,7 +6,7 @@ See [activation and 20-stage device evidence](RESULTS_2026-10-29.md). No commits
 
 Temporary patch and isolated sources/tests:
 
-`/private/var/folders/5r/6bl83v_92vg_zgq58303jlc00000gn/T/opencode/upgrade-backend-review-65z72ua8`
+`historical external evidence: upgrade-backend-review-65z72ua8`
 
 - `backend-review.patch`: changes to `fixtureOwners.js`, its tests, `coreProtocol.js`,
   and new `ownerSessionState.js` / `ownerSessionState.test.js`.

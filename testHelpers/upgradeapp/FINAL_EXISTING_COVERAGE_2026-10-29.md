@@ -98,7 +98,7 @@ or claim six live passes. Other five live fixtures acknowledged cleanup.
 ## Evidence / handoff
 
 Private root:
-`/private/var/folders/5r/6bl83v_92vg_zgq58303jlc00000gn/T/opencode/final-existing-060-06bg4wfu`
+`historical external evidence: final-existing-060-06bg4wfu`
 
 Contains full testapp log/XML, source manifests and build receipts, archived APKs,
 all upgrade/R8 typed XML/transcripts/signatures/DEX evidence, rank 8/13/14 Node/JVM

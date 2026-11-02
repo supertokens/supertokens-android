@@ -27,7 +27,7 @@ No Gradle, backend or device commands were run while implementing these tests.
 Shared build/runner/export/continuation files were not changed. Existing build has
 no isolated application-ID option. A namespace-only patch is staged at:
 
-`/private/var/folders/5r/6bl83v_92vg_zgq58303jlc00000gn/T/opencode/recovery-device-controls/isolated-namespace.patch`
+`historical external evidence: recovery-device-controls/isolated-namespace.patch`
 
 Apply **only to a disposable complete repository copy**, never the working repo.
 This retains the Java manifest namespace so existing BuildConfig imports compile;
@@ -40,7 +40,7 @@ Example coordinator commands (review paths, JDK/SDK and candidate receipts first
 ```bash
 set -euo pipefail
 ROOT="$PWD"
-E=/private/var/folders/5r/6bl83v_92vg_zgq58303jlc00000gn/T/opencode
+: "${E:?set E to the directory containing recovery-device-controls/isolated-namespace.patch}"
 OUT=$(mktemp -d "$E/recovery-device-run.XXXXXX")
 mkdir "$OUT/repo"
 rsync -a --exclude=.git --exclude=.gradle --exclude=build --exclude=node_modules \
@@ -48,7 +48,7 @@ rsync -a --exclude=.git --exclude=.gradle --exclude=build --exclude=node_modules
 cd "$OUT/repo"
 git apply --check --unidiff-zero "$E/recovery-device-controls/isolated-namespace.patch"
 git apply --unidiff-zero "$E/recovery-device-controls/isolated-namespace.patch"
-export JAVA_HOME="${RECOVERY_JAVA_HOME:-/Users/bogdan/.local/share/mise/installs/java/temurin-11.0.25+9}"
+export JAVA_HOME="${RECOVERY_JAVA_HOME:?set RECOVERY_JAVA_HOME to JDK 11}"
 test -x "$JAVA_HOME/bin/java"
 test -x "$JAVA_HOME/bin/javac"
 "$JAVA_HOME/bin/java" -version 2>&1 | grep -Eq 'version "11\.'
