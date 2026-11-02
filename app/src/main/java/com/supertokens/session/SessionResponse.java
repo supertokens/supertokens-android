@@ -89,7 +89,7 @@ final class SessionResponse {
     SessionResponse forSignOut() {
         if (!isRemoval() || credentialIfPresent(Constants.ACCESS_TOKEN_HEADER_KEY) == null) return this;
         // Session verification can regenerate access before sign-out adds its removal headers.
-        // Discard only that superseded credential; ordinary responses remain strictly validated.
+        // Discard only that superseded credential for the confirmed sign-out path.
         Map<String, List<String>> removalHeaders = new HashMap<>(headers);
         for (String name : headers.keySet()) {
             if (name.equalsIgnoreCase(Constants.ACCESS_TOKEN_HEADER_KEY)) removalHeaders.remove(name);
@@ -98,9 +98,10 @@ final class SessionResponse {
     }
 
     @Nullable
-    Candidate ordinaryCandidate() {
+    Candidate ordinaryCandidate(boolean compatible) {
         if (!hasCredentialHeaders()) return null;
         if (isRemoval()) {
+            if (compatible) return Candidate.removal();
             String access = optionalEmpty(Constants.ACCESS_TOKEN_HEADER_KEY);
             String refresh = optionalEmpty(Constants.REFRESH_TOKEN_HEADER_KEY);
             String anti = optionalEmpty(Constants.CSRF_HEADER_KEY);

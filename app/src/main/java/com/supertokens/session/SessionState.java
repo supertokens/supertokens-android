@@ -962,7 +962,7 @@ final class SessionState {
         try {
             SessionResponse.Candidate candidate;
             try {
-                candidate = response.ordinaryCandidate();
+                candidate = response.ordinaryCandidate(false);
             } catch (IllegalArgumentException e) {
                 lock.lock();
                 try {
@@ -1005,7 +1005,7 @@ final class SessionState {
         try {
             SessionResponse.Candidate candidate;
             try {
-                candidate = response.ordinaryCandidate();
+                candidate = response.ordinaryCandidate(compatibleResponse);
             } catch (IllegalArgumentException e) {
                 lock.lock();
                 try {
