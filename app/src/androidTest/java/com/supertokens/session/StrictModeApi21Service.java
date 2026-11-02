@@ -150,7 +150,6 @@ public final class StrictModeApi21Service extends Service {
     private void install() {
         diagnosticStage = "INSTALL_ENTER";
         final Thread thread = Thread.currentThread();
-        final Thread.UncaughtExceptionHandler original = thread.getUncaughtExceptionHandler();
         thread.setUncaughtExceptionHandler((t, error) -> {
             synchronized (watchdogLock) { crashing = true; }
             diagnosticStage = "CRASH_HANDLER";
@@ -163,8 +162,9 @@ public final class StrictModeApi21Service extends Service {
                         + error.getClass().getName() + "|" + error.getMessage() + "|" + stack);
             } catch (Throwable ignored) {
             } finally {
-                diagnosticStage = "FORWARD_HANDLER";
-                original.uncaughtException(t, error);
+                diagnosticStage = "CRASH_HANDLER";
+                // Android 5 crash reporting can wait for an interactive dialog.
+                Process.killProcess(Process.myPid());
             }
         });
         try {
