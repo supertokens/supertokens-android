@@ -36,6 +36,7 @@ try {
         fs.chmodSync(file, 0o755);
     }
     fs.appendFileSync(path.join(root, 'gradlew'), `
+if (process.env.FAIL_ROOT_BUILD && process.argv.includes('build')) process.exit(7);
 if (process.env.ST_MATRIX_REPORTS) {
     const directory = require('path').join(process.env.ST_MATRIX_REPORTS, 'testDebugUnitTest');
     require('fs').mkdirSync(directory, { recursive: true });
@@ -49,6 +50,7 @@ if (process.env.ST_MATRIX_REPORTS) {
 }
 `);
     write(path.join(root, 'testHelpers/testapp/runTests.js'), record + '\nif (process.env.FAIL_PROFILE === process.argv[2]) process.exit(9);');
+    write(path.join(root, 'testHelpers/server/matrixReports.contract.test.js'), record + '\nif (process.env.FAIL_REPORT_CONTRACT) process.exit(9);');
     function run(mode, extra = {}, options = []) {
         fs.writeFileSync(log, '');
         fs.rmSync(path.join(owned, 'matrix'), { recursive: true, force: true });
@@ -75,10 +77,22 @@ if (process.env.ST_MATRIX_REPORTS) {
     assert.deepStrictEqual(events.filter(event => event.name === 'runTests.js').map(event => event.args), [['mutation'], ['ordinary'], ['retrofit']]);
     assert(events.some(event => event.name === 'gradlew' && event.args.includes('com.supertokens.session.CoreProxyProtocolTest')));
     assert(events.some(event => event.name === 'npm' && event.args.join(' ') === 'run test:core'));
+    const rootBuildIndex = events.findIndex(event => event.name === 'gradlew' && event.args.includes('build'));
+    const contractIndex = events.findIndex(event => event.name === 'matrixReports.contract.test.js');
+    const firstProfileIndex = events.findIndex(event => event.name === 'runTests.js');
+    assert(rootBuildIndex >= 0 && contractIndex > rootBuildIndex && contractIndex < firstProfileIndex);
+    const contractSteps = JSON.parse(fs.readFileSync(path.join(owned, 'matrix/steps.json'))).filter(step => step.name === 'reporting-contract');
+    assert.deepStrictEqual(contractSteps.map(step => step.status), ['running', 'passed']);
     const coreTests = events.filter(event => event.name === 'gradlew' && event.args.includes('-PcoreProtocolUrl=http://127.0.0.1:18081'));
     assert.strictEqual(coreTests.length, 2);
     assert(coreTests[0].args.includes('com.supertokens.session.CoreSdkCompatibilityTest'));
     assert.deepStrictEqual(coreTests.map(event => event.args.filter(arg => arg === '--tests').length), [1, 2]);
+    assert.notStrictEqual(run('matrix', { FAIL_ROOT_BUILD: '1' }).status, 0);
+    assert(!calls().some(event => event.name === 'matrixReports.contract.test.js'));
+    assert.notStrictEqual(run('matrix', { FAIL_REPORT_CONTRACT: '1' }).status, 0);
+    assert(!calls().some(event => event.name === 'runTests.js'));
+    const failedContractSteps = JSON.parse(fs.readFileSync(path.join(owned, 'matrix/steps.json'))).filter(step => step.name === 'reporting-contract');
+    assert.deepStrictEqual(failedContractSteps.map(step => step.status), ['running', 'failed']);
     for (const [failed, expected] of [
         ['mutation', ['mutation']],
         ['ordinary', ['mutation', 'ordinary']],

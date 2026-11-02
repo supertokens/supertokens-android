@@ -52,6 +52,7 @@ module.exports = async function matrix({ root, backend, env, capabilities, conte
     if (available.mapped) run('node-core', 'npm', ['run', 'test:core'], backend);
     else excluded('node-core', 'Exact pair lacks mapped-owner fixture APIs');
     gradle('root-build', ['clean', 'build']);
+    run('reporting-contract', process.execPath, ['--test', path.join(root, 'testHelpers/server/matrixReports.contract.test.js')]);
     const baselineReports = gradle('core-baseline', ['-PcoreProtocolUrl=' + env.ST_TEST_BACKEND_URL, ':app:testDebugUnitTest',
         '--tests', 'com.supertokens.session.CoreSdkCompatibilityTest']);
     accept(JSON.parse(fs.readFileSync(path.join(baselineReports, 'testDebugUnitTest/result.json'), 'utf8')),
