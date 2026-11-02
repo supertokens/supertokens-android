@@ -48,7 +48,7 @@ gradle.projectsEvaluated {
                     if (!(invocation.nonce instanceof String) || !(invocation.nonce ==~ /[a-f0-9]{48}/) ||
                         invocation.nonce != System.getenv('ST_ARTIFACT_NONCE') || reports.name != 'reports' ||
                         reports.parentFile.name != invocation.nonce || reports.canonicalFile != reports.absoluteFile ||
-                        !(invocation.mode in ['ordinary', 'retrofit', 'mutation', 'upgrade', 'exposed']) ||
+                        !(invocation.mode in ['ordinary', 'retrofit', 'mutation', 'upgrade', 'exposed', 'diagnostic-ordinary', 'diagnostic-retrofit']) ||
                         !(invocation.sources instanceof String) || !(invocation.sources ==~ /[a-f0-9]{64}/) ||
                         !(invocation.progressScriptSha256 instanceof String) || !(invocation.progressScriptSha256 ==~ /[a-f0-9]{64}/)) {
                         throw new IllegalStateException('Invalid test progress invocation binding')

@@ -4,7 +4,7 @@ const { spawnSync } = require('child_process');
 
 async function main(args = process.argv.slice(2), executeUpgrade) {
     const [mode, repository, ...options] = args;
-    if (!['ordinary', 'retrofit', 'mutation', 'matrix', 'qualify', 'upgrade', 'exposed'].includes(mode) || !repository ||
+    if (!['ordinary', 'retrofit', 'mutation', 'matrix', 'qualify', 'upgrade', 'exposed', 'diagnostic-ordinary', 'diagnostic-retrofit'].includes(mode) || !repository ||
         !process.env.ST_TEST_RUN_ID || !process.env.INSTALL_PATH) {
         throw new Error('Run through runOrdinary.js: node runOwnedTests.js ordinary|retrofit|mutation|matrix|qualify REPOSITORY');
     }
@@ -14,11 +14,15 @@ async function main(args = process.argv.slice(2), executeUpgrade) {
     const qualification = require(path.join(backend, 'accountLinkingQualification'));
     const fetch = require(path.join(backend, 'node_modules/node-fetch'));
     const base = process.env.ST_TEST_BACKEND_URL;
-    const env = process.env;
+    const env = { ...process.env };
+    delete env.ST_DIAGNOSTIC_AGENT;
+    delete env.ST_DIAGNOSTIC_OUTPUT;
     let capabilities;
     const contextFile = mode === 'matrix' ? options[0] : undefined;
     if (mode === 'matrix' && options.length > 1) throw new Error('Matrix accepts at most one release-context path');
-    const selected = require('./ownedExposure').select(mode, mode === 'matrix' ? [] : options, base);
+    const diagnostic = ['diagnostic-ordinary', 'diagnostic-retrofit'].includes(mode);
+    if (diagnostic && (options.length !== 1 || !['focused', 'full'].includes(options[0]))) throw new Error('Diagnostic requires focused or full');
+    const selected = require('./ownedExposure').select(mode, mode === 'matrix' || diagnostic ? [] : options, base);
     function run(command, args, cwd = root) {
         const result = spawnSync(command, args, { cwd, env, stdio: 'inherit' });
         if (result.error) throw result.error;
@@ -100,7 +104,7 @@ async function main(args = process.argv.slice(2), executeUpgrade) {
         return;
     }
     for (const profile of [mode]) {
-        run(process.execPath, [path.join(root, 'testHelpers/testapp/runTests.js'), profile]);
+        run(process.execPath, [path.join(root, 'testHelpers/testapp/runTests.js'), profile, ...(diagnostic ? options : [])]);
     }
 }
 module.exports = { main };

@@ -13,7 +13,7 @@ try {
     const owned = path.join(temporary, 'owned');
     const backend = path.join(owned, 'backend');
     const log = path.join(temporary, 'calls.jsonl');
-    const record = `require('fs').appendFileSync(${JSON.stringify(log)}, JSON.stringify({ name: require('path').basename(process.argv[1]), args: process.argv.slice(2), cwd: process.cwd(), core: process.env.CORE_CONNECTION_URI, url: process.env.CORE_PROTOCOL_URL }) + '\\n');`;
+    const record = `require('fs').appendFileSync(${JSON.stringify(log)}, JSON.stringify({ name: require('path').basename(process.argv[1]), args: process.argv.slice(2), cwd: process.cwd(), core: process.env.CORE_CONNECTION_URI, url: process.env.CORE_PROTOCOL_URL, agent: process.env.ST_DIAGNOSTIC_AGENT, output: process.env.ST_DIAGNOSTIC_OUTPUT }) + '\\n');`;
     for (const name of ['accountLinking.live.test.js', 'accountLinking.gate.js']) write(path.join(backend, name), record);
     write(path.join(backend, 'coreRuntimeIdentity.js'), 'exports.serverIdentity = () => true;');
     write(path.join(backend, 'accountLinkingQualification.js'), 'exports.identity = () => ({ pair: "actual-stub-instance" });');
@@ -68,11 +68,12 @@ if (process.env.ST_MATRIX_REPORTS) {
         });
     }
     const calls = () => fs.readFileSync(log, 'utf8').trim().split('\n').filter(Boolean).map(JSON.parse);
-    let result = run('matrix');
+    let result = run('matrix', { ST_DIAGNOSTIC_AGENT: 'sentinel', ST_DIAGNOSTIC_OUTPUT: 'sentinel' });
     assert.strictEqual(result.status, 0, result.stderr);
     let events = calls();
     assert.deepStrictEqual(events.slice(0, 4).map(event => event.route || event.name),
         ['/beforeeach', '/startst', 'accountLinking.live.test.js', 'accountLinking.gate.js']);
+    assert(events.filter(event => event.name).every(event => !event.agent && !event.output));
     assert(events.filter(event => event.name).every(event => event.core === 'http://127.0.0.1:19001' && event.url === 'http://127.0.0.1:18081'));
     assert.deepStrictEqual(events.filter(event => event.name === 'runTests.js').map(event => event.args), [['mutation'], ['ordinary'], ['retrofit']]);
     assert(events.some(event => event.name === 'gradlew' && event.args.includes('com.supertokens.session.CoreProxyProtocolTest')));
@@ -83,6 +84,17 @@ if (process.env.ST_MATRIX_REPORTS) {
     assert(rootBuildIndex >= 0 && contractIndex > rootBuildIndex && contractIndex < firstProfileIndex);
     const contractSteps = JSON.parse(fs.readFileSync(path.join(owned, 'matrix/steps.json'))).filter(step => step.name === 'reporting-contract');
     assert.deepStrictEqual(contractSteps.map(step => step.status), ['running', 'passed']);
+    for (const mode of ['diagnostic-ordinary', 'diagnostic-retrofit']) {
+        for (const selection of ['focused', 'full']) {
+            assert.strictEqual(run(mode, { ST_DIAGNOSTIC_AGENT: 'sentinel', ST_DIAGNOSTIC_OUTPUT: 'sentinel' }, [selection]).status, 0);
+            assert(calls().filter(event => event.name).every(event => !event.agent && !event.output));
+            assert.deepStrictEqual(calls().filter(event => event.name === 'runTests.js').map(event => event.args), [[mode, selection]]);
+        }
+        assert.notStrictEqual(run(mode, {}, ['--tests=anything']).status, 0);
+        assert(!calls().some(event => event.name === 'runTests.js'));
+    }
+    assert.strictEqual(run('ordinary', { ST_DIAGNOSTIC_AGENT: 'sentinel', ST_DIAGNOSTIC_OUTPUT: 'sentinel' }).status, 0);
+    assert(calls().filter(event => event.name).every(event => !event.agent && !event.output));
     const coreTests = events.filter(event => event.name === 'gradlew' && event.args.includes('-PcoreProtocolUrl=http://127.0.0.1:18081'));
     assert.strictEqual(coreTests.length, 2);
     assert(coreTests[0].args.includes('com.supertokens.session.CoreSdkCompatibilityTest'));
