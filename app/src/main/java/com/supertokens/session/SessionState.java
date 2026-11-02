@@ -817,6 +817,20 @@ final class SessionState {
                     return LegacyEventBatch.EMPTY;
                 }
                 if (response.code == configuration.values.sessionExpiredStatusCode) {
+                    boolean removal;
+                    try {
+                        removal = response.isRemoval();
+                    } catch (IllegalArgumentException e) {
+                        failRefreshLocked(flight, new IOException("Malformed refresh response", e), 0);
+                        return LegacyEventBatch.EMPTY;
+                    }
+                    if (!removal) {
+                        failRefreshLocked(flight, new IOException("Session refresh failed with response code "
+                                + response.code + (response.message.isEmpty() ? "" : ": " + response.message)), 0);
+                        return compatibleResponse
+                                ? new LegacyEventBatch(configuration.values.eventHandler, EventHandler.EventType.UNAUTHORISED)
+                                : LegacyEventBatch.EMPTY;
+                    }
                     if (current.getAccessTokenRevision() != flight.captured.getAccessTokenRevision()) {
                         failRefreshLocked(flight, new IOException("Obsolete refresh removal"),
                                 RefreshCoordinator.UNCERTAIN_COOLDOWN_MS);

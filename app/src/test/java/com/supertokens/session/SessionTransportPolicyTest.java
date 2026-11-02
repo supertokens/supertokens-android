@@ -166,8 +166,9 @@ public class SessionTransportPolicyTest extends SessionTestFixture {
                 catch (IOException expected) { assertTrue(expected.getMessage().contains("307")); }
                 assertSame(a.getOwner(), SuperTokens.getSessionSnapshot(context).getOwner());
             } else {
-                assertEquals(401, request(strict, null, "/profile"));
-                assertEquals(SessionSnapshot.Status.ABSENT, SuperTokens.getSessionSnapshot(context).getStatus());
+                try { request(strict, null, "/profile"); fail("D8: bare refresh 401 must fail"); }
+                catch (IOException expected) { assertTrue(expected.getMessage().contains("401")); }
+                assertSame("D8: bare refresh 401 retains the session", a, SuperTokens.getSessionSnapshot(context));
             }
             assertEquals(2, server.getRequestCount());
             assertEquals(0, authentications.get());

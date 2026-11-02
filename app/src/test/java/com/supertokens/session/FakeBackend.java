@@ -68,7 +68,8 @@ final class FakeBackend extends Dispatcher {
     }
 
     private synchronized MockResponse refresh(String authorization) {
-        if (revoked) return new MockResponse().setResponseCode(401);
+        if (authorization == null || authorization.isEmpty()) return new MockResponse().setResponseCode(401);
+        if (revoked) return new MockResponse().setResponseCode(401).addHeader("front-token", "remove");
         if (("Bearer " + current.getRefreshToken()).equals(authorization)) {
             parentRefresh = current.getRefreshToken();
             parentUses = graceUsesPerRotation;
@@ -83,6 +84,6 @@ final class FakeBackend extends Dispatcher {
             return SessionTestFixture.rotation(current);
         }
         reuseRejections.incrementAndGet();
-        return new MockResponse().setResponseCode(401);
+        return new MockResponse().setResponseCode(401).addHeader("front-token", "remove");
     }
 }
