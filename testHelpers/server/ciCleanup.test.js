@@ -4,6 +4,10 @@ const os = require("os");
 const path = require("path");
 const { spawn, spawnSync } = require("child_process");
 
+const args = process.argv.slice(2);
+assert(args.length === 0 || (args.length === 1 && args[0] === "--startup-hook-regression-child"), "Unexpected arguments");
+const regressionChild = args.length === 1;
+
 function missingPidDiagnostic(result, elapsedMs, env) {
     const secrets = Object.entries(env)
         .filter(([key, value]) => /secret|token|api[_-]?key|password|passwd|credential|private[_-]?key|authorization/i.test(key) && value)
@@ -85,9 +89,13 @@ fake_gradle_boundary() { return 39; }
 fake_qualification
 fake_gradle_boundary
 `;
+        // Ambient shell startup must not inspect the fixture's fake PATH.
+        const fixtureEnv = { ...process.env };
+        delete fixtureEnv.BASH_ENV;
+        delete fixtureEnv.ENV;
         const started = process.hrtime.bigint();
         const result = spawnSync("bash", ["-c", script], { encoding: "utf8", timeout: 20000,
-            env: { ...process.env, PATH: bin + path.delimiter + process.env.PATH, SERVER_DIRECTORY: __dirname,
+            env: { ...fixtureEnv, PATH: bin + path.delimiter + process.env.PATH, SERVER_DIRECTORY: __dirname,
                 PID_FILE: pidFile, CLEANUP_PHASE: phase, CLEANUP_LOG: log, FAIL_CORE_CLEANUP: cleanupFails ? "1" : "0" } });
         const elapsedMs = Number(process.hrtime.bigint() - started) / 1e6;
         reportMissingPid(pidFile, result, elapsedMs, process.env);
@@ -110,6 +118,38 @@ fake_gradle_boundary
         }
     }
     console.log("CI cleanup: original failure preserved; zero becomes failure on cleanup error; Express termination always attempted; success stays zero");
+    if (!regressionChild) {
+        const hook = path.join(temporary, "startup-hook.sh");
+        const marker = path.join(temporary, "startup-hook-ran");
+        const hookPids = path.join(temporary, "startup-hook-pids");
+        fs.writeFileSync(hook, `if [ "\${CI_CLEANUP_HOOK_ACTIVE:-}" != 1 ]; then
+    export CI_CLEANUP_HOOK_ACTIVE=1
+    printf 'hook\\n' >> "$CI_CLEANUP_HOOK_MARKER"
+    node --version >/dev/null 2>&1 &
+    hook_pid=$!
+    printf '%s\\n' "$hook_pid" >> "$CI_CLEANUP_HOOK_PIDS"
+    wait "$hook_pid" || :
+fi
+`);
+        const bashEnv = process.env.BASH_ENV;
+        const env = process.env.ENV;
+        const childEnv = { ...process.env, BASH_ENV: hook, ENV: hook,
+            CI_CLEANUP_HOOK_MARKER: marker, CI_CLEANUP_HOOK_PIDS: hookPids };
+        delete childEnv.CI_CLEANUP_HOOK_ACTIVE;
+        const result = spawnSync(process.execPath, [__filename, "--startup-hook-regression-child"],
+            { encoding: "utf8", timeout: 180000, env: childEnv });
+        assert.ifError(result.error);
+        assert.strictEqual(result.status, 0, result.stderr);
+        assert.match(result.stdout, /CI cleanup: original failure preserved/);
+        if (fs.existsSync(hookPids)) {
+            for (const pid of fs.readFileSync(hookPids, "utf8").trim().split("\n").map(Number)) {
+                assert.strictEqual(alive(pid), false, "Startup inspection process survived");
+            }
+        }
+        assert.strictEqual(fs.existsSync(marker), false, "Ambient shell startup ran against fixture PATH");
+        assert.strictEqual(process.env.BASH_ENV, bashEnv);
+        assert.strictEqual(process.env.ENV, env);
+    }
 } finally {
     unrelated.kill();
     fs.rmSync(temporary, { recursive: true, force: true });
