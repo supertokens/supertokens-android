@@ -41,11 +41,17 @@ function cgroup(proc, mounts) {
         const dir = path.resolve(mount, relative);
         if (dir !== mount && !dir.startsWith(mount + '/')) continue;
         const v2 = type === 'cgroup2';
+        const eventNames = ['low', 'high', 'max', 'oom', 'oom_kill', 'oom_group_kill'];
+        const local = v2 ? read(path.join(dir, 'memory.events.local')) : null;
         return { version: v2 ? 2 : 1,
             limit: number(read(path.join(dir, v2 ? 'memory.max' : 'memory.limit_in_bytes'))),
             current: number(read(path.join(dir, v2 ? 'memory.current' : 'memory.usage_in_bytes'))),
+            peak: number(read(path.join(dir, v2 ? 'memory.peak' : 'memory.max_usage_in_bytes'))),
+            swapCurrent: v2 ? number(read(path.join(dir, 'memory.swap.current'))) : null,
+            swapLimit: v2 ? number(read(path.join(dir, 'memory.swap.max'))) : null,
             events: counters(read(path.join(dir, v2 ? 'memory.events' : 'memory.oom_control')),
-                v2 ? ['low', 'high', 'max', 'oom', 'oom_kill', 'oom_group_kill'] : ['oom_kill', 'under_oom']),
+                v2 ? eventNames : ['oom_kill', 'under_oom']),
+            localEvents: local === null ? null : counters(local, eventNames),
             failcnt: v2 ? null : number(read(path.join(dir, 'memory.failcnt'))) };
     }
     return { version: null, reason: unresolved ? 'membership-not-resolvable' : 'memory-controller-unavailable' };

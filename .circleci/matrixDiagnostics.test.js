@@ -22,9 +22,14 @@ test('cgroup v2 reads only bounded memory counters', dir => {
     fs.writeFileSync(path.join(dir, 'mounts'), `1 0 0:1 / ${mount} rw - cgroup2 cgroup rw\n`);
     fs.writeFileSync(path.join(mount, 'job/memory.max'), '1024\n');
     fs.writeFileSync(path.join(mount, 'job/memory.current'), '512\n');
+    fs.writeFileSync(path.join(mount, 'job/memory.peak'), '900\n');
+    fs.writeFileSync(path.join(mount, 'job/memory.swap.current'), '8\n');
+    fs.writeFileSync(path.join(mount, 'job/memory.swap.max'), 'max\n');
     fs.writeFileSync(path.join(mount, 'job/memory.events'), 'oom 2\noom_kill 1\nsecret 123\n');
+    fs.writeFileSync(path.join(mount, 'job/memory.events.local'), 'oom 0\noom_kill 1\nsecret 123\n');
     assert.deepEqual(cgroup(path.join(dir, 'groups'), path.join(dir, 'mounts')), {
-        version: 2, limit: '1024', current: '512', events: { oom: '2', oom_kill: '1' }, failcnt: null
+        version: 2, limit: '1024', current: '512', peak: '900', swapCurrent: '8', swapLimit: 'max',
+        events: { oom: '2', oom_kill: '1' }, localEvents: { oom: '0', oom_kill: '1' }, failcnt: null
     });
     assert.deepEqual(counters('oom 1\noom 1 secret\n', ['oom']), { oom: '1' });
 });
@@ -38,7 +43,8 @@ test('cgroup v1 reads memory controller counters', dir => {
     fs.writeFileSync(path.join(dir, 'job/memory.failcnt'), '3');
     fs.writeFileSync(path.join(dir, 'job/memory.oom_control'), 'under_oom 0\noom_kill 1\n');
     assert.deepEqual(cgroup(path.join(dir, 'groups'), path.join(dir, 'mounts')), {
-        version: 1, limit: '2048', current: '512', events: { under_oom: '0', oom_kill: '1' }, failcnt: '3'
+        version: 1, limit: '2048', current: '512', peak: null, swapCurrent: null, swapLimit: null,
+        events: { under_oom: '0', oom_kill: '1' }, localEvents: null, failcnt: '3'
     });
 });
 
