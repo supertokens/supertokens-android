@@ -38,8 +38,11 @@ jobs:
           cmdline-tools-version: '11076708'
           packages: 'platform-tools'
       - run: sdkmanager 'platforms;android-32' 'build-tools;29.0.2'
-      - name: Enable KVM for runner user
-        run: sudo chmod 666 /dev/kvm
+      - name: Install emulator dependency and enable KVM
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libpulse0
+          sudo chmod 666 /dev/kvm
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -106,6 +109,8 @@ jobs:
           sdkmanager --list --include_obsolete --channel=0 > "$RUNNER_TEMP/old-runtime/sdk-list.txt"
           grep -F 'system-images;android-${{ matrix.api }};default;x86 ' "$RUNNER_TEMP/old-runtime/sdk-list.txt"
           sdkmanager 'platforms;android-32' 'build-tools;29.0.2'
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libpulse0
           sudo chmod 666 /dev/kvm
       - uses: actions/setup-java@v4
         with:

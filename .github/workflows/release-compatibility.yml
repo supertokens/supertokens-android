@@ -53,6 +53,8 @@ jobs:
           packages: 'platform-tools'
       - run: |
           sdkmanager 'platforms;android-32' 'build-tools;29.0.2' 'build-tools;30.0.3'
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libpulse0
           sudo chmod 666 /dev/kvm
       - uses: actions/setup-java@v4
         with:
