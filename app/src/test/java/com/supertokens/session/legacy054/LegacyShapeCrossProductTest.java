@@ -129,7 +129,6 @@ public class LegacyShapeCrossProductTest extends SessionTestFixture {
     private void matrix(String config, boolean urlConnection) throws Exception {
         List<String> differences = new ArrayList<>();
         for (Prior prior : Prior.values()) for (Shape shape : Shape.values()) for (int status : new int[]{200, 401}) {
-            if (shape == Shape.NONE) continue;
             try {
             context.getSharedPreferences("supertokens-android-shared-preferences", 0).edit().clear().commit();
             SuperTokens.resetForTests();
@@ -137,7 +136,7 @@ public class LegacyShapeCrossProductTest extends SessionTestFixture {
             context.getSharedPreferences("supertokens-android-shared-preferences", 0).edit().clear().commit();
             SuperTokens.resetForTests();
             String actual = run(false, config, prior, shape, status, urlConnection);
-            boolean nonRemoval401 = status == 401 && shape != Shape.REMOVE && shape != Shape.REMOVE_ACCESS
+            boolean nonRemoval401 = status == 401 && shape != Shape.NONE && shape != Shape.REMOVE && shape != Shape.REMOVE_ACCESS
                     && shape != Shape.REMOVE_REFRESH && shape != Shape.DUPLICATE_FRONT;
             if (nonRemoval401) {
                 String characterized = oracle401(prior, shape, urlConnection);

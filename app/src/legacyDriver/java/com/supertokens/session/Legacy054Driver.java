@@ -6,7 +6,6 @@ import java.io.IOException;
 import java.net.CookieHandler;
 import java.net.CookieManager;
 import java.net.CookiePolicy;
-import java.net.HttpCookie;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.LinkedHashMap;
@@ -49,9 +48,12 @@ public final class Legacy054Driver implements Closeable {
         final CookieManager manager = cookies;
         client = client.newBuilder().cookieJar(new CookieJar() {
             @Override public void saveFromResponse(HttpUrl url, List<Cookie> responseCookies) {
-                for (Cookie cookie : responseCookies) {
-                    List<HttpCookie> parsed = HttpCookie.parse(cookie.toString());
-                    for (HttpCookie value : parsed) manager.getCookieStore().add(url.uri(), value);
+                List<String> headers = new ArrayList<>();
+                for (Cookie cookie : responseCookies) headers.add(cookie.toString());
+                try {
+                    manager.put(url.uri(), java.util.Collections.singletonMap("Set-Cookie", headers));
+                } catch (IOException error) {
+                    throw new IllegalStateException("Could not store cookies", error);
                 }
             }
             @Override public List<Cookie> loadForRequest(HttpUrl url) {
