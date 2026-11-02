@@ -209,6 +209,26 @@ public class LegacyRecoveryRequestTest extends SessionTestFixture {
         }
     }
 
+    @Test public void failedRefreshCommitPropagatesWithoutExportingCredentials() throws Exception {
+        for (boolean url : new boolean[]{false, true}) {
+            failCommits(TestPreferences.CommitMode.ACKNOWLEDGED);
+            recover(false);
+            install("refresh", "before");
+            failCommits(TestPreferences.CommitMode.RETURN_FALSE);
+            server.enqueue(new MockResponse().setResponseCode(401));
+            server.enqueue(rotation(tokens("refresh", "after")));
+            try {
+                request(url, null, "/protected");
+                fail("Refresh persistence failure must propagate");
+            } catch (IOException expected) { }
+            assertEquals(SessionSnapshot.Status.RECOVERY_REQUIRED, SessionState.snapshot().getStatus());
+            assertNull(SessionState.snapshot().getInternalTokens());
+            assertNull(SuperTokens.getAccessToken(context));
+            assertNotNull(server.takeRequest(1, TimeUnit.SECONDS));
+            assertNotNull(server.takeRequest(1, TimeUnit.SECONDS));
+        }
+    }
+
     @Test public void failedLoginCommitCannotExportAndNextLoginRecovers() throws Exception {
         for (boolean url : new boolean[]{false, true}) {
             for (TestPreferences.CommitMode mode : TestPreferences.CommitMode.values()) {

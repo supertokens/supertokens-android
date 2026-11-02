@@ -8,9 +8,11 @@ gates. Do not replace a published artifact with a local candidate under the same
 
 ## Untagged response persistence failure (D10)
 
-If accepting an untagged response encounters a new storage commit failure, the
-request reports the failure and uncommitted credentials are not exposed. This
-deliberately differs from 0.5.4's in-memory behavior.
+If persisting an untagged login or refresh response fails, the producing request
+reports the failure rather than exporting uncommitted SDK-managed credentials.
+This deliberately differs from 0.5.4's asynchronous persistence and in-memory
+behavior. Recovery does not guarantee that a failed write or cleanup reached disk;
+cookie jars are external stores and their mutations cannot be undone by the SDK.
 
 ## Atomic native state
 
