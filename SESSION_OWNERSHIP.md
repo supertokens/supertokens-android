@@ -1,18 +1,13 @@
 # Session ownership (0.6.0 candidate)
 
-Existing 0.5.4 integrations require no code or stored-session migration changes.
+Existing 0.5.4 integrations are intended to require no code or stored-session migration changes.
 The APIs below are optional additions, unavailable in published 0.5.4. This is the
 behavior contract, not certification of a release artifact. Consult the
 [compatibility wiki](docs/compatibility-wiki/index.md) for scoped evidence and pending
-gates. Do not replace a published artifact with a local candidate under the same version.
-
-## Untagged response persistence failure (D10)
-
-If persisting an untagged login or refresh response fails, the producing request
-reports the failure rather than exporting uncommitted SDK-managed credentials.
-This deliberately differs from 0.5.4's asynchronous persistence and in-memory
-behavior. Recovery does not guarantee that a failed write or cleanup reached disk;
-cookie jars are external stores and their mutations cannot be undone by the SDK.
+gates. The approved D7–D12 behavior below is the target while implementation and
+final-SHA gates in the [regression plan](REGRESSION_FIX_PLAN.md) remain in progress;
+it is not evidence that those changes have shipped or passed qualification. Do not
+replace a published artifact with a local candidate under the same version.
 
 ## Atomic native state
 
@@ -41,8 +36,10 @@ a completed logout. Legacy callbacks and observer delivery run after both locks 
 
 Legacy `attemptRefreshingSession` returns false and `signOut` is a network-free,
 event-free no-op when they observe a marked pending replacement. This is not a blanket
-rule for `UNAVAILABLE`: terminal partial raw state and genuine `RECOVERY_REQUIRED`
-remain errors. A producing operation's persistence failure is still reported; explicit
+rule for `UNAVAILABLE`: for terminal partial raw state or `RECOVERY_REQUIRED`, legacy
+`signOut` attempts a best-effort local clear and emits `SIGN_OUT`; legacy
+`attemptRefreshingSession` returns false and emits `UNAUTHORISED`. Untagged 401s in
+recovery also emit `UNAUTHORISED`. A producing operation's persistence failure is still reported; explicit
 resolution and tagged requests retain fail-closed behavior during pending replacement.
 
 `SessionOwner` is opaque process-local authority, never a persisted authorization token.
@@ -94,7 +91,9 @@ before dispatch. An explicitly called refresh URL is raw transport and does not 
 Outbound interception retains the 0.5.4 host/backend-domain matching rule; it does not
 add scheme, port or path restrictions to direct requests. Redirected responses must
 match the **sent request's** scheme, host and effective port before credential adoption,
-removal or managed retry. Same-origin path redirects are allowed. Out-of-scope
+removal or managed retry, except for a same-host HTTP-to-HTTPS upgrade with both ports
+at their scheme defaults (D12). Downgrades and other host or port changes stay fenced.
+Same-origin path redirects are allowed. Out-of-scope
 responses return unmanaged for untagged requests; tagged requests throw `IOException`.
 In-scope redirects remain supported. URLConnection's recorded request Authorization is
 not evidence of the final redirected wire's headers. Legacy OkHttp refresh also checks
@@ -113,7 +112,9 @@ the captured refresh revision lets it reuse an intervening refresh or join its f
 
 One refresh flight is shared across clients, getters and URLConnection for each owner/lineage.
 Ordinary requests remain concurrent; only short state/persistence commits are serialized.
-Ordinary promotions are suppressed while that lineage refreshes. Refresh success checks
+An untagged same-identity promotion that does not rotate the refresh token may proceed
+while that lineage refreshes; the later refresh completion wins. Rotations remain suppressed.
+Refresh success checks
 refresh lineage independently of access revision and adopts the complete response tuple;
 no JWT timestamp ordering or arbitrary merge is inferred. Removal requires exact relevant
 credential revisions, including non-401 explicit removal. A delayed N clear cannot erase N+1.
@@ -132,6 +133,13 @@ Follower waits are bounded to 30 seconds; at most eight unfinished refresh trans
 across retired owners. Replacement never waits for an old socket, but exhausted transport
 capacity yields an explicit failure. Backpressure/cooldown is not a server refresh-token grace
 period: Core parent reuse depends on whether a child has been used, not elapsed time.
+
+Refresh clears only on explicit `front-token: remove` (D8). A bare expiry-status
+response fails refresh and retains the session: compatible legacy flights emit
+`UNAUTHORISED`, strict-only flights do not. Legacy flights have no post-completion
+cooldown (D9); strict-only flights retain their failure cooldown and `Retry-After`
+handling. Followers still share the in-flight result. A strict caller joining a legacy
+flight receives that flight's result and may start a new flight after it completes.
 
 ## Transport policy
 
@@ -168,11 +176,14 @@ shared references, not deep copies. Ordinary requests still use the application'
 `CustomHeaderProvider` cannot replace arbitrary signing, body transformations or proxy
 authentication. Invalid base clients fail at construction; configuration failures are
 not retained as session cooldowns, allowing a follower to retry with its own transport.
-The leading caller's transport wins the shared flight. URLConnection retains platform transport,
-with bounded connect/read waits, disabled redirects and streaming refresh body. Synchronous
+The leading caller's transport wins the shared flight. Under D11, legacy URLConnection
+refresh uses platform/caller timeouts; strict resolution retains a 10-second deadline.
+URLConnection refresh follows in-scope redirects manually, up to 20 hops, with scope
+checked at each hop. The no-argument OkHttp chain retains caller follow-up policy;
+the owned OkHttp transport disables redirects. Synchronous
 host callbacks cannot be forcibly stopped by the network timeout. The refresh budget starts
-before callback preparation: a callback returning after ten seconds cannot dispatch a late
-refresh. A callback that never returns can retain its caller thread and one admitted slot;
+before callback preparation for deadline-bound strict refresh: a callback returning after
+ten seconds cannot dispatch a late refresh. A callback that never returns can retain its caller thread and one admitted slot;
 replacement proceeds until the eight-slot bound is reached. Callback exceptions/errors retire
 their slot. The SDK does not promise a bounded leading-call return for uncooperative host code.
 
@@ -185,6 +196,17 @@ is per execution, not exactly-once server processing or one exchange per owner
 forever. An owned waiter cannot strengthen a flight led by a legacy caller.
 The [decision and test evidence](docs/compatibility-wiki/recovery-2026-10-30.md#approved-transport-contract-correction)
 explicitly reconcile the original absolute D5 parity wording with this improvement.
+
+**Approved F2 exception, 2026-11-02.** A legacy-led refresh flight may make at
+most one additional SDK dispatch after a connection closes without a response.
+Joined followers share the flight and its result, not separate retries. Existing
+flight, follower and redirect limits remain in force. The server may already have consumed
+the refresh token, so retrying it can trigger reuse detection or invalidate the
+session. Strict resolution and SDK-owned OkHttp refresh do not opt into this retry;
+caller-provided OkHttp versions and settings may retry independently. Retry admission
+and result processing retain owner, configuration and refresh-revision fences, but cookie jars and platform cookie stores are
+external: their mutations cannot be fenced or undone by these checks. See
+[disconnected refresh risk](app/src/test/compatibility/LEGACY_DISCONNECTED_REFRESH.md).
 
 Cookie requests retain their captured refresh revision when handling a delayed 401. A refresh
 completed since that request was sent satisfies the retry, avoiding redundant cookie refreshes.
@@ -260,6 +282,29 @@ refresh to a different user ID while retaining ownership; a different handle/ten
 Cookie sessions may expose access tokens without refresh headers; managed Authorization
 requires both header credentials. Non-Bearer custom Authorization remains managed without
 being overwritten; a foreign Bearer stays unmanaged.
+
+For untagged ordinary responses, the response shape determines session kind (D7): a
+complete access, refresh and front-token tuple is a header session; a front token without
+a refresh token is cookie-shaped, regardless of configured transfer method. An access and
+front-token promotion of an existing header session with the same identity retains its
+refresh token. Explicit removal wins over accompanying credentials on untagged responses;
+tagged requests keep strict validation.
+
+Ordinary non-removal 401 credential headers are not adopted, unlike 0.5.4, so
+they cannot retarget the captured request to a new owner. Normal unauthorized and
+refresh handling can still change or clear the session; explicit removal remains
+subject to its own fencing. See the [401 boundary](app/src/test/compatibility/LEGACY_401_RESPONSE_CONFLICT.md).
+
+When a complete header tuple replaces an opaque cookie session without an anti-CSRF
+header, the candidate does not retain the cookie session's anti-CSRF token. Published
+0.5.4 retains and sends it. Even identical front tokens do not prove that the new
+credentials belong to the old session, so this approved difference prevents mixing
+credentials across owners. See the [provenance conflict](app/src/test/compatibility/LEGACY_CSRF_PROVENANCE_CONFLICT.md).
+
+If persisting an untagged login or refresh response fails, the producing request reports
+the failure rather than exporting uncommitted credentials (D10). This differs from 0.5.4's
+asynchronous persistence and in-memory behavior. Recovery is not a guarantee that a failed
+write or cleanup reached disk; strict APIs continue to report recovery explicitly.
 
 Supported pre-init getters read preferences without initialization, migration writes or
 network refresh. Empty/coherent startup avoids an eager metadata-only write; legacy import

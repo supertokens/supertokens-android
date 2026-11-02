@@ -2,13 +2,19 @@
 
 PR [#82](https://github.com/supertokens/supertokens-android/pull/82) adds owner-fenced session state so stale work (late responses, racing refreshes, out-of-scope redirects) cannot mutate a newer session. A review against `master` (published 0.5.4) found regressions that would log out, brick or crash existing apps. This plan keeps the PR's fixes and restores 0.5.4 behaviour for existing clients.
 
+This is a planning document, not a qualification report. The later
+[regression fix plan](REGRESSION_FIX_PLAN.md) supersedes conflicting milestone details
+below, records accepted behavior differences, and defines the pending final-SHA gates.
+D7–D12 are approved targets, not a claim that their implementation or tests are complete.
+
 ## Goal
 
-An app on 0.5.4 upgrades with no code changes and:
+The goal is for an app on 0.5.4 to upgrade without code changes, subject to the
+accepted behavior differences in the regression plan and pending qualification:
 
 - no user is logged out by the upgrade, an app update, or a rollback/re-upgrade;
-- no new crashes or exceptions on existing call paths;
-- requests, refresh, sign-out and events behave as in 0.5.4, except that stale work can no longer mutate a newer session.
+- no new crashes or exceptions on existing call paths except approved differences, including D10 persistence failures;
+- requests, refresh, sign-out and events target 0.5.4 behavior, subject to the accepted differences and ownership fences.
 
 ## Invariants to preserve
 
@@ -17,19 +23,20 @@ These are the reasons for PR #82 and must stay covered by tests throughout:
 | # | Fix | Covering suites (existing) |
 |---|---|---|
 | F1 | A late response/sign-out for session A cannot overwrite or clear session B | `SessionOwnershipTest`, `SessionStateBoundaryTest`, `SessionCookieDeletionTest` |
-| F2 | One shared refresh flight per owner/lineage across getters, OkHttp and URLConnection (deadline, 8-flight cap, cooldown) | `SessionRefreshPolicyTest`, `SessionResourceBoundsTest`, `SessionBackpressureContractTest`, `SessionLifecycleTest` |
+| F2 | One shared refresh flight per owner/lineage across getters, OkHttp and URLConnection (bounded followers, 8-flight cap, strict-only cooldown per D9) | `SessionRefreshPolicyTest`, `SessionResourceBoundsTest`, `SessionBackpressureContractTest`, `SessionLifecycleTest` |
 | F3 | Redirected responses cannot adopt/clear credentials from out-of-scope URLs | `SessionRedirectBoundaryTest`, `SessionSignOutRedirectTest` |
 | F4 | `signOut` refreshes reactively on server-rejected access tokens (header and cookie) | `SessionSignOutRefreshTest`, `SessionCookieSignOutTest` |
 | F5 | New APIs: snapshots, `installSession`/`clearSession`, `resolveAccessToken`, request tags, `observeSessions`, `reconfigure()` | `SessionLifecycleTest`, `SessionContractAuditTest`, `SessionPersistenceBoundaryTest`, `SessionStorageRestartTest` |
 
-Guiding rule: F1–F4 apply to everyone (invisible to well-behaved apps). Extra strictness (full-tuple validation, fail-closed recovery, `StaleSessionException`) applies only to callers of the new APIs or tagged requests. Everything else returns to 0.5.4 semantics.
+Guiding rule: F1–F4 apply to everyone. Extra strictness (full-tuple validation, fail-closed recovery, `StaleSessionException`) applies to callers of the new APIs or tagged requests. Untagged paths target 0.5.4 semantics except for the accepted differences in the regression plan.
 
 ### Approved transport correction — 2026-10-30
 
 User chose **preserve legacy; strict opt-in**. This explicitly qualifies D5's
 absolute behavior-parity wording: retain the modern no-arg one-shot improvement,
 while historical caller-owned retries/follow-ups remain allowed. F2 counts shared
-SDK refresh flights/dispatches, not internal OkHttp HTTP exchanges. No mandatory
+SDK refresh flights/dispatches, not internal OkHttp HTTP exchanges, subject to the
+2026-11-02 disconnected-refresh exception below. No mandatory
 migration, raised historical floor, or historical strict transport is introduced.
 Owned refresh (existing opt-in, OkHttp >=3.14) permits at most one HTTP exchange
 per transport execution, not exactly-once processing or one exchange per owner
@@ -39,16 +46,37 @@ forever; an owned waiter does not override a legacy leader's policy.
 actual RESET wire observations, unchanged session state, and strict owned
 reset/consumed-lost-response bounds. See [dated evidence and source pointers](docs/compatibility-wiki/recovery-2026-10-30.md#approved-transport-contract-correction).
 
+### Approved F2 exception — 2026-11-02
+
+A legacy-led refresh flight may make at most one additional SDK dispatch after a
+connection closes without a response. Followers still share that flight and its
+result; they do not each get a retry. Owner, configuration and refresh-revision
+fences apply before retry and to its result, and existing flight, follower and
+redirect limits remain in force. Strict resolution and SDK-owned OkHttp refresh
+do not opt into this exception. Caller-owned OkHttp may independently retry or
+follow up at the wire level, outside the SDK dispatch count.
+
+A lost response does not prove the server failed to consume the refresh token;
+replaying it can trigger reuse detection or invalidate the session. Cookie jars
+are external stores whose mutations cannot be fenced or undone by the SDK. This
+decision is not evidence of completed implementation or qualification.
+
 ## Decisions (agreed)
 
 | ID | Topic | Decision | Rationale |
 |---|---|---|---|
-| D1 | Interception scope | Outbound credential attachment uses the 0.5.4 rule (host matches `apiDomain`, or matches `sessionTokenBackendDomain`). Adopting/clearing credentials from a **redirected** response additionally requires the final URL to have the same scheme, host and port as the request sent. | The threat behind F3 is a redirect moving a response somewhere the app didn't call. Requests the app sends directly were already trusted in 0.5.4, which deliberately ignored ports (supertokens-website#217). |
+| D1 | Interception scope | Outbound credential attachment uses the 0.5.4 host/backend-domain rule. Redirected responses require the sent request's scheme, host and port, subject to the D12 upgrade exception. | F3 fences redirects outside the trusted scope without changing legacy direct-request host matching. |
 | D2 | Configuration changes between launches | A configuration change at startup **never** clears the session, as in 0.5.4. This includes `apiDomain` host and `sessionTokenBackendDomain` changes. The persisted configuration ID is kept as metadata only. Runtime `reconfigure()` still creates a new in-process configuration, clears and fences in-flight work. | Changing settings in an app update must not log users out. A domain migration of the same backend (e.g. `api.old.com` → `api.new.com`) kept users logged in under 0.5.4; tokens that are invalid for a new backend are rejected by the server and cleared through the normal refresh path. |
 | D3 | Transfer method change (cookie ↔ header) | Keep the session, as in 0.5.4. | Cookie → header is a supported migration path. The cookie jar is already documented as outside the fencing guarantee, so no new exposure. |
 | D4 | Path in `apiDomain` | Ignored, as in 0.5.4. Refresh/sign-out URLs unchanged. The same-origin path boundary is dropped. | Apps with a path in `apiDomain` work today because it is ignored. Same-origin redirects stay inside the same trust boundary. Prefixes belong in `apiBasePath`. |
-| D5 | Version and compatibility | Release as **0.6.0** (new public APIs, new storage format) with **no breaking changes**: every 0.5.4 call path, stored session and behaviour keeps working. No "Breaking" CHANGELOG section. | The version signals the size of the change; compatibility is enforced by the tests in this plan and the API diff gate. |
+| D5 | Version and compatibility | Target **0.6.0** with no integration code changes or stored-session migration for existing 0.5.4 users, subject to the approved behavior differences in the [regression plan](REGRESSION_FIX_PLAN.md#accepted-differences-keep-but-document) and D10. Document those differences rather than claiming absolute parity. Qualification remains pending. | The version signals the size of the change; tests and the API diff gate must validate the qualified compatibility goal. |
 | D6 | Old-style `EventHandler` events | Delivered synchronously on the thread that caused the transition, after the state lock is released and before the request returns. No stale-owner filter, no backlog cap. Handler exceptions propagate to the caller, as in 0.5.4, after the state is committed. | Restores the ordering and error behaviour apps rely on (e.g. UNAUTHORISED before the 401 reaches the caller) while keeping the PR's fix that no handler runs under the state lock. Coalesced, owner-aware updates stay available via `observeSessions`. |
+| D7 | Untagged response session kind | Response shape decides: complete header tuple is a header session; front token without refresh is cookie-shaped, with same-identity header promotion retaining its refresh token. Strict validation is unchanged. | Restore legacy acceptance irrespective of configured transfer method. |
+| D8 | Refresh 401 without removal | Retain session and fail; compatible flights emit `UNAUTHORISED`, strict-only flights do not. Explicit removal clears. | A bare 401 does not prove the session ended; preserve legacy event parity. |
+| D9 | Refresh cooldown | No post-completion cooldown for legacy flights; strict-only flights retain it. Joined followers share the flight result. | Restore legacy retries without weakening single-flight. |
+| D10 | Untagged commit failure | Report the persistence failure; do not expose uncommitted credentials. | Avoid silent login failure and undurable credential export. |
+| D11 | Legacy refresh transport | Legacy URLConnection refresh uses platform/caller timeouts; strict resolution retains a 10-second deadline. Follow in-scope redirects manually up to 20 hops; follower wait remains 30 seconds. | Restore legacy timeout behavior while preserving redirect fencing and strict bounds. |
+| D12 | Secure redirect upgrade | Allow same-host HTTP-to-HTTPS redirects when both ports are scheme defaults; continue fencing downgrades and host/port changes. | A secure upgrade is not the cross-origin threat F3 addresses. |
 
 ## Regression inventory
 
@@ -73,8 +101,24 @@ Referenced by milestones and tests below.
 | R15 | Synchronous commits in `init` and under the global lock that main-thread getters wait on | Medium |
 | R16 | Legacy interceptor throws for 401 bodies > 1 MiB | Low |
 | R17 | Untagged requests throw `StaleSessionException` on retry after an owner change (contract says untagged stale work returns its response) | High |
+| R18 | Header configuration rejects cookie-shaped login responses from a backend forcing cookie transfer | High |
+| R19 | Bare refresh 401 clears the session without explicit removal | Medium |
+| R20 | Recovery/terminal unavailable states produce legacy entry-point errors and miss unauthorised events | Medium |
+| R21 | Post-failure cooldown suppresses later legacy refresh attempts | Medium |
+| R22 | Untagged removal accompanied by credentials is rejected rather than clearing | Low–medium |
+| R23 | Header-auth utility misses exposed cookie access tokens and pre-init authorization | Low |
+| R24 | Untagged response commit failure throws instead of retaining uncommitted in-memory login | Low; accepted under D10 |
+| R25 | Ordinary payload promotion can be lost while refresh is in flight | Low |
+| R26 | Legacy URLConnection refresh imposes a 10-second deadline and rejects redirects | Low–medium |
+| R27 | Sign-out drops custom provider `Authorization` and `rid` headers | Low |
+| R28 | Same-host HTTP-to-HTTPS redirect is unmanaged | Low |
+| R29 | Test hooks are present in production paths | Low |
+| R30 | Repository contains local paths and excessive run-evidence files | Low |
 
-## Test infrastructure (current state)
+For evidence, approved decisions, planned fixes and exit criteria for R18–R30, see
+the [regression fix plan](REGRESSION_FIX_PLAN.md#regression-inventory-new).
+
+## Test infrastructure (original review baseline)
 
 | Layer | Location / run | Notes |
 |---|---|---|
@@ -342,8 +386,8 @@ Broader detection of regressions not tied to a single fix. Ranked by value.
 ## Milestone 7: Documentation and release
 
 1. `publishVersionID` → 0.6.0 (`app/build.gradle`); check `Version.java`.
-2. `CHANGELOG.md`: new APIs and fixes; an explicit statement that 0.5.4 integrations need no changes; no "Breaking" section (D5). Note Java 8 bytecode and the OkHttp minimum (3.12) as requirements, and confirm both were already effectively required by 0.5.4 consumers, otherwise treat them as breaking and fix.
-3. `SESSION_OWNERSHIP.md`: update for D1–D6, idempotent `init`, recovery behaviour, event delivery. Remove the "intentionally restricts historical behavior" paragraph.
+2. `CHANGELOG.md`: document new APIs, fixes and accepted behavior differences, including D10. State that no integration code changes or stored-session migration are intended, not yet qualified. Preserve Java 7 production bytecode and minSdk 17; do not impose a universal Java 8 or OkHttp 3.12 minimum. SDK-owned OkHttp refresh is opt-in and requires OkHttp 3.14+; qualify the historical transport floor with the planned matrix.
+3. `SESSION_OWNERSHIP.md`: document D1–D12, accepted differences, idempotent `init`, recovery behaviour, event delivery and ownership limits; do not imply unrestricted historical parity.
 4. Remove or fold in the untracked `SESSION_FIX_CHANGES.md` and `REFRESH_TRANSPORT_MIGRATION.md`.
 
 ### Exit criteria
@@ -355,5 +399,5 @@ Broader detection of regressions not tied to a single fix. Ranked by value.
 ## Global guardrails
 
 - Every milestone keeps F1–F5 suites green. The only expected edits to them are the F3 re-baseline in M3 and the rewrites listed in M0.
-- Any test changed to accept new behaviour must reference a decision (D1–D6) in its commit message. Restored 0.5.4 assertions in `testHelpers/testapp` must never be modified (D5).
+- Any test changed to accept new behaviour must reference the applicable decision in its commit message. Restored 0.5.4 assertions in `testHelpers/testapp` remain unchanged except where an approved difference requires a separately documented assertion (D5).
 - Each regression R1–R17 has at least one test that fails on the current branch and passes after its milestone.

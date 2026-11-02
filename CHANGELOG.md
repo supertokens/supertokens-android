@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### 0.6.0 candidate
 
+This is an unreleased candidate. The behavior below is the intended contract;
+the regression fixes and final-artifact qualification are still in progress.
+
 #### Added
 
 - Owner-bound snapshots, conditional `installSession`/`clearSession`, `resolveAccessToken`, request tags, `observeSessions` and explicit `reconfigure()` for coordinated native session ownership.
@@ -22,11 +25,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 #### Compatibility
 
-- A new persistence failure while accepting an untagged response is reported rather than exposing uncommitted credentials (D10).
+- The upgrade is intended to require **no code changes** or stored-session migration for existing 0.5.4 integrations. New APIs are optional and stricter. This is a goal, not a completed compatibility qualification.
+- Preserve legacy outbound host matching, Java 7 production bytecode and minSdk 17. See [session ownership](SESSION_OWNERSHIP.md) for cookie, persistence and rollback limits.
+- Final-SHA unit, OkHttp matrix, live integration, device and published cookie-upgrade gates remain to be qualified; see the [regression plan](REGRESSION_FIX_PLAN.md#m6--integration-coverage-and-qualification).
 
-- Existing 0.5.4 integrations require no code or stored-session migration changes. New APIs are optional and retain stricter validation and explicit failure reporting.
-- Preserve legacy outbound host matching, caller-owned refresh timeouts, Java 7 production bytecode and minSdk 17. Redirected responses must remain on the sent request's origin to change managed state or trigger retries.
-- See [session ownership](SESSION_OWNERSHIP.md) for cookie, persistence and rollback limits. This candidate entry is not release approval; [qualification](docs/compatibility-wiki/index.md) remains artifact-specific, with API17 and Linux CI verification gaps.
+#### Behaviour changes
+
+- Ordinary 401 responses cannot establish or rotate session credentials from non-removal headers, unlike 0.5.4. Normal unauthorized and refresh handling still applies.
+- When complete header credentials replace an opaque cookie session without a new anti-CSRF token, the old cookie token is not carried over. Unlike 0.5.4, subsequent requests omit it until a new token is received; matching front tokens do not prove session continuity.
+- Malformed successful refresh responses fail without clearing the session; 0.5.4 could report success. A foreign Bearer authorization makes an untagged request unmanaged.
+- Redirected responses must remain on the sent origin to adopt, clear or retry, except for an approved same-host HTTP-to-HTTPS upgrade using default ports; downgrades and host or port changes remain out of scope.
+- Concurrent callers joining a refresh share its result rather than refreshing sequentially. Legacy flights have no post-failure cooldown; strict-only flights retain backpressure.
+- Approved 2026-11-02 F2 exception: a legacy-led refresh flight disconnected without a response may make at most one additional SDK dispatch; followers still share its result, and existing limits and owner/configuration/revision fences apply. The server may already have consumed the token, so replay can trigger reuse detection or invalidate the session. Strict resolution and SDK-owned OkHttp refresh do not opt into this retry; caller OkHttp may retry independently. Cookie jars are external stores whose mutations cannot be fenced or undone by SDK ownership checks.
+- A failed durable commit on an untagged response throws rather than exposing uncommitted credentials, unlike 0.5.4's in-memory behavior.
+- Legacy URLConnection refresh is intended to use platform/caller timeouts; strict resolution retains its 10-second deadline. In-scope URLConnection refresh redirects are limited to 20 hops; followers wait at most 30 seconds.
 
 ## [0.5.4] - 2025-03-26
 
