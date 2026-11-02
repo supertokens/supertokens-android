@@ -18,14 +18,15 @@ module.exports = function fixtureOwners(SuperTokens, ThirdParty, Multitenancy) {
         if (owner.legacy) {
             if (owner.creationAmbiguous) throw new Error('Legacy fixture ownership is ambiguous; cleanup refused');
             if (owner.creationAttempted) {
-                const user = await ThirdParty.getUserByThirdPartyInfo('google', owner.id);
+                const lookup = () => owner.transitional ? ThirdParty.getUserByThirdPartyInfo('public', 'google', owner.id) : ThirdParty.getUserByThirdPartyInfo('google', owner.id);
+                const user = await lookup();
                 if (user !== undefined) {
                     if (!user.thirdParty || user.thirdParty.id !== 'google' || user.thirdParty.userId !== owner.id ||
                         typeof user.id !== 'string' || (owner.recipeUserId && owner.recipeUserId !== user.id)) {
                         throw new Error('Legacy fixture lookup identity mismatch');
                     }
                     const deleted = await SuperTokens.deleteUser(user.id);
-                    if (deleted.status !== 'OK' || await ThirdParty.getUserByThirdPartyInfo('google', owner.id) !== undefined) {
+                    if (deleted.status !== 'OK' || await lookup() !== undefined) {
                         throw new Error('Legacy fixture user deletion failed');
                     }
                 }
@@ -73,17 +74,18 @@ module.exports = function fixtureOwners(SuperTokens, ThirdParty, Multitenancy) {
         owners.delete(owner.id);
     }
 
-    async function createLegacy(email, createSession) {
-        const owner = { id: 'android-test-' + crypto.randomBytes(16).toString('hex'), tenantId: 'public', legacy: true, creating: true };
+    async function createLegacy(email, createSession, transitional = false) {
+        const owner = { id: 'android-test-' + crypto.randomBytes(16).toString('hex'), tenantId: 'public', legacy: true, transitional, creating: true };
         owners.set(owner.id, owner);
         try {
-            if (await ThirdParty.getUserByThirdPartyInfo('google', owner.id) !== undefined) {
+            const lookup = () => transitional ? ThirdParty.getUserByThirdPartyInfo('public', 'google', owner.id) : ThirdParty.getUserByThirdPartyInfo('google', owner.id);
+            if (await lookup() !== undefined) {
                 owners.delete(owner.id);
                 throw new Error('Generated fixture user already exists');
             }
             owner.creationAttempted = true;
             owner.creationAmbiguous = true;
-            const created = await ThirdParty.signInUp('google', owner.id, email);
+            const created = await (transitional ? ThirdParty.manuallyCreateOrUpdateUser('public', 'google', owner.id, email) : ThirdParty.signInUp('google', owner.id, email));
             if (created.status === 'OK' && created.createdNewUser === false) {
                 throw new Error('Legacy fixture user was not created');
             }
@@ -94,7 +96,7 @@ module.exports = function fixtureOwners(SuperTokens, ThirdParty, Multitenancy) {
             }
             owner.recipeUserId = user.id;
             owner.creationAmbiguous = false;
-            const persisted = await ThirdParty.getUserByThirdPartyInfo('google', owner.id);
+            const persisted = await lookup();
             if (!persisted || persisted.id !== user.id || !persisted.thirdParty ||
                 persisted.thirdParty.id !== 'google' || persisted.thirdParty.userId !== owner.id) {
                 throw new Error('Legacy fixture user not persisted');

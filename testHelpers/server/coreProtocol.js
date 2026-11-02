@@ -40,6 +40,9 @@ const legacySdkSupported = ThirdParty !== undefined &&
     typeof ThirdParty.getUserByThirdPartyInfo === 'function' &&
     typeof ThirdParty.Google === 'function' &&
     typeof SuperTokens.deleteUser === 'function';
+const transitionalSdkSupported = version === '15.2.3' && ThirdParty !== undefined &&
+    typeof ThirdParty.manuallyCreateOrUpdateUser === 'function' &&
+    typeof ThirdParty.getUserByThirdPartyInfo === 'function' && typeof SuperTokens.deleteUser === 'function';
 const tenantSdkSupported = Multitenancy !== undefined &&
     ["createOrUpdateTenant", "listAllTenants", "deleteTenant"].every(name => typeof Multitenancy[name] === "function");
 const owners = fixtureOwners(SuperTokens, ThirdParty, Multitenancy);
@@ -61,8 +64,8 @@ const native = require('./nativeEvidence')({ owners, Session, snapshot: () => {
 } });
 
 function configure(config) {
-    if (enabled && (sdkSupported || legacySdkSupported)) {
-        config.recipeList.push(sdkSupported ? ThirdParty.init() : ThirdParty.init({
+    if (enabled && (sdkSupported || legacySdkSupported || transitionalSdkSupported)) {
+        config.recipeList.push(sdkSupported || transitionalSdkSupported ? ThirdParty.init() : ThirdParty.init({
             signInAndUpFeature: { providers: [ThirdParty.Google({ clientId: 'fixture-only', clientSecret: 'fixture-only' })] }
         }));
     }
@@ -90,7 +93,7 @@ async function capabilities() {
         coreReachable,
         compatible,
         mappedGoogleSession: enabled && sdkSupported && compatible,
-        legacyBaselineSession: enabled && legacySdkSupported && compatible,
+        legacyBaselineSession: enabled && (legacySdkSupported || transitionalSdkSupported) && compatible,
         nonPublicTenantSession: enabled && sdkSupported && tenantSdkSupported && compatible,
         accountLinking: accountLinkingCapability(enabled, compatible, AccountLinking, linkingQualification.identity(), linkingQualification.readEvidence()),
         qualificationProxy: false
@@ -151,7 +154,8 @@ function install(app) {
             const { owner, session } = await native.provision(req, () => supported.mappedGoogleSession
                 ? owners.create(req.body.email, async externalId =>
                     Session.createNewSession(req, res, "public", SuperTokens.convertToRecipeUserId(externalId)))
-                : owners.createLegacy(req.body.email, async userId => Session.createNewSession(req, res, userId)));
+                : owners.createLegacy(req.body.email, async userId => transitionalSdkSupported
+                    ? Session.createNewSession(req, res, 'public', userId) : Session.createNewSession(req, res, userId), transitionalSdkSupported));
             try {
                 const tokens = session.getAllSessionTokensDangerously();
                 res.json({ google: true, fixtureId: owner.id, userId: session.getUserId(), handle: session.getHandle(), refreshToken: tokens.refreshToken });
