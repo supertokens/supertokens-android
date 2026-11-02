@@ -149,7 +149,8 @@ class OwnedCommandGroup {
         this.group = this.owner.child.pid;
         for (const [signal, duration] of [['SIGTERM', 2000], ['SIGKILL', 2000]]) {
             const members = this.verifyGroup();
-            this.evidence({ action: signal, group: this.group, members });
+            this.evidence({ action: signal, group: this.group, members: members.map(({ pid, parent, group, zombie, startTicks }) =>
+                ({ pid, parent, group, zombie, startTicks })) });
             // A leader with an unacknowledged start may still have a queued launch.
             // Kill that pinned group rather than enqueueing exit behind its start message.
             if (this.started && members.every(row => row.pid === this.group)) break;

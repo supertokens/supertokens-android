@@ -2,6 +2,7 @@ const assert = require('assert');
 const fs = require('fs');
 const vm = require('vm');
 const path = require('path');
+const os = require('os');
 const { test } = require('node:test');
 const { fork } = require('child_process');
 
@@ -133,7 +134,7 @@ test('escaped worker refusal records sanitized identity comparisons without sign
         after: { group: 42, tagged: true, taggedGroup: 42, taggedStartTicks: '101', psIdentityMatches: true,
             finalGroup: 42, finalStartTicks: '101' }
     });
-    assert.ok(!JSON.stringify(diagnostic).includes('secret-command'));
+    assert.ok(!JSON.stringify(events).includes('secret-command'));
 });
 
 test('escaped worker diagnostics distinguish missing tag, changed group and ps identity', async () => {
@@ -151,6 +152,33 @@ test('escaped worker diagnostics distinguish missing tag, changed group and ps i
         assert.strictEqual(after.tagged, scenario !== 'tag');
         assert.strictEqual(after.group, scenario === 'group' ? 43 : 42);
         assert.strictEqual(after.psIdentityMatches, scenario !== 'ps');
+    }
+});
+
+test('controlled mismatch retains an actual owned detached worker until verified recovery', { timeout: 15000 }, async () => {
+    const { OwnedCommandGroup, processTable } = require('./ownedCommandGroup');
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'owned-mismatch-'));
+    const marker = path.join(directory, 'worker');
+    const events = [];
+    const group = new OwnedCommandGroup('controlled-mismatch', event => events.push(event));
+    const worker = `require('fs').writeFileSync(${JSON.stringify(marker)},String(process.pid));setInterval(()=>{},1000)`;
+    const command = `require('child_process').spawn(process.execPath,['-e',${JSON.stringify(worker)}],{detached:true,stdio:'ignore'});setInterval(()=>{},1000)`;
+    try {
+        await group.start([process.execPath, '-e', command], { cwd: directory, env: { PATH: process.env.PATH } });
+        for (let i = 0; i < 200 && !fs.existsSync(marker); i++) await new Promise(resolve => setTimeout(resolve, 20));
+        assert.ok(fs.existsSync(marker));
+        const pid = Number(fs.readFileSync(marker, 'utf8'));
+        const verify = group.verifyGroup.bind(group);
+        assert.ok(verify().some(row => row.pid === pid && row.group !== group.group));
+        group.verifyGroup = () => verify().map(row => row.pid === pid ? { ...row, identity: row.identity + ' mismatch' } : row);
+        await assert.rejects(group.drain(), /Escaped worker identity changed; refusing signal/);
+        assert.ok(processTable().some(row => row.pid === pid && !row.zombie));
+        assert.ok(events.some(event => event.action === 'ESCAPED_IDENTITY_MISMATCH' && !event.after.psIdentityMatches));
+        group.verifyGroup = verify;
+    } finally {
+        delete group.verifyGroup;
+        if (group.owner.child) await group.drain();
+        fs.rmSync(directory, { recursive: true, force: true });
     }
 });
 
