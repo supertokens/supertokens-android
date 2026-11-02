@@ -183,7 +183,7 @@ Tests: M0 state matrix green, `LegacyRecoveryRequestTest` additions (sign-out cl
    - Fold `SESSION_FIX_CHANGES.md` and `REFRESH_TRANSPORT_MIGRATION.md` into `SESSION_OWNERSHIP.md` (COMPATIBILITY_PLAN M7.4).
 4. Add `__pycache__/` to `.gitignore`.
 
-**Exit:** `git grep -n "var/folders"` is empty, the unit suite is green, and testapp re-init tests pass.
+**Exit:** `git grep -n 'var[/]folders'` is empty, the unit suite is green, and testapp re-init tests pass.
 
 ### M6 — Integration coverage and qualification
 

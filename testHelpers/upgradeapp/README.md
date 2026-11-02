@@ -1,9 +1,10 @@
 # Published-SDK upgrade / rollback consumer
 
-Standalone M6 rank-2 fixture. **API34 published upgrade/rollback: 20/20 stages
-passed.** See [dated artifact/backend/device evidence](RESULTS_2026-10-29.md).
-The separate [R8 consumer smoke](R8_SMOKE.md) now proves unmapped-cookie migration
-and real login/refresh across two differently mapped release APKs on API34.
+Standalone M6 rank-2 fixture. A historical API34 published upgrade/rollback run
+passed 20/20 stages; its artifact/backend/device evidence is archived privately.
+A historical [R8 consumer smoke](R8_SMOKE.md) covered unmapped-cookie migration
+and real login/refresh across two differently mapped release APKs on API34. Neither
+run qualifies the current candidate.
 Run commands from the repository root only with the Gradle/device lane assigned
 to you. No root settings or app build edits are required.
 
@@ -54,12 +55,15 @@ do not import a POM; this consumer supplies dependencies explicitly.
 
 Use a dedicated fixture installation and explicit device-reachable backend
 origin. Backend requires `CORE_PROTOCOL_TESTS=1`, compatible live Core and
-`mappedGoogleSession` capability. See
-[`INTEGRATION_READINESS.md`](../../app/src/test/compatibility/INTEGRATION_READINESS.md).
+`mappedGoogleSession` capability.
 Capability failures fail the test; the runner does not start/reset services.
-The logout scenario requires the backend extension described in
-[`BACKEND_HANDOFF.md`](BACKEND_HANDOFF.md). It is applied and active in the recorded
-Express/Core runtime; verify current readiness before subsequent runs.
+Verify current backend readiness, including the logout extension, before subsequent runs.
+For a lost cleanup response, preserve the original backend process and device receipt;
+use `upgrade.sh --cleanup-only` with the original run/scenario/artifact arguments and
+a fresh output directory. A pending creation requires manual owner reconciliation;
+unknown owners are never treated as cleaned. If ownership cannot be established,
+stop without broad deletion or reset. Backend restart loses the in-memory registry
+and is not a recovery procedure.
 
 ```sh
 APKS="$PWD/testHelpers/upgradeapp/app/build/outputs/apk"

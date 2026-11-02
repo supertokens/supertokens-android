@@ -1,7 +1,7 @@
 # Candidate API34 process-death scenarios
 
 Staged and executed 2026-10-29. **Both real API34 scenarios passed on fresh 0.6.0.**
-See [execution results and artifact hashes](PROCESS_DEATH_RESULTS_2026-10-29.md).
+Execution results and artifact hashes are archived privately.
 Sixteen host protocol tests and isolated Java 7 compilation also pass.
 
 ## Boundary and ownership

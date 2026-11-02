@@ -42,6 +42,6 @@ limit. This is not a reflection access failure. The harness unwraps
 
 Reproduction: `./gradlew :app:legacy054Test --tests
 'com.supertokens.session.legacy054.Legacy401RetryOracleTest'` passes;
-See [M0 baseline](M0_BASELINE.md) for the historical 200 and removal-row failures,
-follow-up results, and the subsequently approved anti-CSRF exception. These runs
+historical 200 and removal-row failures and follow-up results are archived privately.
+See the approved anti-CSRF exception in the adjacent provenance boundary. These runs
 do not establish final-candidate or release qualification.

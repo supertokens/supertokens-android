@@ -9,7 +9,7 @@ execution only. Modern no-arg one-shot behavior remains an intentional improveme
 not universal host-extension control. No production transport change is required
 for this test/contract correction; historical RESET remains exercised and counted.
 
-Status **2026-10-30: implementation and scoped local execution recorded; qualification remains open**. See [current evidence and outstanding gates](docs/compatibility-wiki/status-2026-10-30.md). The original planning-only statement (no production/test changes or execution yet) is superseded, not a description of today's working tree. Original inspection used local `master` (`3c2ced0`); the published, checksum-verified 0.5.4 AAR remains the behavioural oracle. Batch text below preserves the implementation plan, not a completion checklist.
+Status **2026-10-30: implementation and scoped local execution recorded; qualification remains open**. See [outstanding gates](docs/COMPATIBILITY_STATUS.md). The original planning-only statement (no production/test changes or execution yet) is superseded, not a description of today's working tree. Original inspection used local `master` (`3c2ced0`); the published, checksum-verified 0.5.4 AAR remains the behavioural oracle. Batch text below preserves the implementation plan, not a completion checklist.
 
 ## Implementation strategy
 

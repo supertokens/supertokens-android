@@ -3,7 +3,7 @@
 Existing 0.5.4 integrations are intended to require no code or stored-session migration changes.
 The APIs below are optional additions, unavailable in published 0.5.4. This is the
 behavior contract, not certification of a release artifact. Consult the
-[compatibility wiki](docs/compatibility-wiki/index.md) for scoped evidence and pending
+[qualification summary](docs/COMPATIBILITY_STATUS.md) for pending
 gates. The approved D7–D12 behavior below is the target while implementation and
 final-SHA gates in the [regression plan](REGRESSION_FIX_PLAN.md) remain in progress;
 it is not evidence that those changes have shipped or passed qualification. Do not
@@ -173,6 +173,13 @@ interceptors; uses a one-shot body and 10-second call/connect/read/write timeout
 removal is explicit opt-in, not equivalent to arbitrary request signing/authenticator logic.
 Client configuration is captured at construction; objects such as the cookie jar remain
 shared references, not deep copies. Ordinary requests still use the application's client.
+These APIs are not in published 0.5.4; consumers must update their dependency before
+using them. Migration to the owned interceptor is optional. A refresh flight uses its
+leader's transport, so an owned waiter cannot impose its wire bound on a legacy leader.
+Do not migrate refresh if it depends on extensions removed from the derived client.
+Use the owner-bound APIs above rather than direct preference writes.
+The older generation-bound sign-out overload described by historical drafts is not
+a supported API of this candidate; do not migrate callers to that draft signature.
 `CustomHeaderProvider` cannot replace arbitrary signing, body transformations or proxy
 authentication. Invalid base clients fail at construction; configuration failures are
 not retained as session cooldowns, allowing a follower to retry with its own transport.
@@ -194,8 +201,8 @@ intentional improvement, not universal control over host extensions/follow-ups.
 No migration or historical strict transport is required. Owned refresh's bound
 is per execution, not exactly-once server processing or one exchange per owner
 forever. An owned waiter cannot strengthen a flight led by a legacy caller.
-The [decision and test evidence](docs/compatibility-wiki/recovery-2026-10-30.md#approved-transport-contract-correction)
-explicitly reconcile the original absolute D5 parity wording with this improvement.
+The [qualification summary](docs/COMPATIBILITY_STATUS.md) records the remaining gates;
+this approved contract qualifies the original absolute D5 parity wording.
 
 **Approved F2 exception, 2026-11-02.** A legacy-led refresh flight may make at
 most one additional SDK dispatch after a connection closes without a response.

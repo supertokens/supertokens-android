@@ -206,7 +206,7 @@ superseded for local Node16.7.0/Core8.0.0 with its installed optional EE module
 preserved. Dedicated mutation **6/6 passed**, including tenant login/refresh and
 scoped cleanup. Ordinary and optional Retrofit each separately recorded **121
 passed / 6 skipped / 0 failed**; those skips are not mutation passes.
-See [portable execution evidence](../../docs/compatibility-wiki/status-2026-10-30.md#portable-owned-entrypoints--reviewed-local-execution).
+Historical execution evidence is archived privately.
 This qualifies neither non-EE behavior nor historical pairs/Linux. Each runtime
 must qualify its capabilities; no license or feature-check bypass was used.
 

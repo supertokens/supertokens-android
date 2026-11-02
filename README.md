@@ -21,7 +21,7 @@ The additive [session ownership APIs](SESSION_OWNERSHIP.md) support conditional
 session updates, request fencing and observation; adopting them is optional.
 The guide describes the behavior contract, not release certification. Current
 qualification and remaining release gates are tracked in the
-[compatibility wiki](docs/compatibility-wiki/index.md).
+[qualification summary](docs/COMPATIBILITY_STATUS.md).
 
 The library preserves Java 7 production bytecode and `minSdkVersion 17`.
 Choose an OkHttp runtime compatible with your Android targets; the AAR does not

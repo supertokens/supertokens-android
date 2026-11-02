@@ -20,6 +20,7 @@ the regression fixes and final-artifact qualification are still in progress.
 
 - Fence delayed responses, refresh and sign-out against replacement sessions; share refresh across callers without serializing ordinary requests.
 - Preserve legacy session import, repeated initialization, startup configuration changes, response expiry acceptance, custom authorization and synchronous event behavior. Commit session state atomically before callbacks.
+- For untagged responses, derive session kind from response shape. A refresh 401 without removal retains the session and emits `UNAUTHORISED`; strict-only flights retain it without that event.
 - Keep snapshot reads available during serialized persistence without exposing uncommitted credentials; distinguish healthy pending replacement from storage failure.
 - Preserve cookie serialization across minified consumer builds with packaged consumer rules.
 

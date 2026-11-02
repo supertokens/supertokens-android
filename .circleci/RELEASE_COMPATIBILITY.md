@@ -4,7 +4,7 @@
 but historical live qualification and reviewed per-flow version plans are unresolved.
 Android acceptance for four known Java11 published-cookie failures is approved but
 not integrated; current gates still reject them. See
-[owned upgrade handoff](OWNED_UPGRADE_HANDOFF.md).
+[qualification status](../docs/COMPATIBILITY_STATUS.md).
 
 `markAsSuccess.sh` now fails before `testPassed: true` unless:
 
@@ -59,12 +59,46 @@ FDIs requires a matching policy update; an empty matrix cannot pass vacuously.
 Upgrade requires 16 exact published-first rows per FDI: four flows for three
 primary `/login` modes plus HEADER `/login-2.18`. Node/Core/FDI, observed phase
 versions, exposure flags, source/attempt, fresh SDK/preparation hashes and actual
-scoped/owned cleanup must match. The API34 pinned upgrade/R8 job is additional
+scoped/owned cleanup must match. The pinned API21 and API34 upgrade/R8 jobs add
 coverage, never a substitute for this matrix. No default version expectations are
 invented: all per-FDI plans remain null pending review, so the adapter fails closed.
-The integrated owned selector supports primary `/login` only. Its new structured
-phase/cleanup export consumes actual observations; legacy-route selection and its
-qualification remain pending. Primary-only or API34-only results cannot pass.
+The integrated owned selector also supports HEADER `/login-2.18`; structured
+phase/cleanup export consumes actual observations. Historical live qualification
+remains pending. Primary-only or API34-only results cannot pass.
+
+### Owned published-upgrade selector and export
+
+Use fresh owned instances and unused ports through `runOrdinary.js`; the inner
+`runOwnedTests.js` command alone is not ownership-safe. The inner signature is
+`upgrade ROOT MODE FDI LOGIN_VERSION HANDOFF_VERSION REFRESH_VERSION`, with
+MODE `HEADER`, `COOKIE`, or `EXPOSED_COOKIE`. Primary `/login` accepts a scalar
+handoff or a quoted JSON object with exactly `LOGIN`, `REFRESH`, `SIGN_OUT`, and
+`PAYLOAD_UPDATE`: present versions are strings 2–5 and `SIGN_OUT` is `ABSENT`.
+The scalar normalizes to that version for present flows and `ABSENT` for sign-out.
+Historical `/login-2.18` is a sixth option, requires HEADER and the JSON object;
+it has no inferred defaults. Policy's `phaseVersions["MODE:/route"].publishedHandoff`
+requires the object for every selector. The adapter passes it as one JSON argument;
+Gradle forwards `upgrade.expectedPublishedHandoffVersions` and `upgrade.loginRoute`.
+Do not pass a matrix release-context path to the upgrade selector.
+
+Each FDI requires four flows for HEADER, COOKIE and EXPOSED_COOKIE `/login`, and
+HEADER `/login-2.18`: 16 published-first rows. EXPOSED_COOKIE alone enables JWT.
+Use a separate owned lifetime per selector. `CoreSdkCompatibilityTest` runs with
+`-PcoreProtocolUrl` on every FDI and its four exact methods are mandatory. The
+separate R7 tests cannot substitute; missing mapped-owner capability blocks the
+baseline. Capability advertisement is not a passing historical execution.
+
+Plans remain null until reviewed against the resolved Node/Core pair and per-flow
+observations; do not infer historical token versions. Export requires observed
+phase rows after scoped fixture cleanup, exact-four acceptance and fresh artifacts.
+It binds each selection to source SHA/digest, attempt/nonce/FDI/policy, both AAR
+hashes, Node/Core versions and implementation hashes, runtime identity and exposure
+configuration. Require `runOrdinary` success after command drain, acknowledged Core
+cleanup, backend stop and unchanged dependencies, plus matching lifecycle completion
+and no RETAINED record. Only all successful selectors permit completed upgrade
+evidence; final receipt and publisher independently validate it. Failed JVM cookie
+observations remain failures unless correctly bound approved native acceptance is
+integrated and passes; a host mock or API34-only run is not historical qualification.
 
 - CircleCI publishing context: `GITHUB_ACTIONS_READ_TOKEN`, a fine-grained GitHub
   token restricted to `supertokens/supertokens-android`, **Actions: read** and its
@@ -85,7 +119,7 @@ qualification remain pending. Primary-only or API34-only results cannot pass.
 - Selected Core/Node revisions and test setup must support real account-linking
   fixture capability. `runOwnedTests.js qualify` checks the actual running
   instance; unavailable/proxy capability is a failure, never a substitute pass.
-- Hosted Linux KVM, Android default API34 x86_64 root-capable image, obsolete
+- Hosted Linux KVM, Android default API21 and API34 x86_64 root-capable images, obsolete
   API17/API19 x86 images, JDK11/17/21 and legacy Maven dependencies must be available.
   GitHub workflows use only `contents: read`; checkout credentials are not persisted.
 - Circle executor must provide Node16+, GNU `timeout` and enough permitted job
@@ -109,7 +143,8 @@ Published 0.5.4 upgrade/rollback uses the existing checksum-enforcing runner, al
 four scenarios and cleanup. R8 uses the same candidate receipt, an unmapped seed,
 mapping A, mapping B linked to A's evidence, and cleanup; distinct actual mapped
 cookie-store names and SDK application DEX ownership are enforced by the existing
-runner. This is the documented API34 R8 scope, not historical obfuscation recovery.
+runner. The API21 and API34 jobs are configured for this scope; they do not prove
+historical obfuscation recovery or qualification without successful bound runs.
 
 All backend execution goes through `runOrdinary.js`, with exclusive temporary
 source/dependency copies, ownership IDs, listener checks and command draining.

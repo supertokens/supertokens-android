@@ -44,7 +44,7 @@ forever; an owned waiter does not override a legacy leader's policy.
 
 `SessionRefreshFailureModeTest` must separately assert SDK preparations/dispatches,
 actual RESET wire observations, unchanged session state, and strict owned
-reset/consumed-lost-response bounds. See [dated evidence and source pointers](docs/compatibility-wiki/recovery-2026-10-30.md#approved-transport-contract-correction).
+reset/consumed-lost-response bounds. See the [qualification summary](docs/COMPATIBILITY_STATUS.md).
 
 ### Approved F2 exception — 2026-11-02
 
