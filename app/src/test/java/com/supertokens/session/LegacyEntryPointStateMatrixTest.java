@@ -70,6 +70,43 @@ public class LegacyEntryPointStateMatrixTest extends SessionTestFixture {
         assertTrue(SuperTokens.attemptRefreshingSession(context));
     }
 
+    @Test public void availableSignOutSendsCurrentCredentialsAndClearsSession() throws Exception {
+        SessionTokens initial = tokens("signout", "before");
+        install("signout", "before");
+        server.enqueue(new MockResponse().addHeader("front-token", "remove").setBody("{\"status\":\"OK\"}"));
+
+        SuperTokens.signOut(context);
+
+        RecordedRequest sent = server.takeRequest(1, TimeUnit.SECONDS);
+        assertNotNull(sent);
+        assertEquals("POST", sent.getMethod());
+        assertTrue(sent.getPath().contains("/signout"));
+        assertEquals("Bearer " + initial.getAccessToken(), sent.getHeader("Authorization"));
+        assertEquals(initial.getAntiCSRF(), sent.getHeader("anti-csrf"));
+        assertFalse(SuperTokens.doesSessionExist(context));
+        assertEquals(1, server.getRequestCount());
+    }
+
+    @Test public void expiredSignOutRefreshesBeforeSendingSignOut() throws Exception {
+        seedLegacy(tokens("expired-signout", "primary-user", 4102444800000L, 1, 5));
+        restart(false);
+        SessionTokens fresh = tokens("expired-signout", "after");
+        server.enqueue(rotation(fresh));
+        server.enqueue(new MockResponse().addHeader("front-token", "remove").setBody("{\"status\":\"OK\"}"));
+
+        SuperTokens.signOut(context);
+
+        RecordedRequest refresh = server.takeRequest(1, TimeUnit.SECONDS);
+        RecordedRequest signOut = server.takeRequest(1, TimeUnit.SECONDS);
+        assertNotNull(refresh);
+        assertNotNull(signOut);
+        assertTrue(refresh.getPath().contains("/session/refresh"));
+        assertTrue(signOut.getPath().contains("/signout"));
+        assertEquals("Bearer " + fresh.getAccessToken(), signOut.getHeader("Authorization"));
+        assertFalse(SuperTokens.doesSessionExist(context));
+        assertEquals(2, server.getRequestCount());
+    }
+
     @Test public void terminalUnavailableGettersRefreshAndSignOut() throws Exception {
         install("terminal", "before");
         FrontToken.setToken(context, null);
@@ -155,6 +192,14 @@ public class LegacyEntryPointStateMatrixTest extends SessionTestFixture {
                 default: throw new AssertionError(caller);
             }
             assertEquals("caller=" + caller, caller == 3 ? 0 : 1, server.getRequestCount() - before);
+            if (caller != 3) {
+                RecordedRequest refresh = server.takeRequest(1, TimeUnit.SECONDS);
+                assertNotNull(refresh);
+                assertTrue(refresh.getPath().contains("/session/refresh"));
+                assertEquals(fresh.getAccessToken(), SessionState.snapshot().getTokens().getAccessToken());
+            } else {
+                assertEquals(expired.getAccessToken(), SessionState.snapshot().getTokens().getAccessToken());
+            }
         }
     }
 }
