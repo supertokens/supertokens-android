@@ -4,7 +4,7 @@ const crypto = require('crypto');
 const { spawnSync } = require('child_process');
 const { sourceDigest, artifactDigest, artifactHashes, validate } = require('./artifactReceipt');
 
-function commands(mode, extra, backend) {
+function commands(mode, extra, backend, root = fs.realpathSync(path.resolve(__dirname, '../..'))) {
     if (!['ordinary', 'retrofit', 'mutation', 'upgrade', 'exposed'].includes(mode)) throw new Error('Choose ordinary, retrofit, mutation, upgrade or exposed');
     if (extra.some(arg => mode !== 'upgrade' || !/^-Pupgrade\.[A-Za-z][A-Za-z0-9]*=.+$/.test(arg))) {
         throw new Error('Only upgrade accepts additional -Pupgrade.* properties; task overrides and exclusions are forbidden');
@@ -13,7 +13,8 @@ function commands(mode, extra, backend) {
         throw new Error('Mutation requires runOwnedTests.js mutation with explicit CORE_PROTOCOL_TESTS=1');
     }
     const common = ['--no-daemon', '--no-build-cache', '--rerun-tasks', '--console=plain'];
-    return [common.concat(':app:preparePublishedUpgradeArtifacts'), common.concat(
+    const reportScript = fs.realpathSync(path.join(root, 'testHelpers/server/matrixReports.gradle'));
+    return [common.concat(':app:preparePublishedUpgradeArtifacts'), common.concat('-I', reportScript,
         mode === 'upgrade' ? ':app:upgradeLiveTest' : ':app:testDebugUnitTest',
         ['retrofit', 'mutation', 'exposed'].includes(mode) ? ['-PretrofitCompatibility=true'] : [],
         ['ordinary', 'retrofit'].includes(mode) ? ['-PstandardIntegrationProfile=true'] : [],
@@ -38,8 +39,10 @@ function main() {
     if (mode === 'upgrade' && extra.some(arg => arg.startsWith('-Pupgrade.baseUrl=') && arg !== '-Pupgrade.baseUrl=' + envSource.ST_TEST_BACKEND_URL)) {
         throw new Error('upgrade.baseUrl must match the owned backend URL');
     }
-    const plan = commands(mode, extra, process.env.ST_TEST_BACKEND_URL);
     const root = fs.realpathSync(path.resolve(__dirname, '../..'));
+    const plan = commands(mode, extra, process.env.ST_TEST_BACKEND_URL, root);
+    const reportScript = plan[1][plan[1].indexOf('-I') + 1];
+    const reportScriptDigest = () => crypto.createHash('sha256').update(fs.readFileSync(reportScript)).digest('hex');
     const lock = path.join(root, '.integration-lock');
     const composite = envSource.ST_UPGRADE_COMPOSITE_BINDING && JSON.parse(fs.readFileSync(envSource.ST_UPGRADE_COMPOSITE_BINDING));
     if (composite && mode !== 'upgrade') throw new Error('Composite terminal is upgrade-only');
@@ -83,8 +86,9 @@ function main() {
     }
     try {
         const sources = sourceDigest(root);
+        const progressScriptSha256 = reportScriptDigest();
         const started = new Date().toISOString();
-        fs.writeFileSync(path.join(evidence, 'invocation.json'), JSON.stringify({ root, nonce, mode, started, sources, commands: plan }, null, 2));
+        fs.writeFileSync(path.join(evidence, 'invocation.json'), JSON.stringify({ root, nonce, mode, started, sources, progressScriptSha256, commands: plan }, null, 2));
         run(root, plan[0], 'prepare');
         if (sourceDigest(root) !== sources) throw new Error('Sources changed during artifact preparation');
         const java = spawnSync(process.env.JAVA_HOME ? path.join(process.env.JAVA_HOME, 'bin/java') : 'java', ['-version'], { encoding: 'utf8' });
@@ -106,7 +110,9 @@ function main() {
             composite.publishedAarSha256 !== fs.readFileSync(path.join(root, 'app/src/test/compatibility/legacy054.sha256'), 'utf8').trim())) {
             throw new Error('Composite preparation source/artifact binding changed');
         }
+        if (reportScriptDigest() !== progressScriptSha256) throw new Error('Progress report script changed during preparation');
         run(__dirname, plan[1], 'test');
+        if (reportScriptDigest() !== progressScriptSha256) throw new Error('Progress report script changed during execution');
         if (['upgrade', 'exposed'].includes(mode)) {
             require('./exposureAcceptance').accept(mode, process.env.ST_UPGRADE_MODE,
                 JSON.parse(fs.readFileSync(path.join(env.ST_TEST_REPORT_DIR,

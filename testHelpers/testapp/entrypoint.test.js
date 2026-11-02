@@ -20,6 +20,7 @@ try {
     for (const file of ['runTests.js', 'artifactReceipt.js', 'mutationAcceptance.js', 'exposureAcceptance.js']) {
         write(root, 'testHelpers/testapp/' + file, fs.readFileSync(path.join(__dirname, file)));
     }
+    write(root, 'testHelpers/server/matrixReports.gradle', fs.readFileSync(path.join(__dirname, '../server/matrixReports.gradle')));
     for (const file of ['app/build.gradle', 'build.gradle', 'gradle/wrapper/gradle-wrapper.properties',
         'testHelpers/testapp/build.gradle', 'testHelpers/testapp/gradle/wrapper/gradle-wrapper.properties']) write(root, file, 'version=control');
     write(root, 'app/src/source.java', 'source');
@@ -31,10 +32,16 @@ for (const file of ['app/build/outputs/aar/app-debug.aar','app/build/upgradeHarn
 }
 if (process.env.FAIL_PREP) process.exit(7);
 if (process.env.CHANGE_SOURCE) fs.appendFileSync('app/src/source.java', 'changed');
+if (process.env.CHANGE_REPORT_SCRIPT) fs.appendFileSync('testHelpers/server/matrixReports.gradle', 'changed');
 `);
     write(root, 'testHelpers/testapp/gradlew', `#!${process.execPath}
 const fs = require('fs'), path = require('path');
 require('./artifactReceipt').validate(path.resolve('../..'));
+const invocation = JSON.parse(fs.readFileSync(path.join(process.env.ST_TEST_REPORT_DIR, '..', 'invocation.json')));
+const script = process.argv[process.argv.indexOf('-I') + 1];
+const scriptHash = require('crypto').createHash('sha256').update(fs.readFileSync(script)).digest('hex');
+if (invocation.nonce !== process.env.ST_ARTIFACT_NONCE || (process.env.HOST_PROFILE && invocation.mode !== process.env.HOST_PROFILE) ||
+    invocation.sources !== require('./artifactReceipt').sourceDigest(path.resolve('../..')) || invocation.progressScriptSha256 !== scriptHash) process.exit(11);
 fs.appendFileSync(${JSON.stringify(path.join(temporary, 'commands.jsonl'))}, JSON.stringify({ cwd: process.cwd(), args: process.argv.slice(2) }) + '\\n');
 if (process.env.CHANGE_ARTIFACT) fs.appendFileSync('../../app/build/outputs/aar/app-debug.aar', 'changed');
 if (process.env.FAIL_TEST) process.exit(9);
@@ -68,6 +75,9 @@ if (['mutation', 'exposed', 'upgrade'].includes(mode)) {
     assert.strictEqual(calls[1].cwd, path.join(root, 'testHelpers/testapp'));
     assert(calls[0].args.includes(':app:preparePublishedUpgradeArtifacts'));
     assert(calls[1].args.includes('-PretrofitCompatibility=true'));
+    assert(!calls[0].args.includes('-I'));
+    assert.strictEqual(calls[1].args[calls[1].args.indexOf('-I') + 1],
+        fs.realpathSync(path.join(root, 'testHelpers/server/matrixReports.gradle')));
     assert(calls.every(call => call.args.includes('--rerun-tasks') && !call.args.includes('-x') && !call.args.includes('--offline')));
     write(owned, 'exposure-config.json', '{}');
     for (const mode of ['ordinary', 'mutation', 'exposed', 'upgrade']) {
@@ -83,6 +93,8 @@ if (['mutation', 'exposed', 'upgrade'].includes(mode)) {
         const dispatched = fs.readFileSync(path.join(temporary, 'commands.jsonl'), 'utf8').trim().split('\n').map(JSON.parse);
         assert.strictEqual(dispatched.length, 2);
         const args = dispatched[1].args;
+        assert.strictEqual(args.filter(arg => arg === '-I').length, 1);
+        assert.strictEqual(args[args.indexOf('-I') + 1], fs.realpathSync(path.join(root, 'testHelpers/server/matrixReports.gradle')));
         assert(args.includes(mode === 'upgrade' ? ':app:upgradeLiveTest' : ':app:testDebugUnitTest'));
         assert.strictEqual(args.includes('-PstandardIntegrationProfile=true'), mode === 'ordinary');
         if (mode === 'mutation' || mode === 'exposed') assert(args.includes('--tests'));
@@ -105,6 +117,10 @@ if (['mutation', 'exposed', 'upgrade'].includes(mode)) {
         assert.notStrictEqual(result.status, 0, fault);
         assert(!fs.existsSync(path.join(root, '.integration-lock')));
     }
+    result = execute({ CHANGE_REPORT_SCRIPT: '1' });
+    assert.notStrictEqual(result.status, 0);
+    assert.match(result.stderr, /Progress report script changed during preparation/);
+    write(root, 'testHelpers/server/matrixReports.gradle', fs.readFileSync(path.join(__dirname, '../server/matrixReports.gradle')));
     fs.mkdirSync(path.join(root, '.integration-lock'));
     assert.match(execute({}).stderr, /lane busy/);
     fs.rmSync(path.join(root, '.integration-lock'), { recursive: true });

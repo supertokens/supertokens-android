@@ -23,14 +23,16 @@ gradle.projectsEvaluated {
             if (testRoot && !matrixRoot) {
                 def invocation = new JsonSlurper().parse(new File(new File(testRoot).parentFile, 'invocation.json'))
                 if (!(invocation.nonce ==~ /[a-f0-9]{48}/) || !(invocation.mode in ['ordinary', 'retrofit', 'mutation', 'upgrade', 'exposed']) ||
-                    !(invocation.sources instanceof String) || !(invocation.sources ==~ /[a-f0-9]{64}/)) {
+                    !(invocation.sources instanceof String) || !(invocation.sources ==~ /[a-f0-9]{64}/) ||
+                    !(invocation.progressScriptSha256 instanceof String) || !(invocation.progressScriptSha256 ==~ /[a-f0-9]{64}/)) {
                     throw new IllegalStateException('Invalid test progress invocation binding')
                 }
-                binding = [kind: 'testapp', invocation: invocation.nonce, profile: invocation.mode, sources: invocation.sources]
+                binding = [kind: 'testapp', invocation: invocation.nonce, profile: invocation.mode, sources: invocation.sources,
+                           progressScriptSha256: invocation.progressScriptSha256]
             }
             def progressDir = new File(matrixRoot ?: testRoot, 'progress')
             progressDir.mkdirs()
-            def progress = new File(progressDir, cleanIdentifier(task.path.replace(':', '.')) + '-' + UUID.randomUUID() + '.jsonl')
+            def progress = new File(progressDir, cleanIdentifier(task.path.replace(':', '_')) + '-' + UUID.randomUUID() + '.jsonl')
             def lock = new Object()
             def active = new IdentityHashMap()
             long sequence = 0
@@ -45,7 +47,7 @@ gradle.projectsEvaluated {
                     if (sequence >= 10000) return
                     sequence++
                     if (sequence == 10000) event = [event: 'truncated']
-                    def record = [schema: 1, binding: binding, task: cleanIdentifier(task.path.replace(':', '.')), sequence: sequence,
+                    def record = [schema: 1, binding: binding, task: cleanIdentifier(task.path.replace(':', '_')), sequence: sequence,
                                   timestamp: Instant.now().toString(), monotonicNanos: System.nanoTime()] + event
                     def stream = new FileOutputStream(progress, true)
                     try {
