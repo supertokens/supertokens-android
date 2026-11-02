@@ -395,6 +395,7 @@ public class R15MutationProtocolTest extends SessionTestFixture {
         assertFalse(old.isCurrent());
         assertEquals(SessionSnapshot.Status.RECOVERY_REQUIRED, SuperTokens.getSessionSnapshot(context).getStatus());
         assertNull(Utils.getFromStorage(Constants.ACCESS_TOKEN_PREFS_KEY, context));
+        assertNull(Utils.getTokenForHeaderAuth(Utils.TokenType.ACCESS, context));
         assertNull(SuperTokens.getSessionSnapshot(context).getTokens());
         assertEquals("Both writes failed: durable prior tuple remains uncertain", old.getTokens().getAccessToken(),
                 preferenceStore.durableValues().get("st-storage-item-" + Constants.ACCESS_TOKEN_PREFS_KEY));
