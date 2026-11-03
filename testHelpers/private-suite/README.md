@@ -16,7 +16,17 @@ docker cp testHelpers/server/. base-android-regression-suite:/workspace/testHelp
 docker cp app/build/outputs/aar/app-debug.aar base-android-regression-suite:/workspace/app/build/outputs/aar/app-debug.aar
 ```
 
-Copy only `core`, `plugin-interface`, `plugin`, `temp`, and `version.yaml` from a built, compatible Core distribution into `/core-install`; do not copy `.started`, `config.yaml`, or a host database. Copy a Linux amd64 Java 21 runtime into `/opt/jre21` in the container. For example, use a temporary container made from `eclipse-temurin:21-jre-jammy` and `docker cp` its `/opt/java/openjdk` through an owned temporary directory. Then:
+Copy only `core`, `plugin-interface`, `plugin`, `temp`, and `version.yaml` from a built, compatible Core distribution into `/core-install`; do not copy `.started`, `config.yaml`, or a host database. Copy a Linux amd64 Java 21 runtime into `/opt/jre21` in the container. Set `CORE_DIST` to the built distribution and `OWNED_TEMP` to a new empty directory owned by this run:
+
+```sh
+tar -C "$CORE_DIST" -cf - core plugin-interface plugin temp version.yaml | docker exec -i base-android-regression-suite tar -xf - -C /core-install
+docker create --platform linux/amd64 --name base-android-regression-jre21 eclipse-temurin:21-jre-jammy
+docker cp base-android-regression-jre21:/opt/java/openjdk "$OWNED_TEMP/jre21"
+docker cp "$OWNED_TEMP/jre21" base-android-regression-suite:/opt/jre21
+docker rm base-android-regression-jre21
+```
+
+Then:
 
 ```sh
 docker exec -d -w /workspace/testHelpers/server -e INSTALL_PATH=/core-install -e NODE_PORT=8080 -e TEST_MODE=testing -e PATH=/opt/jre21/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin base-android-regression-suite node index.js
@@ -24,4 +34,12 @@ docker exec base-android-regression-suite curl -fsS http://127.0.0.1:8080/featur
 docker exec -w /workspace/testHelpers/testapp base-android-regression-suite timeout 20m ./gradlew testDebugUnitTest --no-daemon --rerun-tasks
 ```
 
-Run under an external time limit, save only redacted results, and inspect the test XML for counts and skips. On completion stop and remove only `base-android-regression-suite` and remove its dedicated network. The suite container can reach dependency repositories, but does not share host or other test processes. Its lifecycle is independent of the emulator.
+Save only redacted results and inspect the test XML for counts and skips. On completion stop and remove only `base-android-regression-suite` and remove its dedicated network:
+
+```sh
+docker stop base-android-regression-suite
+docker rm base-android-regression-suite
+docker network rm base-android-regression-suite-net
+```
+
+The suite container can reach dependency repositories, but does not share host or other test processes. Its lifecycle is independent of the emulator.
