@@ -231,6 +231,9 @@ public class SuperTokens {
 
         if (connection == null) return;
 
+        SuperTokensCustomHttpURLConnection responseConnection = (SuperTokensCustomHttpURLConnection) connection;
+        if (!responseConnection.isResponseCurrent()) return;
+
         int responseCode = connection.getResponseCode();
 
         if (responseCode == SuperTokens.config.sessionExpiredStatusCode) {
@@ -239,6 +242,7 @@ public class SuperTokens {
         }
 
         if (responseCode >= 300) {
+            if (!responseConnection.isResponseCurrent()) return;
             throw new IOException("Sign out failed with response code " + responseCode);
         }
 
@@ -260,13 +264,18 @@ public class SuperTokens {
             if (statusFromResponse.equals("GENERAL_ERROR")) {
                 String messageFromResponse = jsonBody.getString("message");
 
+                if (!responseConnection.isResponseCurrent()) return;
                 throw new SuperTokensGeneralError(messageFromResponse);
             }
         } catch (JSONException e) {
             /*
              * Error when converting the body to json or reading from it
              */
+            if (!responseConnection.isResponseCurrent()) return;
             throw new IllegalStateException(e);
+        } catch (IOException e) {
+            if (!responseConnection.isResponseCurrent()) return;
+            throw e;
         }
 
         return;

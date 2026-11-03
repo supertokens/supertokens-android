@@ -184,6 +184,7 @@ public class SuperTokensHttpURLConnection {
 
                 responseCode = customConnection.getResponseCode();
                 change = SessionStore.response(applicationContext, preRequestLocalSessionState.snapshot.generation, customConnection, false);
+                customConnection.setResponseChange(change);
                 final URL responseUrl = url;
                 final HttpURLConnection responseConnection = customConnection;
                 SessionStore.saveCookies(change, new SessionStore.CookieWrite() {
@@ -196,7 +197,7 @@ public class SuperTokensHttpURLConnection {
                 SessionStore.leaveRefreshLock();
             }
             if (change != null) change.dispatch();
-            if (expectedGeneration != null && (change == null || !change.current())) {
+            if (expectedGeneration != null && (change == null || !change.sameGeneration())) {
                 customConnection.disconnect();
                 return null;
             }

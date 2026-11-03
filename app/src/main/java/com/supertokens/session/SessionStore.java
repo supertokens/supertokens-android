@@ -210,6 +210,10 @@ final class SessionStore {
 
         boolean current() { synchronized (lock) { return snapshot == next; } }
 
+        boolean sameGeneration() {
+            synchronized (lock) { return snapshot != null && snapshot.generation == next.generation; }
+        }
+
         void dispatch() {
             if (callbackLocked()) {
                 ArrayList<Change> pending = deferred.get();

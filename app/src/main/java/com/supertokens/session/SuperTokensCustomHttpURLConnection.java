@@ -36,6 +36,15 @@ public class SuperTokensCustomHttpURLConnection extends HttpURLConnection {
     Context applicationContext;
     private boolean wasAuthHeaderRemovedInitially = false;
     private final SuperTokens.SessionSnapshot requestSnapshot;
+    private SessionStore.Change responseChange;
+
+    void setResponseChange(SessionStore.Change change) {
+        responseChange = change;
+    }
+
+    boolean isResponseCurrent() {
+        return responseChange != null && responseChange.sameGeneration();
+    }
 
     public SuperTokensCustomHttpURLConnection(HttpURLConnection original, Context applicationContext) {
         super(original.getURL());

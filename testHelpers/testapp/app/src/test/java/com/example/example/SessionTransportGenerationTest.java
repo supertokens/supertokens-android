@@ -240,6 +240,30 @@ public class SessionTransportGenerationTest {
         assertNewSession();
     }
 
+    @Test public void oldPublicSignoutErrorIsIgnoredAfterReplacementAndClear() throws Exception {
+        server.setDispatcher(new Dispatcher() {
+            @Override public MockResponse dispatch(RecordedRequest request) throws InterruptedException {
+                return gated(new MockResponse().setHeader("front-token", "remove")
+                        .setBody("{\"status\":\"GENERAL_ERROR\",\"message\":\"old error\"}"));
+            }
+        });
+        Future<?> response = worker.submit(() -> { SuperTokens.signOut(context); return null; });
+        assertTrue(entered.await(5, TimeUnit.SECONDS));
+        install("new");
+        assertTrue(SuperTokens.clearSession(context, SuperTokens.getSessionSnapshot(context).generation));
+        release.countDown();
+        response.get(5, TimeUnit.SECONDS);
+        assertNull(SuperTokens.getSessionSnapshot(context).frontToken);
+        assertTrue("stale events: " + events, events.isEmpty());
+    }
+
+    @Test public void successfulPublicSignoutFiresExactlyOneEvent() throws Exception {
+        server.enqueue(new MockResponse().setHeader("front-token", "remove").setBody("{\"status\":\"OK\"}"));
+        SuperTokens.signOut(context);
+        assertNull(SuperTokens.getSessionSnapshot(context).frontToken);
+        assertEquals(Arrays.asList(EventHandler.EventType.SIGN_OUT), events);
+    }
+
     @Test public void refreshListenersRunWithoutRefreshLockHeld() throws Exception {
         server.enqueue(new MockResponse().setResponseCode(401));
         server.enqueue(tokens("old"));
