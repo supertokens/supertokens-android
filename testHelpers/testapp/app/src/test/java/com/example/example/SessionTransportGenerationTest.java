@@ -378,6 +378,8 @@ public class SessionTransportGenerationTest {
             @Override public MockResponse dispatch(RecordedRequest request) throws InterruptedException {
                 if (request.getPath().equals("/auth/session/refresh")) {
                     refreshes.incrementAndGet();
+                    assertEquals("Bearer old-refresh", request.getHeader("Authorization"));
+                    assertEquals("old-csrf", request.getHeader("anti-csrf"));
                     return gated(tokens("rotated").setHeader("front-token", front("old")));
                 }
                 if ("Bearer old-access".equals(request.getHeader("Authorization"))) {
@@ -386,6 +388,7 @@ public class SessionTransportGenerationTest {
                     return new MockResponse().setResponseCode(401);
                 }
                 assertEquals("Bearer rotated-access", request.getHeader("Authorization"));
+                assertEquals("rotated-csrf", request.getHeader("anti-csrf"));
                 return new MockResponse().setBody("ok");
             }
         });
@@ -400,6 +403,90 @@ public class SessionTransportGenerationTest {
             assertEquals(1, refreshes.get());
             assertEquals(generation, SuperTokens.getSessionSnapshot(context).generation);
         } finally { concurrent.shutdownNow(); }
+    }
+
+    @Test public void currentRefreshDisconnectPropagatesAndLaterRequestRecovers() throws Exception {
+        AtomicInteger refreshes = new AtomicInteger();
+        java.util.concurrent.atomic.AtomicBoolean healthy = new java.util.concurrent.atomic.AtomicBoolean();
+        CountDownLatch bothOrdinary = new CountDownLatch(2);
+        server.setDispatcher(new Dispatcher() {
+            @Override public MockResponse dispatch(RecordedRequest request) throws InterruptedException {
+                if (request.getPath().equals("/auth/session/refresh")) {
+                    assertEquals("Bearer old-refresh", request.getHeader("Authorization"));
+                    assertEquals("old-csrf", request.getHeader("anti-csrf"));
+                    refreshes.incrementAndGet();
+                    if (!healthy.get()) {
+                        return gated(new MockResponse().setSocketPolicy(okhttp3.mockwebserver.SocketPolicy.DISCONNECT_AFTER_REQUEST));
+                    }
+                    return tokens("rotated").setHeader("front-token", front("old"));
+                }
+                if ("Bearer old-access".equals(request.getHeader("Authorization"))) {
+                    if (!healthy.get()) {
+                        bothOrdinary.countDown();
+                        assertTrue(bothOrdinary.await(5, TimeUnit.SECONDS));
+                    }
+                    return new MockResponse().setResponseCode(401);
+                }
+                assertEquals("Bearer rotated-access", request.getHeader("Authorization"));
+                assertEquals("rotated-csrf", request.getHeader("anti-csrf"));
+                return new MockResponse().setBody("ok");
+            }
+        });
+        ExecutorService concurrent = Executors.newFixedThreadPool(2);
+        try {
+            Future<Integer> first = concurrent.submit(() -> request("/ordinary"));
+            Future<Integer> second = concurrent.submit(() -> request("/ordinary"));
+            assertTrue(entered.await(5, TimeUnit.SECONDS));
+            release.countDown();
+            for (Future<Integer> failed : Arrays.asList(first, second)) {
+                try {
+                    failed.get(5, TimeUnit.SECONDS);
+                    fail("Expected a transport failure");
+                } catch (ExecutionException expected) {
+                    assertTrue(expected.getCause() instanceof java.io.IOException);
+                }
+            }
+        } finally {
+            concurrent.shutdownNow();
+            assertTrue(concurrent.awaitTermination(5, TimeUnit.SECONDS));
+        }
+        assertEquals("old-access", SuperTokens.getSessionSnapshot(context).accessToken);
+        assertFalse(events.contains(EventHandler.EventType.UNAUTHORISED));
+        healthy.set(true);
+        assertEquals(200, (int) worker.submit(() -> request("/ordinary")).get(5, TimeUnit.SECONDS));
+        assertTrue(refreshes.get() >= 2);
+        assertEquals(1, java.util.Collections.frequency(events, EventHandler.EventType.REFRESH_SESSION));
+    }
+
+    @Test public void currentRefresh401ClearsSessionAndCompletesWaitingRequests() throws Exception {
+        CountDownLatch bothOrdinary = new CountDownLatch(2);
+        server.setDispatcher(new Dispatcher() {
+            @Override public MockResponse dispatch(RecordedRequest request) throws InterruptedException {
+                if (request.getPath().equals("/auth/session/refresh")) {
+                    return gated(new MockResponse().setResponseCode(401).setHeader("front-token", "remove"));
+                }
+                if ("Bearer old-access".equals(request.getHeader("Authorization"))) {
+                    bothOrdinary.countDown();
+                    assertTrue(bothOrdinary.await(5, TimeUnit.SECONDS));
+                }
+                return new MockResponse().setResponseCode(401);
+            }
+        });
+        ExecutorService concurrent = Executors.newFixedThreadPool(2);
+        try {
+            Future<Integer> first = concurrent.submit(() -> request("/ordinary"));
+            Future<Integer> second = concurrent.submit(() -> request("/ordinary"));
+            assertTrue(entered.await(5, TimeUnit.SECONDS));
+            release.countDown();
+            assertEquals(401, (int) first.get(5, TimeUnit.SECONDS));
+            assertEquals(401, (int) second.get(5, TimeUnit.SECONDS));
+            assertNull(SuperTokens.getSessionSnapshot(context).frontToken);
+            assertNull(SuperTokens.getSessionSnapshot(context).accessToken);
+            assertFalse(events.contains(EventHandler.EventType.REFRESH_SESSION));
+        } finally {
+            concurrent.shutdownNow();
+            assertTrue(concurrent.awaitTermination(5, TimeUnit.SECONDS));
+        }
     }
 
     @Test public void signoutDoesNotAdoptReplacementInstalledDuringExistenceRefresh() throws Exception {
