@@ -82,6 +82,11 @@ public class SessionTransportGenerationTest {
         return java.util.Base64.getEncoder().encodeToString(json.getBytes(StandardCharsets.UTF_8));
     }
 
+    private static String changedFront() {
+        String json = "{\"uid\":\"old\",\"ate\":4102444800000,\"up\":{\"role\":\"updated\"}}";
+        return java.util.Base64.getEncoder().encodeToString(json.getBytes(StandardCharsets.UTF_8));
+    }
+
     private void install(String user) {
         assertTrue(SuperTokens.installSession(context, SuperTokens.getSessionSnapshot(context).generation,
                 new SuperTokens.SessionTokens(user + "-access", user + "-refresh", front(user), user + "-csrf")));
@@ -141,6 +146,43 @@ public class SessionTransportGenerationTest {
 
     @Test public void lateRefresh401WithRemoveCannotRestoreClearedSession() throws Exception {
         lateRefreshAfterClear(true);
+    }
+
+    @Test public void lateRefresh401ChangedPayloadCannotReplaceInstalledSession() throws Exception {
+        lateChangedPayloadAfterReplacement(false);
+    }
+
+    @Test public void lateRefresh401ChangedPayloadCannotRestoreClearedSession() throws Exception {
+        lateChangedPayloadAfterReplacement(true);
+    }
+
+    private void lateChangedPayloadAfterReplacement(boolean clear) throws Exception {
+        AtomicInteger ordinary = new AtomicInteger();
+        server.setDispatcher(new Dispatcher() {
+            @Override public MockResponse dispatch(RecordedRequest request) throws InterruptedException {
+                if (request.getPath().equals("/auth/session/refresh")) {
+                    return gated(new MockResponse().setResponseCode(401).setHeader("front-token", changedFront()));
+                }
+                return new MockResponse().setResponseCode(ordinary.incrementAndGet() == 1 ? 401 : 200);
+            }
+        });
+        Future<Integer> response = worker.submit(() -> request("/ordinary"));
+        assertTrue(entered.await(5, TimeUnit.SECONDS));
+        if (clear) {
+            assertTrue(SuperTokens.clearSession(context, SuperTokens.getSessionSnapshot(context).generation));
+        } else {
+            install("new");
+        }
+        SuperTokens.SessionSnapshot expected = SuperTokens.getSessionSnapshot(context);
+        release.countDown();
+        assertEquals(200, (int) response.get(5, TimeUnit.SECONDS));
+        SuperTokens.SessionSnapshot actual = SuperTokens.getSessionSnapshot(context);
+        assertEquals(expected.generation, actual.generation);
+        assertEquals(expected.accessToken, actual.accessToken);
+        assertEquals(expected.refreshToken, actual.refreshToken);
+        assertEquals(expected.frontToken, actual.frontToken);
+        assertEquals(expected.antiCsrfToken, actual.antiCsrfToken);
+        assertTrue(events.isEmpty());
     }
 
     private void lateRefreshAfterClear(boolean includeFrontToken) throws Exception {
@@ -663,6 +705,39 @@ public class SessionTransportGenerationTest {
         assertEquals(before.frontToken, notifications.get(0).snapshot.frontToken);
         assertEquals(before.antiCsrfToken, notifications.get(0).snapshot.antiCsrfToken);
         assertTrue("refresh 401 without front-token must propagate IOException", threwIOException);
+    }
+
+    @Test public void refresh401ChangedPayloadEventCarriesOnlyClearedSnapshot() throws Exception {
+        try (org.mockito.MockedStatic<android.util.Base64> base64 = Mockito.mockStatic(android.util.Base64.class)) {
+            base64.when(() -> android.util.Base64.decode(Mockito.anyString(), Mockito.anyInt()))
+                    .thenAnswer(invocation -> java.util.Base64.getDecoder().decode((String) invocation.getArgument(0)));
+            long generation = SuperTokens.getSessionSnapshot(context).generation;
+            List<SuperTokens.SessionSnapshot> changes = new CopyOnWriteArrayList<>();
+            List<SuperTokens.SessionEvent> notifications = new CopyOnWriteArrayList<>();
+            SuperTokens.addSessionListener(changes::add);
+            SuperTokens.addSessionEventListener(notifications::add);
+            server.enqueue(new MockResponse().setResponseCode(401));
+            server.enqueue(new MockResponse().setResponseCode(401).setHeader("front-token", changedFront()));
+
+            assertEquals(401, request("/ordinary"));
+            SuperTokens.SessionSnapshot snapshot = SuperTokens.getSessionSnapshot(context);
+            assertEquals(generation + 1, snapshot.generation);
+            assertNull(snapshot.accessToken);
+            assertNull(snapshot.refreshToken);
+            assertNull(snapshot.frontToken);
+            assertNull(snapshot.antiCsrfToken);
+            assertEquals(1, changes.size());
+            assertNull(changes.get(0).frontToken);
+            assertEquals(snapshot.generation, changes.get(0).generation);
+            assertEquals(java.util.Collections.singletonList(EventHandler.EventType.ACCESS_TOKEN_PAYLOAD_UPDATED), events);
+            assertEquals(1, notifications.size());
+            assertEquals(EventHandler.EventType.ACCESS_TOKEN_PAYLOAD_UPDATED, notifications.get(0).type);
+            assertEquals(snapshot.generation, notifications.get(0).generation);
+            assertNull(notifications.get(0).snapshot.accessToken);
+            assertNull(notifications.get(0).snapshot.refreshToken);
+            assertNull(notifications.get(0).snapshot.frontToken);
+            assertNull(notifications.get(0).snapshot.antiCsrfToken);
+        }
     }
 
     @Test public void signoutDoesNotAdoptReplacementInstalledDuringExistenceRefresh() throws Exception {

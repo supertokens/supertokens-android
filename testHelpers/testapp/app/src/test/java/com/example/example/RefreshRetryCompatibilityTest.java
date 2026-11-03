@@ -209,6 +209,11 @@ public class RefreshRetryCompatibilityTest {
         refreshMatrix(401, 401, "valid", false, 401, Collections.emptyList());
     }
 
+    @Test public void expiryWithChangedPayloadEmitsUpdateAndClearsSession() throws Exception {
+        refreshMatrix(401, 401, "changed", false, 401,
+                Collections.singletonList(EventHandler.EventType.ACCESS_TOKEN_PAYLOAD_UPDATED));
+    }
+
     @Test public void successfulRefreshWithoutFrontTokenEmitsLegacySignOut() throws Exception {
         refreshMatrix(401, 200, "absent", true, 200,
                 Arrays.asList(EventHandler.EventType.SIGN_OUT, EventHandler.EventType.REFRESH_SESSION));
@@ -255,6 +260,8 @@ public class RefreshRetryCompatibilityTest {
         if (front.equals("remove")) refresh.setHeader("front-token", "remove");
         if (front.equals("valid")) refresh.setHeader("front-token", java.util.Base64.getEncoder().encodeToString(
                 "{\"uid\":\"user\",\"ate\":4102444800000,\"up\":{}}".getBytes(StandardCharsets.UTF_8)));
+        if (front.equals("changed")) refresh.setHeader("front-token", java.util.Base64.getEncoder().encodeToString(
+                "{\"uid\":\"user\",\"ate\":4102444800000,\"up\":{\"role\":\"updated\"}}".getBytes(StandardCharsets.UTF_8)));
         server.enqueue(refresh);
         if (result == 200) server.enqueue(new MockResponse());
         int actual = -1;
