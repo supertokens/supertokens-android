@@ -264,6 +264,36 @@ public class SessionTransportGenerationTest {
         assertEquals(Arrays.asList(EventHandler.EventType.SIGN_OUT), events);
     }
 
+    @Test public void stalePublicSignoutConnectionFailureIsSuppressed() throws Exception {
+        Assume.assumeTrue(transport.equals("urlconnection"));
+        server.setDispatcher(new Dispatcher() {
+            @Override public MockResponse dispatch(RecordedRequest request) throws InterruptedException {
+                return gated(new MockResponse().setSocketPolicy(okhttp3.mockwebserver.SocketPolicy.DISCONNECT_AFTER_REQUEST));
+            }
+        });
+        Future<?> response = worker.submit(() -> { SuperTokens.signOut(context); return null; });
+        assertTrue(entered.await(5, TimeUnit.SECONDS));
+        install("new");
+        release.countDown();
+        response.get(5, TimeUnit.SECONDS);
+        assertNewSession();
+    }
+
+    @Test public void currentPublicSignoutConnectionFailurePropagates() throws Exception {
+        Assume.assumeTrue(transport.equals("urlconnection"));
+        server.setDispatcher(new Dispatcher() {
+            @Override public MockResponse dispatch(RecordedRequest request) {
+                return new MockResponse().setSocketPolicy(okhttp3.mockwebserver.SocketPolicy.DISCONNECT_AFTER_REQUEST);
+            }
+        });
+        try {
+            SuperTokens.signOut(context);
+            fail("Expected an IOException");
+        } catch (java.io.IOException expected) {
+            assertEquals("old-access", SuperTokens.getSessionSnapshot(context).accessToken);
+        }
+    }
+
     @Test public void refreshListenersRunWithoutRefreshLockHeld() throws Exception {
         server.enqueue(new MockResponse().setResponseCode(401));
         server.enqueue(tokens("old"));

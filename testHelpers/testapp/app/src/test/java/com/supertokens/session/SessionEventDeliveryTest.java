@@ -1,0 +1,168 @@
+package com.supertokens.session;
+
+import android.content.Context;
+import com.github.ivanshafran.sharedpreferencesmock.SPMockBuilder;
+import java.net.HttpURLConnection;
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
+import java.util.List;
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicInteger;
+import okhttp3.mockwebserver.MockResponse;
+import okhttp3.mockwebserver.MockWebServer;
+import org.junit.*;
+import org.mockito.Mockito;
+import static org.junit.Assert.*;
+
+public class SessionEventDeliveryTest {
+    private Context context;
+    private MockWebServer server;
+    private ExecutorService worker;
+    private final List<EventHandler.EventType> legacy = new CopyOnWriteArrayList<>();
+    private static final String OLD = front("old", "{}");
+
+    private static String front(String user, String payload) {
+        return Base64.getEncoder().encodeToString(("{\"uid\":\"" + user + "\",\"ate\":4102444800000,\"up\":" + payload + "}").getBytes(StandardCharsets.UTF_8));
+    }
+
+    @Before public void setUp() throws Exception {
+        SuperTokens.resetForTests();
+        context = Mockito.mock(Context.class);
+        Mockito.when(context.getSharedPreferences(Mockito.anyString(), Mockito.anyInt())).thenReturn(new SPMockBuilder().createSharedPreferences());
+        server = new MockWebServer();
+        server.start();
+        new SuperTokens.Builder(context, server.url("/").toString()).eventHandler(legacy::add).build();
+        worker = Executors.newSingleThreadExecutor();
+        install("old", OLD);
+    }
+
+    @After public void tearDown() throws Exception {
+        SessionStore.setBeforeEventDeliveryForTests(null);
+        worker.shutdownNow();
+        assertTrue(worker.awaitTermination(5, TimeUnit.SECONDS));
+        server.shutdown();
+        SuperTokens.resetForTests();
+    }
+
+    private void install(String user, String front) {
+        assertTrue(SuperTokens.installSession(context, SuperTokens.getSessionSnapshot(context).generation,
+                new SuperTokens.SessionTokens(user + "-access", user + "-refresh", front, user + "-csrf")));
+    }
+
+    private int request() throws Exception {
+        HttpURLConnection c = SuperTokensHttpURLConnection.newRequest(server.url("/ordinary").url(), null);
+        try { return c.getResponseCode(); } finally { c.disconnect(); }
+    }
+
+    private Runnable gate(CountDownLatch entered, CountDownLatch release) {
+        return () -> {
+            entered.countDown();
+            try { assertTrue(release.await(5, TimeUnit.SECONDS)); }
+            catch (InterruptedException e) { throw new AssertionError(e); }
+        };
+    }
+
+    @Test public void admittedLifecycleEventKeepsClearGenerationAndCannotClearReplacement() throws Exception {
+        CountDownLatch admitted = new CountDownLatch(1), release = new CountDownLatch(1);
+        SessionStore.setBeforeEventDeliveryForTests(gate(admitted, release));
+        List<SuperTokens.SessionEvent> received = new CopyOnWriteArrayList<>();
+        SuperTokens.addSessionEventListener(event -> {
+            received.add(event);
+            assertFalse(SuperTokens.clearSession(context, event.generation));
+        });
+        server.enqueue(new MockResponse().setHeader("front-token", "remove"));
+        Future<Integer> response = worker.submit(this::request);
+        try {
+            assertTrue(admitted.await(5, TimeUnit.SECONDS));
+            assertEquals(2, SuperTokens.getSessionSnapshot(context).generation);
+            install("new", front("new", "{}"));
+        } finally { release.countDown(); }
+        assertEquals(200, (int) response.get(5, TimeUnit.SECONDS));
+        assertEquals(1, received.size());
+        assertEquals(EventHandler.EventType.SIGN_OUT, received.get(0).type);
+        assertEquals(2, received.get(0).generation);
+        assertNull(received.get(0).snapshot.frontToken);
+        assertEquals("new-access", SuperTokens.getSessionSnapshot(context).accessToken);
+        assertTrue(legacy.isEmpty());
+    }
+
+    @Test public void admittedLegacyCallbackMayBeginAfterReplacement() throws Exception {
+        CountDownLatch admitted = new CountDownLatch(1), release = new CountDownLatch(1);
+        SessionStore.setBeforeEventDeliveryForTests(gate(admitted, release));
+        server.enqueue(new MockResponse().setHeader("front-token", "remove"));
+        Future<Integer> response = worker.submit(this::request);
+        try {
+            assertTrue(admitted.await(5, TimeUnit.SECONDS));
+            install("new", front("new", "{}"));
+        } finally { release.countDown(); }
+        assertEquals(200, (int) response.get(5, TimeUnit.SECONDS));
+        assertEquals(1, legacy.size());
+        assertEquals(EventHandler.EventType.SIGN_OUT, legacy.get(0));
+        assertEquals("new-access", SuperTokens.getSessionSnapshot(context).accessToken);
+    }
+
+    @Test public void normalEventAndRemovalDeliverExactlyOnce() throws Exception {
+        List<SuperTokens.SessionEvent> events = new CopyOnWriteArrayList<>();
+        SuperTokens.SessionEventListener listener = events::add;
+        SuperTokens.addSessionEventListener(listener);
+        server.enqueue(new MockResponse().setHeader("front-token", "remove"));
+        assertEquals(200, request());
+        assertEquals(1, events.size());
+        assertEquals(EventHandler.EventType.SIGN_OUT, events.get(0).type);
+        assertEquals(2, events.get(0).generation);
+        assertEquals(2, events.get(0).snapshot.generation);
+        assertNull(events.get(0).snapshot.accessToken);
+        SuperTokens.removeSessionEventListener(listener);
+        install("another", front("another", "{}"));
+        server.enqueue(new MockResponse().setHeader("front-token", "remove"));
+        assertEquals(200, request());
+        assertEquals(1, events.size());
+        assertEquals(2, legacy.size());
+    }
+
+    @Test public void unauthorisedClearCarriesPostClearGeneration() throws Exception {
+        List<SuperTokens.SessionEvent> events = new CopyOnWriteArrayList<>();
+        SuperTokens.addSessionEventListener(events::add);
+        server.enqueue(new MockResponse().setResponseCode(401).setHeader("front-token", "remove"));
+        server.enqueue(new MockResponse().setBody("ok"));
+        assertEquals(200, request());
+        assertEquals(1, events.size());
+        assertEquals(EventHandler.EventType.UNAUTHORISED, events.get(0).type);
+        assertEquals(2, events.get(0).generation);
+        assertNull(events.get(0).snapshot.frontToken);
+        assertEquals(2, SuperTokens.getSessionSnapshot(context).generation);
+    }
+
+    @Test public void ownershipIsRecheckedBetweenEventListeners() throws Exception {
+        AtomicInteger second = new AtomicInteger();
+        SuperTokens.addSessionEventListener(event -> install("replacement", front("new", "{}")));
+        SuperTokens.addSessionEventListener(event -> second.incrementAndGet());
+        server.enqueue(new MockResponse().setHeader("front-token", "remove"));
+        assertEquals(200, request());
+        assertEquals(0, second.get());
+        assertTrue(legacy.isEmpty());
+        assertEquals("replacement-access", SuperTokens.getSessionSnapshot(context).accessToken);
+    }
+
+    @Test public void eventListenerCanRefreshSynchronouslyAndInstallThenClear() throws Exception {
+        AtomicInteger called = new AtomicInteger();
+        SuperTokens.addSessionEventListener(event -> {
+            if (event.type != EventHandler.EventType.ACCESS_TOKEN_PAYLOAD_UPDATED) return;
+            try {
+                assertEquals(event.generation, SuperTokens.getSessionSnapshot(context).generation);
+                assertTrue(SuperTokens.attemptRefreshingSession(context));
+                assertTrue(SuperTokens.installSession(context, event.generation,
+                        new SuperTokens.SessionTokens("replacement", "r", front("new", "{}"), "c")));
+                assertTrue(SuperTokens.clearSession(context, SuperTokens.getSessionSnapshot(context).generation));
+                called.incrementAndGet();
+            } catch (Exception e) { throw new AssertionError(e); }
+        });
+        String updated = front("old", "{\"changed\":true}");
+        server.enqueue(new MockResponse().setHeader("front-token", updated));
+        server.enqueue(new MockResponse().setHeader("front-token", updated));
+        Future<Integer> response = worker.submit(this::request);
+        assertEquals(200, (int) response.get(5, TimeUnit.SECONDS));
+        assertEquals(1, called.get());
+        assertNull(SuperTokens.getSessionSnapshot(context).frontToken);
+    }
+}

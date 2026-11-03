@@ -192,6 +192,14 @@ public class SuperTokensHttpURLConnection {
                         manuallySetCookiesFromResponse(responseUrl, responseConnection);
                     }
                 });
+            } catch (IOException | IllegalAccessException e) {
+                if (expectedGeneration != null && (change == null
+                        ? SessionStore.read(applicationContext).generation != expectedGeneration.longValue()
+                        : !change.sameGeneration())) {
+                    if (customConnection != null) customConnection.disconnect();
+                    return null;
+                }
+                throw e;
             } finally {
                 refreshAPILock.readLock().unlock();
                 SessionStore.leaveRefreshLock();
@@ -209,6 +217,10 @@ public class SuperTokensHttpURLConnection {
                  * The maximum number of retry attempts is defined by maxRetryAttemptsForSessionRefresh config variable.
                  */
                 if (sessionRefreshAttempts >= SuperTokens.config.maxRetryAttemptsForSessionRefresh) {
+                    if (expectedGeneration != null && !change.sameGeneration()) {
+                        customConnection.disconnect();
+                        return null;
+                    }
                     String errorMsg = "Received a 401 response from " + url + ". Attempted to refresh the session and retry the request with the updated session tokens " + SuperTokens.config.maxRetryAttemptsForSessionRefresh + " times, but each attempt resulted in a 401 error. The maximum session refresh limit has been reached. Please investigate your API. To increase the session refresh attempts, update maxRetryAttemptsForSessionRefresh in the config.";
                     System.err.println(errorMsg);
                     throw new IllegalAccessException(errorMsg);
@@ -222,6 +234,10 @@ public class SuperTokensHttpURLConnection {
                 if (unauthorisedResponse.status != Utils.Unauthorised.UnauthorisedStatus.RETRY) {
 
                     if (unauthorisedResponse.error != null) {
+                        if (expectedGeneration != null && SessionStore.read(applicationContext).generation != expectedGeneration.longValue()) {
+                            customConnection.disconnect();
+                            return null;
+                        }
                         throw unauthorisedResponse.error;
                     }
 

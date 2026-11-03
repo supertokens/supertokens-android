@@ -6,12 +6,16 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.concurrent.CopyOnWriteArrayList;
 import okhttp3.Response;
+import org.jetbrains.annotations.TestOnly;
 
 /** The lock protects coherent reads/writes, never requests, listeners or event handlers. */
 final class SessionStore {
     private static final Object lock = new Object();
     private static SuperTokens.SessionSnapshot snapshot;
     static final CopyOnWriteArrayList<SuperTokens.SessionListener> listeners = new CopyOnWriteArrayList<SuperTokens.SessionListener>();
+    static final CopyOnWriteArrayList<SuperTokens.SessionEventListener> eventListeners = new CopyOnWriteArrayList<SuperTokens.SessionEventListener>();
+    private static volatile Runnable beforeEventDeliveryForTests;
+    @TestOnly static void setBeforeEventDeliveryForTests(Runnable hook) { beforeEventDeliveryForTests = hook; }
     private static final ThreadLocal<ArrayList<Change>> deferred = new ThreadLocal<ArrayList<Change>>();
     private static final ThreadLocal<Integer> refreshDepth = new ThreadLocal<Integer>();
 
@@ -41,16 +45,20 @@ final class SessionStore {
     static SuperTokens.SessionSnapshot read(Context context) {
         synchronized (lock) {
             if (snapshot == null) {
-                SharedPreferences p = Utils.getSharedPreferences(context);
-                snapshot = new SuperTokens.SessionSnapshot(0,
-                        p.getString(key(Constants.ACCESS_TOKEN_PREFS_KEY), null),
-                        p.getString(key(Constants.REFRESH_TOKEN_PREFS_KEY), null),
-                        p.getString(Constants.FRONT_TOKEN_PREFS_KEY, null),
-                        p.getString(Constants.CSRF_TOKEN_PREFS_KEY, null),
-                        p.getString(key(Constants.LAST_ACCESS_TOKEN_UPDATE_PREFS_KEY), null));
+                snapshot = readPreferences(context, 0);
             }
             return snapshot;
         }
+    }
+
+    private static SuperTokens.SessionSnapshot readPreferences(Context context, long generation) {
+        SharedPreferences p = Utils.getSharedPreferences(context);
+        return new SuperTokens.SessionSnapshot(generation,
+                p.getString(key(Constants.ACCESS_TOKEN_PREFS_KEY), null),
+                p.getString(key(Constants.REFRESH_TOKEN_PREFS_KEY), null),
+                p.getString(Constants.FRONT_TOKEN_PREFS_KEY, null),
+                p.getString(Constants.CSRF_TOKEN_PREFS_KEY, null),
+                p.getString(key(Constants.LAST_ACCESS_TOKEN_UPDATE_PREFS_KEY), null));
     }
 
     static String key(String name) { return "st-storage-item-" + name; }
@@ -64,9 +72,16 @@ final class SessionStore {
         e.putString(Constants.CSRF_TOKEN_PREFS_KEY, next.antiCsrfToken);
         e.putString(key(Constants.LAST_ACCESS_TOKEN_UPDATE_PREFS_KEY), next.lastAccessTokenUpdate);
         e.remove(key("sIRTFrontend"));
-        // apply publishes all keys atomically in memory without main-thread disk I/O, as in 0.5.4.
-        e.apply();
+        // apply invokes preference listeners synchronously on the main thread.
         snapshot = next;
+        try {
+            e.apply();
+        } catch (RuntimeException | Error failure) {
+            // A custom editor or listener can fail before or after publishing preferences.
+            // Re-read the actual values without reusing a generation that may have escaped.
+            snapshot = readPreferences(context, snapshot.generation + 1);
+            throw failure;
+        }
         return new Change(next, true);
     }
 
@@ -198,7 +213,7 @@ final class SessionStore {
     }
 
     static void reset() {
-        synchronized (lock) { snapshot = null; listeners.clear(); }
+        synchronized (lock) { snapshot = null; listeners.clear(); eventListeners.clear(); beforeEventDeliveryForTests = null; }
         wakeWaiters();
     }
 
@@ -229,9 +244,21 @@ final class SessionStore {
                 listener.onSessionChanged(next);
             }
             for (EventHandler.EventType event : events) {
+                SuperTokens.SessionEvent notification = new SuperTokens.SessionEvent(event, next);
+                for (SuperTokens.SessionEventListener listener : eventListeners) {
+                    if (!current()) return;
+                    runEventDeliveryHook();
+                    listener.onSessionEvent(notification);
+                }
                 if (!current()) return;
+                runEventDeliveryHook();
                 SuperTokens.config.eventHandler.handleEvent(event);
             }
+        }
+
+        private void runEventDeliveryHook() {
+            Runnable hook = beforeEventDeliveryForTests;
+            if (hook != null) hook.run();
         }
     }
 }

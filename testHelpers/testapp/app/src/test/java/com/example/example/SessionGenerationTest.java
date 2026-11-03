@@ -1,6 +1,7 @@
 package com.example.example;
 
 import android.content.Context;
+import android.content.SharedPreferences;
 import com.supertokens.session.SuperTokens;
 import com.supertokens.session.FrontToken;
 import com.supertokens.session.Utils;
@@ -131,5 +132,27 @@ public class SessionGenerationTest {
         assertNull(cleared.accessToken);
         assertNull(cleared.refreshToken);
         assertNull(cleared.frontToken);
+    }
+
+    @Test public void failedApplyResynchronizesFromPreferencesWithoutReusingGeneration() {
+        assertEquals(0, SuperTokens.getSessionSnapshot(context).generation);
+        SharedPreferences real = context.getSharedPreferences("supertokens-android-shared-preferences", 0);
+        SharedPreferences broken = Mockito.spy(real);
+        SharedPreferences.Editor editor = Mockito.spy(real.edit());
+        Mockito.doReturn(editor).when(broken).edit();
+        Mockito.doThrow(new IllegalStateException("apply failed")).when(editor).apply();
+        Mockito.when(context.getSharedPreferences(Mockito.anyString(), Mockito.anyInt())).thenReturn(broken);
+        try {
+            SuperTokens.installSession(context, 0, new SuperTokens.SessionTokens("a", "r", "f", "c"));
+            fail("Expected the editor failure");
+        } catch (IllegalStateException expected) {
+            assertEquals("apply failed", expected.getMessage());
+        }
+        SuperTokens.SessionSnapshot current = SuperTokens.getSessionSnapshot(context);
+        assertTrue(current.generation > 1);
+        assertEquals(real.getString("st-storage-item-st-access-token", null), current.accessToken);
+        assertEquals(real.getString("st-storage-item-st-refresh-token", null), current.refreshToken);
+        assertFalse(SuperTokens.clearSession(context, 0));
+        assertFalse(SuperTokens.clearSession(context, 1));
     }
 }

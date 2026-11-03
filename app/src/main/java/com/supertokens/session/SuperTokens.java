@@ -75,6 +75,32 @@ public class SuperTokens {
         void onSessionChanged(SessionSnapshot snapshot);
     }
 
+    /** A lifecycle event and the immutable state committed by its originating transition. */
+    public static final class SessionEvent {
+        public final EventHandler.EventType type;
+        public final SessionSnapshot snapshot;
+        public final long generation;
+
+        SessionEvent(EventHandler.EventType type, SessionSnapshot snapshot) {
+            this.type = type;
+            this.snapshot = snapshot;
+            this.generation = snapshot.generation;
+        }
+    }
+
+    public interface SessionEventListener {
+        void onSessionEvent(SessionEvent event);
+    }
+
+    public static void addSessionEventListener(SessionEventListener listener) {
+        if (listener == null) throw new IllegalArgumentException("listener must not be null");
+        SessionStore.eventListeners.addIfAbsent(listener);
+    }
+
+    public static void removeSessionEventListener(SessionEventListener listener) {
+        SessionStore.eventListeners.remove(listener);
+    }
+
     public static SessionSnapshot getSessionSnapshot(Context context) {
         return SessionStore.read(context);
     }

@@ -49,6 +49,29 @@ conditional write. Superseded notifications are dropped when checked before disp
 A callback already selected or running when another thread replaces the session
 cannot be recalled; handlers should re-read the snapshot before acting on it.
 
+`addSessionEventListener` / `removeSessionEventListener` subscribe to lifecycle
+events. Each `SessionEvent` contains the event `type`, its immutable committed
+`snapshot`, and that snapshot's `generation`. This is separate from a
+`SessionListener`: the latter observes state changes, while lifecycle events report
+the same event types as the legacy `EventHandler`. Both callback APIs run outside
+the SDK's session and refresh locks and may reenter the SDK.
+
+For `SIGN_OUT` or `UNAUTHORISED` caused by a clear, the event carries the **post-clear**
+generation. A consumer may pass that generation to `clearSession` or `installSession`:
+the operation succeeds only if no later replacement or clear has occurred. A token
+rotation within the same session retains the generation, so it does not invalidate
+that ownership. Re-read the current snapshot when the latest rotated token values
+matter; the event snapshot is the state at the transition, not a live view.
+
+The SDK rechecks ownership before each delivery, but does not serialize callbacks
+with session replacement. A legacy event or generation-bearing event already
+admitted for delivery can begin after a replacement completes. Legacy `EventHandler`
+has no generation, so it cannot safely make unconditional session changes on that
+basis. Use `SessionEvent.generation` for conditional SDK writes; unconditional UI or
+other external state writes are not fenced by this API and need their own ownership
+check and coordination. Pending deliveries are also dropped if their exact snapshot
+was superseded by a same-generation rotation; the listener is not an audit log.
+
 Each intercepted request and retry captures one snapshot for its headers and
 response ownership. Responses processed after replacement/clear cannot write tokens,
 manually save cookies, or emit session events. A callback already selected for an
@@ -65,6 +88,9 @@ disk I/O. As before, immediate process death can lose a pending disk write. This
 not a cross-process transaction or crash-recovery journal. Direct preference writes
 are unsupported; deprecated token writers still work but each partial write advances
 the generation. Migrate multi-token writes to `installSession` for atomicity.
+If `apply()` throws, the SDK re-reads the preferences with a new generation before
+propagating the error; a failing preferences implementation that also prevents reads
+cannot be recovered in-process.
 
 **Cookie limitation:** automatic OkHttp CookieJar / platform CookieManager handling
 can save stale `Set-Cookie` headers before SDK response processing. Generation
