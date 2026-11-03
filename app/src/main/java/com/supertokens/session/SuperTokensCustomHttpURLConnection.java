@@ -35,18 +35,25 @@ public class SuperTokensCustomHttpURLConnection extends HttpURLConnection {
     HttpURLConnection original;
     Context applicationContext;
     private boolean wasAuthHeaderRemovedInitially = false;
+    private final SuperTokens.SessionSnapshot requestSnapshot;
 
     public SuperTokensCustomHttpURLConnection(HttpURLConnection original, Context applicationContext) {
         super(original.getURL());
         this.original = original;
         this.applicationContext = applicationContext;
+        this.requestSnapshot = SessionStore.read(applicationContext);
     }
 
     public SuperTokensCustomHttpURLConnection(HttpURLConnection original, Context applicationContext, boolean wasAuthHeaderRemovedInitially) {
+        this(original, applicationContext, wasAuthHeaderRemovedInitially, SessionStore.read(applicationContext));
+    }
+
+    SuperTokensCustomHttpURLConnection(HttpURLConnection original, Context applicationContext, boolean wasAuthHeaderRemovedInitially, SuperTokens.SessionSnapshot snapshot) {
         super(original.getURL());
         this.original = original;
         this.applicationContext = applicationContext;
         this.wasAuthHeaderRemovedInitially = wasAuthHeaderRemovedInitially;
+        this.requestSnapshot = snapshot;
     }
 
     public boolean getWasAuthHeaderRemovedInitially() {
@@ -269,8 +276,8 @@ public class SuperTokensCustomHttpURLConnection extends HttpURLConnection {
         }
 
 
-        String accessToken = Utils.getTokenForHeaderAuth(Utils.TokenType.ACCESS, applicationContext);
-        String refreshToken = Utils.getTokenForHeaderAuth(Utils.TokenType.REFRESH, applicationContext);
+        String accessToken = requestSnapshot.accessToken;
+        String refreshToken = requestSnapshot.refreshToken;
         if (accessToken != null && refreshToken != null && (value.equals("Bearer " + accessToken) || value.equals("bearer " + accessToken))) {
             wasAuthHeaderRemovedInitially = true;
             // We ignore the attempt to set the header because it matches the existing access token

@@ -37,6 +37,72 @@ import java.util.ArrayList;
 import java.util.Map;
 
 public class SuperTokens {
+    /** Immutable, coherent session read. Generation is process-local, not a persisted identity. */
+    public static final class SessionSnapshot {
+        public final long generation;
+        public final String accessToken, refreshToken, frontToken, antiCsrfToken, lastAccessTokenUpdate;
+
+        SessionSnapshot(long generation, String access, String refresh, String front, String csrf, String update) {
+            this.generation = generation;
+            accessToken = access;
+            refreshToken = refresh;
+            frontToken = front;
+            antiCsrfToken = csrf;
+            lastAccessTokenUpdate = update;
+        }
+
+        public boolean doesSessionExist() {
+            return frontToken != null && lastAccessTokenUpdate != null;
+        }
+
+        String authorization(boolean refresh) {
+            return accessToken != null && refreshToken != null ? "Bearer " + (refresh ? refreshToken : accessToken) : null;
+        }
+    }
+
+    public static final class SessionTokens {
+        public final String accessToken, refreshToken, frontToken, antiCsrfToken;
+
+        public SessionTokens(String accessToken, String refreshToken, String frontToken, String antiCsrfToken) {
+            this.accessToken = accessToken;
+            this.refreshToken = refreshToken;
+            this.frontToken = frontToken;
+            this.antiCsrfToken = antiCsrfToken;
+        }
+    }
+
+    public interface SessionListener {
+        void onSessionChanged(SessionSnapshot snapshot);
+    }
+
+    public static SessionSnapshot getSessionSnapshot(Context context) {
+        return SessionStore.read(context);
+    }
+
+    public static boolean installSession(Context context, long expectedGeneration, SessionTokens tokens) {
+        if (tokens == null) throw new IllegalArgumentException("tokens must not be null");
+        SessionStore.Change change = SessionStore.replace(context, expectedGeneration, tokens);
+        if (change == null) return false;
+        SessionStore.flushCallbacks();
+        change.dispatch();
+        return true;
+    }
+
+    public static boolean clearSession(Context context, long expectedGeneration) {
+        SessionStore.Change change = SessionStore.replace(context, expectedGeneration, null);
+        if (change == null) return false;
+        SessionStore.flushCallbacks();
+        change.dispatch();
+        return true;
+    }
+
+    public static void addSessionListener(SessionListener listener) {
+        SessionStore.listeners.addIfAbsent(listener);
+    }
+
+    public static void removeSessionListener(SessionListener listener) {
+        SessionStore.listeners.remove(listener);
+    }
     static String refreshTokenUrl;
     static String signOutUrl;
     static boolean isInitCalled = false;
@@ -79,6 +145,7 @@ public class SuperTokens {
 
     @TestOnly
     public static void resetForTests() {
+        SessionStore.reset();
         SuperTokens.isInitCalled = false;
         SuperTokens.config = null;
         SuperTokens.refreshTokenUrl = null;
@@ -136,8 +203,14 @@ public class SuperTokens {
 
     @SuppressWarnings("unused")
     public static void signOut(Context context) throws IOException, IllegalAccessException, SuperTokensGeneralError {
+        final long generation = getSessionSnapshot(context).generation;
         if (!doesSessionExist(context)) {
-            SuperTokens.config.eventHandler.handleEvent(EventHandler.EventType.SIGN_OUT);
+            SessionSnapshot snapshot = getSessionSnapshot(context);
+            if (snapshot.generation == generation) {
+                SessionStore.Change change = new SessionStore.Change(snapshot, false);
+                change.events.add(EventHandler.EventType.SIGN_OUT);
+                change.dispatch();
+            }
             return;
         }
 
@@ -154,7 +227,9 @@ public class SuperTokens {
                     }
                 }
             }
-        });
+        }, generation);
+
+        if (connection == null) return;
 
         int responseCode = connection.getResponseCode();
 
