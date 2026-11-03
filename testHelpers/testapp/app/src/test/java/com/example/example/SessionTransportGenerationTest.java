@@ -528,8 +528,12 @@ public class SessionTransportGenerationTest {
                     if (refreshes.incrementAndGet() == 1) return gated(tokens("old"));
                     return tokens("rotated").setHeader("front-token", front("old"));
                 }
-                return "Bearer old-access".equals(request.getHeader("Authorization"))
-                        ? new MockResponse().setResponseCode(401) : new MockResponse().setBody("ok");
+                if ("Bearer old-access".equals(request.getHeader("Authorization"))) {
+                    return new MockResponse().setResponseCode(401);
+                }
+                assertEquals("Bearer rotated-access", request.getHeader("Authorization"));
+                assertEquals("rotated-csrf", request.getHeader("anti-csrf"));
+                return new MockResponse().setBody("ok");
             }
         });
         Future<Integer> failed = worker.submit(() -> request("/ordinary"));
