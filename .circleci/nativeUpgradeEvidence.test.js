@@ -159,7 +159,11 @@ Module._load = function(request, parent, main) {
         cleanup: { runId: identity.runId, commandSucceeded: true, coreAcknowledged: true, backendStopped: true,
             dependenciesUnchanged: true, lifecycleSha256: h('0') },
         lanes: lanes.map(name => {
-            const identities = exactCases[name] || ['example.Test.case'];
+            const identities = [...(exactCases[name] || ['example.Test.case'])];
+            if (name === 'ordinary' || name === 'retrofit') {
+                for (const transport of [false, true]) identities.push('com.example.example.MissingRefreshCookieLiveTest.' +
+                    'missingRefreshCookieExplicitRemovalClearsSession[urlConnection=' + transport + ']');
+            }
             const report = { tests: identities.length, passed: identities.length, failed: 0, skipped: 0,
                 cases: identities.map(full => ({ className: full.slice(0, full.lastIndexOf('.')), name: full.slice(full.lastIndexOf('.') + 1), result: 'SUCCESS' })) };
             return { name, status: 'passed', execution: { exit: 0, argv: name === 'node-core' ? ['npm', 'run', 'test:core'] : ['synthetic', name], sourceSha256: h('2') },
