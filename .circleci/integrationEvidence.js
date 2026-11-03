@@ -6,6 +6,10 @@ const { validateUpgrade } = require('./upgradeEvidence');
 
 const lanes = ['root-build', 'ordinary', 'retrofit', 'node-core', 'core-classes', 'mutation', 'proxy-qualification', 'core-baseline', 'published-upgrade'];
 const baseline = ['root-build', 'ordinary', 'retrofit', 'core-baseline', 'published-upgrade'];
+const requiredRemovalCases = [false, true].map(urlConnection => ({
+    className: 'com.example.example.MissingRefreshCookieLiveTest',
+    name: 'missingRefreshCookieExplicitRemovalClearsSession[urlConnection=' + urlConnection + ']'
+}));
 const exactCases = {
     exposed: ['OKHTTP', 'RETROFIT', 'URLCONNECTION'].map(transport =>
         'com.example.example.ExposedCookieLiveTest.exposedCookieLifecycle[' + transport + ']'),
@@ -48,7 +52,13 @@ function validateReport(report, identities, name) {
     requireTrue(report && positive(report.tests) && report.passed === report.tests && report.failed === 0 && report.skipped === 0 &&
         Array.isArray(report.cases) && report.cases.length === report.tests && report.cases.every(item => item.result === 'SUCCESS') &&
         (!identities || (report.tests === identities.length &&
-            JSON.stringify(report.cases.map(row => row.className + '.' + row.name).sort()) === JSON.stringify([...identities].sort()))), 'Unexecuted/failed/skipped or wrong test identities');
+             JSON.stringify(report.cases.map(row => row.className + '.' + row.name).sort()) === JSON.stringify([...identities].sort()))), 'Unexecuted/failed/skipped or wrong test identities');
+    if (name === 'ordinary' || name === 'retrofit') {
+        for (const required of requiredRemovalCases) {
+            requireTrue(report.cases.filter(row => row.className === required.className && row.name === required.name &&
+                row.result === 'SUCCESS').length === 1, 'Missing or duplicate required live removal case');
+        }
+    }
     for (const key of ['excluded', 'excludedTasks']) {
         requireTrue(report[key] === undefined || (Array.isArray(report[key]) && report[key].length === 0), 'Excluded test evidence');
     }
@@ -102,7 +112,9 @@ function validateEvidence(evidence, expected, required, upgradePlan) {
             requireTrue(lane.execution.argv.join(' ') === 'npm run test:core', 'Wrong Node protocol invocation');
         } else {
             requireTrue(Array.isArray(lane.reports) && lane.reports.length > 0, 'Missing actual test report: ' + name);
-            if (exactCases[name]) requireTrue(lane.reports.length === 1, 'Duplicate exact-suite reports');
+            if (exactCases[name] || name === 'ordinary' || name === 'retrofit') {
+                requireTrue(lane.reports.length === 1, 'Duplicate exact-suite reports');
+            }
             for (const report of lane.reports) validateReport(report, exactCases[name], name);
             if (name === 'ordinary') validateReport(lane.exposedReport, exactCases.exposed, 'exposed');
         }

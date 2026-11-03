@@ -20,6 +20,10 @@ for (const fdi of Object.keys(testPolicy.upgrade)) testPolicy.upgrade[fdi] = { n
 const policyText = Buffer.from(JSON.stringify(testPolicy));
 const policy = { policy: JSON.parse(policyText), policySha256: hash(policyText) };
 const r7 = ['node-core', 'core-classes', 'mutation', 'proxy-qualification'];
+const removalCases = [false, true].map(urlConnection => ({
+    className: 'com.example.example.MissingRefreshCookieLiveTest',
+    name: 'missingRefreshCookieExplicitRemovalClearsSession[urlConnection=' + urlConnection + ']', result: 'SUCCESS'
+}));
 function upgradeFixture(context) {
     const plan = policy.policy.upgrade[context.fdi];
     return { ...context, nodeVersion: plan.nodeVersion, coreVersion: plan.coreVersion, publishedVersion: '0.5.4',
@@ -56,12 +60,14 @@ function fixture(fdi = '4.1') {
             dependenciesUnchanged: true, lifecycleSha256: '0'.repeat(64) },
         lanes: lanes.map(name => {
             const identities = exactCases[name];
-            const count = identities ? identities.length : 1;
+            const extra = ['ordinary', 'retrofit'].includes(name) ? removalCases : [];
+            const count = (identities ? identities.length : 1) + extra.length;
             return { name, status: 'passed', execution: { exit: 0,
                 argv: name === 'node-core' ? ['npm', 'run', 'test:core'] : ['fake-test-command', name], sourceSha256: '2'.repeat(64) },
                 reports: [{ tests: count, passed: count, skipped: 0, failed: 0,
                     cases: Array.from({ length: count }, (_, index) => {
-                        const full = identities ? identities[index] : 'example.Test.case' + index;
+                        if (extra.length && index >= count - extra.length) return { ...extra[index - (count - extra.length)] };
+                         const full = identities ? identities[index] : 'example.Test.case' + index;
                         return { className: full.slice(0, full.lastIndexOf('.')), name: full.slice(full.lastIndexOf('.') + 1), result: 'SUCCESS' };
                     }) }],
                 ...(name === 'ordinary' ? { exposedReport: { tests: 3, passed: 3, failed: 0, skipped: 0,
@@ -106,6 +112,54 @@ for (const [scenario, mutate] of [
     lane.exposedReport = mutate(lane.exposedReport);
     assert.throws(() => validate([receipt(f)], ['4.1'], f.context.sha, f.context.workflow, policy));
 });
+for (const profile of ['ordinary', 'retrofit']) {
+    for (const transport of [false, true]) {
+        for (const mutation of ['missing', 'duplicate', 'skipped', 'failed', 'wrong class', 'old class']) {
+            test(profile + ' rejects ' + mutation + ' required removal case urlConnection=' + transport, () => {
+                const f = fixture();
+                const report = f.evidence.lanes.find(lane => lane.name === profile).reports[0];
+                const name = 'missingRefreshCookieExplicitRemovalClearsSession[urlConnection=' + transport + ']';
+                const index = report.cases.findIndex(row => row.className === 'com.example.example.MissingRefreshCookieLiveTest' && row.name === name);
+                assert.notEqual(index, -1);
+                if (mutation === 'missing') { report.cases.splice(index, 1); report.tests--; report.passed--; }
+                if (mutation === 'duplicate') { report.cases.push({ ...report.cases[index] }); report.tests++; report.passed++; }
+                if (mutation === 'skipped') { report.cases[index].result = 'SKIPPED'; report.skipped++; report.passed--; }
+                if (mutation === 'failed') { report.cases[index].result = 'FAILURE'; report.failed++; report.passed--; }
+                if (mutation === 'wrong class') report.cases[index].className = 'other.MissingRefreshCookieLiveTest';
+                if (mutation === 'old class') report.cases[index].className = 'com.example.example.RefreshWithoutClearLiveTest';
+                assert.throws(() => validate([receipt(f)], ['4.1'], f.context.sha, f.context.workflow, policy));
+            });
+        }
+    }
+}
+for (const profile of ['ordinary', 'retrofit']) {
+    for (const scenario of ['absent', 'empty', 'duplicate valid', 'split cases', 'actual old identities']) {
+        test(profile + ' rejects ' + scenario + ' live removal reports', () => {
+            const f = fixture();
+            const lane = f.evidence.lanes.find(item => item.name === profile);
+            if (scenario === 'absent') delete lane.reports;
+            if (scenario === 'empty') lane.reports = [];
+            if (scenario === 'duplicate valid') lane.reports.push(JSON.parse(JSON.stringify(lane.reports[0])));
+            if (scenario === 'split cases') {
+                const first = lane.reports[0];
+                const second = JSON.parse(JSON.stringify(first));
+                first.cases = first.cases.filter(row => !row.name.endsWith('[urlConnection=true]'));
+                second.cases = second.cases.filter(row => !row.name.endsWith('[urlConnection=false]'));
+                for (const report of [first, second]) report.tests = report.passed = report.cases.length;
+                lane.reports.push(second);
+            }
+            if (scenario === 'actual old identities') {
+                for (const row of lane.reports[0].cases) {
+                    if (row.className === 'com.example.example.MissingRefreshCookieLiveTest') {
+                        row.className = 'com.example.example.RefreshWithoutClearLiveTest';
+                        row.name = row.name.replace('missingRefreshCookieExplicitRemovalClearsSession', 'missingRefreshCookieDoesNotClearFrontToken');
+                    }
+                }
+            }
+            assert.throws(() => validate([receipt(f)], ['4.1'], f.context.sha, f.context.workflow, policy));
+        });
+    }
+}
 test('empty FDI matrix cannot pass vacuously', () => assert.throws(() => validate([], [], 'a'.repeat(40), 'workflow', policy)));
 for (const [name, mutate] of [
     ['missing lane', f => { f.evidence.lanes.pop(); }],
