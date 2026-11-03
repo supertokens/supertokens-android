@@ -71,6 +71,9 @@ basis. Use `SessionEvent.generation` for conditional SDK writes; unconditional U
 other external state writes are not fenced by this API and need their own ownership
 check and coordination. Pending deliveries are also dropped if their exact snapshot
 was superseded by a same-generation rotation; the listener is not an audit log.
+The deprecated public `Utils.fireSessionUpdateEventsIfNecessary` is a legacy-only
+escape hatch: it invokes `EventHandler` directly and cannot notify generation-bearing
+listeners because its arguments contain no accepted transition snapshot.
 
 Each intercepted request and retry captures one snapshot for its headers and
 response ownership. Responses processed after replacement/clear cannot write tokens,

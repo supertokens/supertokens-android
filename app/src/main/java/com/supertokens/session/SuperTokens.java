@@ -171,6 +171,7 @@ public class SuperTokens {
 
     @TestOnly
     public static void resetForTests() {
+        FrontToken.setBeforeSnapshotReadForTests(null);
         SessionStore.reset();
         SuperTokens.isInitCalled = false;
         SuperTokens.config = null;

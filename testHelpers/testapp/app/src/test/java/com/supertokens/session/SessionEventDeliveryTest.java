@@ -8,6 +8,9 @@ import java.util.Base64;
 import java.util.List;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.Response;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
 import org.junit.*;
@@ -131,6 +134,25 @@ public class SessionEventDeliveryTest {
         assertEquals(2, events.get(0).generation);
         assertNull(events.get(0).snapshot.frontToken);
         assertEquals(2, SuperTokens.getSessionSnapshot(context).generation);
+    }
+
+    @Test public void okhttpDeliversGenerationBearingSignoutEvent() throws Exception {
+        List<SuperTokens.SessionEvent> events = new CopyOnWriteArrayList<>();
+        SuperTokens.addSessionEventListener(events::add);
+        OkHttpClient client = new OkHttpClient.Builder().addInterceptor(new SuperTokensInterceptor()).build();
+        try {
+            server.enqueue(new MockResponse().setHeader("front-token", "remove"));
+            try (Response response = client.newCall(new Request.Builder().url(server.url("/ordinary")).build()).execute()) {
+                assertEquals(200, response.code());
+            }
+            assertEquals(1, events.size());
+            assertEquals(EventHandler.EventType.SIGN_OUT, events.get(0).type);
+            assertEquals(2, events.get(0).generation);
+            assertNull(events.get(0).snapshot.frontToken);
+        } finally {
+            client.connectionPool().evictAll();
+            client.dispatcher().executorService().shutdownNow();
+        }
     }
 
     @Test public void ownershipIsRecheckedBetweenEventListeners() throws Exception {

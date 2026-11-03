@@ -326,6 +326,12 @@ public class Utils {
         return null;
     }
 
+    /**
+     * Legacy event helper. This invokes only the configured EventHandler; it does not
+     * notify generation-bearing SessionEventListeners because it has no transition snapshot.
+     * @deprecated Session events are emitted by the SDK when a response is accepted.
+     */
+    @Deprecated
     public static void fireSessionUpdateEventsIfNecessary(
             boolean wasLoggedIn,
             int status,

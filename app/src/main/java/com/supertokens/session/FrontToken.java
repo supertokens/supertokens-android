@@ -21,11 +21,15 @@ import android.util.Base64;
 
 import org.json.JSONException;
 import org.json.JSONObject;
+import org.jetbrains.annotations.TestOnly;
 
 import java.nio.charset.Charset;
 
 public class FrontToken {
     static final Object tokenLock = new Object();
+    private static volatile Runnable beforeSnapshotReadForTests;
+
+    @TestOnly static void setBeforeSnapshotReadForTests(Runnable hook) { beforeSnapshotReadForTests = hook; }
 
     private static String getFrontTokenFromStorage(Context context) {
         return SessionStore.read(context).frontToken;
@@ -41,24 +45,10 @@ public class FrontToken {
     }
 
     static JSONObject getTokenInfo(Context context) {
-        synchronized (tokenLock) {
-            while (true) {
-                SuperTokens.SessionSnapshot snapshot = SessionStore.read(context);
-                String frontToken = snapshot.frontToken;
-                if (!snapshot.doesSessionExist()) return null;
-                if (frontToken == null) {
-                    if (snapshot.doesSessionExist()) {
-                        try {
-                            tokenLock.wait();
-                        } catch (InterruptedException ignored) {}
-                    } else {
-                        return null;
-                    }
-                } else {
-                    return parseFrontToken(frontToken);
-                }
-            }
-        }
+        Runnable hook = beforeSnapshotReadForTests;
+        if (hook != null) hook.run();
+        SuperTokens.SessionSnapshot snapshot = SessionStore.read(context);
+        return snapshot.doesSessionExist() ? parseFrontToken(snapshot.frontToken) : null;
     }
 
     public static JSONObject getToken(Context context) throws JSONException {
