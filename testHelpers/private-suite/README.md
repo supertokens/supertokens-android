@@ -21,7 +21,7 @@ Copy only `core`, `plugin-interface`, `plugin`, `temp`, and `version.yaml` from 
 ```sh
 docker exec -d -w /workspace/testHelpers/server -e INSTALL_PATH=/core-install -e NODE_PORT=8080 -e TEST_MODE=testing -e PATH=/opt/jre21/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin base-android-regression-suite node index.js
 docker exec base-android-regression-suite curl -fsS http://127.0.0.1:8080/featureFlags
-docker exec -w /workspace/testHelpers/testapp base-android-regression-suite ./gradlew testDebugUnitTest --no-daemon --rerun-tasks
+docker exec -w /workspace/testHelpers/testapp base-android-regression-suite timeout 20m ./gradlew testDebugUnitTest --no-daemon --rerun-tasks
 ```
 
 Run under an external time limit, save only redacted results, and inspect the test XML for counts and skips. On completion stop and remove only `base-android-regression-suite` and remove its dedicated network. The suite container can reach dependency repositories, but does not share host or other test processes. Its lifecycle is independent of the emulator.
