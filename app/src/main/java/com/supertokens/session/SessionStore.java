@@ -141,7 +141,7 @@ final class SessionStore {
                         remove ? null : front == null ? old.frontToken : front,
                         remove ? null : csrf == null ? old.antiCsrfToken : nonempty(csrf),
                         remove ? null : front == null ? old.lastAccessTokenUpdate : Long.toString(System.currentTimeMillis()));
-                boolean payloadChanged = front != null && old.frontToken != null && !remove
+                boolean payloadChanged = front != null && old.frontToken != null && !"remove".equalsIgnoreCase(front)
                         && FrontToken.payloadChanged(old.frontToken, front);
                 change = write(context, next);
                 if (!refresh && !legacy && remove && old.doesSessionExist()) {
