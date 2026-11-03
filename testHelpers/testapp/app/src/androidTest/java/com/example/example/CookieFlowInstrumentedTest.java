@@ -17,6 +17,7 @@ import com.franmontiel.persistentcookiejar.PersistentCookieJar;
 import com.franmontiel.persistentcookiejar.cache.SetCookieCache;
 import com.franmontiel.persistentcookiejar.persistence.SharedPrefsCookiePersistor;
 import okhttp3.OkHttpClient;
+import okhttp3.JavaNetCookieJar;
 import okhttp3.Request;
 import okhttp3.RequestBody;
 import okhttp3.Response;
@@ -31,10 +32,14 @@ import static org.junit.Assert.*;
 public class CookieFlowInstrumentedTest {
     private final String base = "http://10.0.2.2:18082";
 
-    @Test public void okhttpCookieFlow() throws Exception { flow(true); }
-    @Test public void urlConnectionCookieFlow() throws Exception { flow(false); }
+    @Test public void okhttpCookieFlow() throws Exception { flow(true, false); }
+    @Test public void urlConnectionCookieFlow() throws Exception { flow(false, false); }
+    @Test public void okhttpJavaNetCookieFlow() throws Exception {
+        Assume.assumeTrue("1".equals(InstrumentationRegistry.getArguments().getString("javaNetCookie")));
+        flow(true, true);
+    }
 
-    private void flow(boolean okhttp) throws Exception {
+    private void flow(boolean okhttp, boolean javaNetCookie) throws Exception {
         Assume.assumeTrue("1".equals(InstrumentationRegistry.getArguments().getString("deviceCookie")));
         Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
         CookieHandler previous = CookieHandler.getDefault();
@@ -42,7 +47,7 @@ public class CookieFlowInstrumentedTest {
         CookieHandler.setDefault(cookies);
         PersistentCookieJar okhttpCookies = new PersistentCookieJar(new SetCookieCache(), new SharedPrefsCookiePersistor(context));
         okhttpCookies.clear();
-        OkHttpClient client = new OkHttpClient.Builder().cookieJar(okhttpCookies)
+        OkHttpClient client = new OkHttpClient.Builder().cookieJar(javaNetCookie ? new JavaNetCookieJar(cookies) : okhttpCookies)
                 .addInterceptor(new SuperTokensInterceptor()).readTimeout(5, TimeUnit.SECONDS).build();
         try {
             context.getSharedPreferences("supertokens-android-shared-preferences", Context.MODE_PRIVATE).edit().clear().commit();

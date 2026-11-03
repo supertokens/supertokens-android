@@ -35,4 +35,8 @@ for i in $(seq 1 30); do
     sleep 1
 done
 [ "$ready" = 1 ] || { echo "Owned backend did not become ready" >&2; exit 1; }
-adb -s "$serial" shell am instrument -w -r -e deviceCookie 1 -e class com.example.example.CookieFlowInstrumentedTest "$runner" | tee /dev/stderr | grep -q 'OK (2 tests)'
+if [ "${1:-}" = "--javanet" ]; then
+    adb -s "$serial" shell am instrument -w -r -e deviceCookie 1 -e javaNetCookie 1 -e class 'com.example.example.CookieFlowInstrumentedTest#okhttpJavaNetCookieFlow' "$runner" | tee /dev/stderr | grep -q 'OK (1 test)'
+else
+    adb -s "$serial" shell am instrument -w -r -e deviceCookie 1 -e class 'com.example.example.CookieFlowInstrumentedTest#okhttpCookieFlow,com.example.example.CookieFlowInstrumentedTest#urlConnectionCookieFlow' "$runner" | tee /dev/stderr | grep -q 'OK (2 tests)'
+fi
