@@ -17,6 +17,7 @@ import okhttp3.mockwebserver.RecordedRequest;
 import okhttp3.mockwebserver.SocketPolicy;
 import org.junit.Test;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 public class LegacyRefreshOutcomeMatrixTest extends SessionTestFixture {
@@ -542,6 +543,225 @@ public class LegacyRefreshOutcomeMatrixTest extends SessionTestFixture {
             }
         }
         assertTrue(differences.toString(), differences.isEmpty());
+    }
+
+    // Controlled responses characterize the two SDKs; they do not qualify a live Node/Core pair.
+    private enum TokenState { RETAINED, CLEARED, UNEXPECTED }
+
+    private static final class CallOutcome {
+        final Integer status;
+        final String checkedException;
+        final boolean ioException;
+        CallOutcome(Integer status, String checkedException, boolean ioException) { this.status = status; this.checkedException = checkedException; this.ioException = ioException; }
+        @Override public String toString() { return status != null ? "status:" + status : "checked-exception:" + checkedException; }
+    }
+
+    private static final class WireShape {
+        final boolean accessCookie;
+        final boolean refreshCookie;
+        final boolean authorization;
+        final boolean accessHeader;
+        final boolean refreshHeader;
+        WireShape(RecordedRequest request) {
+            boolean access = false, refresh = false;
+            for (String header : request.getHeaders().values("Cookie")) {
+                for (String part : header.split(";")) {
+                    String pair = part.trim();
+                    access |= pair.equals("sAccessToken=access");
+                    refresh |= pair.startsWith("sRefreshToken=");
+                }
+            }
+            accessCookie = access;
+            refreshCookie = refresh;
+            authorization = !request.getHeaders().values("Authorization").isEmpty();
+            accessHeader = !request.getHeaders().values("st-access-token").isEmpty();
+            refreshHeader = !request.getHeaders().values("st-refresh-token").isEmpty();
+        }
+        @Override public String toString() {
+            return "accessCookie=" + accessCookie + ",refreshCookie=" + refreshCookie + ",authorization=" + authorization
+                    + ",accessHeader=" + accessHeader + ",refreshHeader=" + refreshHeader;
+        }
+    }
+
+    private static final class MissingCookieObservation {
+        final CallOutcome call;
+        final TokenState token;
+        final List<String> events;
+        final WireShape protectedWire;
+        final WireShape refreshWire;
+        MissingCookieObservation(CallOutcome call, TokenState token, List<String> events, WireShape protectedWire, WireShape refreshWire) {
+            this.call = call; this.token = token; this.events = events; this.protectedWire = protectedWire; this.refreshWire = refreshWire;
+        }
+        @Override public String toString() {
+            return call + ":token=" + token + ":events=" + events + ":protected=" + protectedWire + ":refresh=" + refreshWire;
+        }
+    }
+
+    private okhttp3.OkHttpClient clientWithCookieBridge(CookieManager manager) {
+        return client.newBuilder().cookieJar(new okhttp3.CookieJar() {
+            @Override public void saveFromResponse(okhttp3.HttpUrl url, List<okhttp3.Cookie> cookies) {
+                List<String> values = new ArrayList<>();
+                for (okhttp3.Cookie cookie : cookies) values.add(cookie.toString());
+                try { manager.put(url.uri(), java.util.Collections.singletonMap("Set-Cookie", values)); }
+                catch (java.io.IOException e) { throw new AssertionError("cookie bridge save failed", e); }
+            }
+            @Override public List<okhttp3.Cookie> loadForRequest(okhttp3.HttpUrl url) {
+                List<okhttp3.Cookie> result = new ArrayList<>();
+                try {
+                    for (java.util.Map.Entry<String, List<String>> header : manager.get(url.uri(), java.util.Collections.emptyMap()).entrySet()) {
+                        if (!"Cookie".equalsIgnoreCase(header.getKey())) continue;
+                        for (String value : header.getValue()) for (String pair : value.split(";\\s*")) {
+                            if (pair.startsWith("$")) continue;
+                            okhttp3.Cookie cookie = okhttp3.Cookie.parse(url, pair);
+                            if (cookie != null) result.add(cookie);
+                        }
+                    }
+                } catch (java.io.IOException e) { throw new AssertionError("cookie bridge load failed", e); }
+                return result;
+            }
+        }).build();
+    }
+
+    private int missingCookieRequest(Legacy054Harness old, okhttp3.OkHttpClient cookieClient,
+                                     boolean urlConnection, String path) throws Exception {
+        if (old != null) return urlConnection
+                ? (Integer) old.invoke("requestURLConnection", new Class<?>[]{String.class}, server.url(path).toString())
+                : ((Number) old.request(server.url(path).toString()).get("status")).intValue();
+        return urlConnection ? request(true, null, path) : request(cookieClient, null, path);
+    }
+
+    private CallOutcome captureMissingCookieRequest(Legacy054Harness old, okhttp3.OkHttpClient cookieClient,
+                                                     boolean urlConnection) {
+        try { return new CallOutcome(missingCookieRequest(old, cookieClient, urlConnection, "/protected"), null, false); }
+        catch (RuntimeException failure) { throw failure; }
+        catch (Exception failure) { return new CallOutcome(null, failure.getClass().getName(), failure instanceof java.io.IOException); }
+    }
+
+    private static boolean hasCookie(CookieManager manager, String name, String expected) {
+        for (java.net.HttpCookie cookie : manager.getCookieStore().getCookies()) {
+            if (name.equals(cookie.getName()) && (expected == null || expected.equals(cookie.getValue()))) return true;
+        }
+        return false;
+    }
+
+    private MissingCookieObservation missingCookieRow(boolean legacy, boolean urlConnection, boolean removal) throws Exception {
+        java.util.concurrent.atomic.AtomicReference<WireShape> protectedWire = new java.util.concurrent.atomic.AtomicReference<>();
+        java.util.concurrent.atomic.AtomicReference<WireShape> refreshWire = new java.util.concurrent.atomic.AtomicReference<>();
+        AtomicInteger logins = new AtomicInteger(), protectedRequests = new AtomicInteger(), refreshes = new AtomicInteger(), unexpected = new AtomicInteger();
+        List<String> events = new java.util.concurrent.CopyOnWriteArrayList<>();
+        long callerThread = Thread.currentThread().getId();
+        String originalFront = front();
+        server.setDispatcher(new Dispatcher() {
+            @Override public MockResponse dispatch(RecordedRequest request) {
+                String path = request.getPath(), method = request.getMethod();
+                if ("/login".equals(path) && "GET".equals(method)) {
+                    logins.incrementAndGet();
+                    return new MockResponse().addHeader("front-token", originalFront)
+                            .addHeader("Set-Cookie", "sAccessToken=access; Path=/")
+                            .addHeader("Set-Cookie", "sRefreshToken=refresh; Path=/");
+                }
+                if ("/protected".equals(path) && "GET".equals(method)) {
+                    protectedRequests.incrementAndGet(); protectedWire.set(new WireShape(request));
+                    return new MockResponse().setResponseCode(401);
+                }
+                if ("/auth/session/refresh".equals(path) && "POST".equals(method)) {
+                    refreshes.incrementAndGet(); refreshWire.set(new WireShape(request));
+                    MockResponse response = new MockResponse().setResponseCode(401);
+                    if (removal) response.addHeader("front-token", "remove")
+                            .addHeader("Set-Cookie", "sAccessToken=; Max-Age=0; Path=/")
+                            .addHeader("Set-Cookie", "sRefreshToken=; Max-Age=0; Path=/");
+                    return response;
+                }
+                unexpected.incrementAndGet();
+                return new MockResponse().setResponseCode(500);
+            }
+        });
+        CookieHandler previous = CookieHandler.getDefault();
+        try (Legacy054Harness old = legacy ? new Legacy054Harness(context) : null) {
+            okhttp3.OkHttpClient cookieClient = null;
+            if (legacy) {
+                old.invoke("useCookies");
+                old.invoke("buildWithEventsForTransfer", new Class<?>[]{String.class, String.class, List.class, String.class},
+                        server.url("/").toString(), "cookie", events, null);
+            } else {
+                CookieHandler.setDefault(new CookieManager(null, CookiePolicy.ACCEPT_ALL));
+                new SuperTokens.Builder(context, server.url("/").toString()).tokenTransferMethod("cookie")
+                        .eventHandler(event -> events.add(event.name() + ":" + Thread.currentThread().getId())).build();
+                cookieClient = clientWithCookieBridge((CookieManager) CookieHandler.getDefault());
+            }
+            assertEquals(200, missingCookieRequest(old, cookieClient, urlConnection, "/login"));
+            CookieManager manager = (CookieManager) CookieHandler.getDefault();
+            assertTrue("login installs synthetic access cookie", hasCookie(manager, "sAccessToken", "access"));
+            assertTrue("login installs synthetic refresh cookie", hasCookie(manager, "sRefreshToken", "refresh"));
+            boolean removed = false;
+            for (java.net.URI uri : new ArrayList<>(manager.getCookieStore().getURIs())) {
+                for (java.net.HttpCookie cookie : new ArrayList<>(manager.getCookieStore().get(uri))) {
+                    if ("sRefreshToken".equals(cookie.getName())) removed |= manager.getCookieStore().remove(uri, cookie);
+                }
+            }
+            assertTrue("refresh cookie removed", removed);
+            assertFalse("refresh cookie remains", hasCookie(manager, "sRefreshToken", null));
+            assertTrue("access cookie survives refresh-cookie removal", hasCookie(manager, "sAccessToken", "access"));
+            events.clear();
+            com.supertokens.session.SessionSnapshot before = legacy ? null : SuperTokens.getSessionSnapshot(context);
+            if (!legacy) assertEquals(com.supertokens.session.SessionSnapshot.Status.AVAILABLE, before.getStatus());
+            CallOutcome result = captureMissingCookieRequest(old, cookieClient, urlConnection);
+            assertEquals("unexpected traffic", 0, unexpected.get());
+            assertEquals("login count", 1, logins.get());
+            assertEquals("protected count", 1, protectedRequests.get());
+            assertEquals("refresh count", 1, refreshes.get());
+            WireShape protectedShape = protectedWire.get(), refreshShape = refreshWire.get();
+            assertTrue("protected request must carry the synthetic access cookie", protectedShape.accessCookie);
+            assertFalse("protected request must not carry the refresh cookie", protectedShape.refreshCookie);
+            assertFalse("refresh request must not carry the refresh cookie", refreshShape.refreshCookie);
+            assertFalse("refresh request must not use Authorization fallback", refreshShape.authorization);
+            assertFalse("refresh request must not use access header fallback", refreshShape.accessHeader);
+            assertFalse("refresh request must not use refresh header fallback", refreshShape.refreshHeader);
+            String stored = context.getSharedPreferences("supertokens-android-shared-preferences", 0)
+                    .getString("supertokens-android-fronttoken-key", null);
+            TokenState state = stored == null ? TokenState.CLEARED : stored.equals(originalFront) ? TokenState.RETAINED : TokenState.UNEXPECTED;
+            List<String> normalizedEvents = new ArrayList<>();
+            // The SDK operation must synchronously finish callbacks on the caller before its result is observed.
+            for (String event : new ArrayList<>(events)) {
+                String[] parts = event.split(":", 2);
+                assertEquals("callback must complete on the request thread", String.valueOf(callerThread), parts[1]);
+                normalizedEvents.add(parts[0]);
+            }
+            if (!legacy) {
+                com.supertokens.session.SessionSnapshot after = SuperTokens.getSessionSnapshot(context);
+                if (state == TokenState.RETAINED) {
+                    assertEquals(com.supertokens.session.SessionSnapshot.Status.AVAILABLE, after.getStatus());
+                    org.junit.Assert.assertSame("candidate-only owner fence", before.getOwner(), after.getOwner());
+                    assertEquals(before.getUserId(), after.getUserId());
+                    // Synthetic front() has no handle; handle preservation is not established by this row.
+                } else if (state == TokenState.CLEARED) {
+                    assertEquals(com.supertokens.session.SessionSnapshot.Status.ABSENT, after.getStatus());
+                }
+            }
+            return new MissingCookieObservation(result, state, normalizedEvents, protectedShape, refreshShape);
+        } finally { CookieHandler.setDefault(previous); }
+    }
+
+    @Test public void missingRefreshCookieBare401RetainsSessionOnBothTransports() throws Exception { compareMissingCookie(false); }
+    @Test public void missingRefreshCookieExplicitRemovalMatchesPublishedOnBothTransports() throws Exception { compareMissingCookie(true); }
+
+    private void compareMissingCookie(boolean removal) throws Exception {
+        for (boolean urlConnection : new boolean[]{false, true}) {
+            context.getSharedPreferences("supertokens-android-shared-preferences", 0).edit().clear().commit();
+            SuperTokens.resetForTests();
+            MissingCookieObservation published = missingCookieRow(true, urlConnection, removal);
+            // D8 hypothesis is independent of the candidate: a mismatch blocks interpretation.
+            if (!removal) {
+                assertTrue("D8 published outcome must be IOException: " + published.call, published.call.ioException);
+                assertEquals("D8 published session must be retained", TokenState.RETAINED, published.token);
+                assertEquals(java.util.Collections.singletonList("UNAUTHORISED"), published.events);
+            } else assertEquals("published explicit removal must clear", TokenState.CLEARED, published.token);
+            context.getSharedPreferences("supertokens-android-shared-preferences", 0).edit().clear().commit();
+            SuperTokens.resetForTests();
+            MissingCookieObservation candidate = missingCookieRow(false, urlConnection, removal);
+            assertEquals("published/candidate controlled outcome; removal=" + removal + " URLConnection=" + urlConnection,
+                    published.toString(), candidate.toString());
+        }
     }
 
     private String exposedCookieRow(boolean legacy, Caller caller, Outcome result) throws Exception {
