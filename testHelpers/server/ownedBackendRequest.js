@@ -3,7 +3,19 @@ const net = require('net');
 const crypto = require('crypto');
 const { inspect } = require('./coreRuntimeIdentity');
 
-async function ownedBackendRequest(owner, port, instance, route, inspectListener = inspect) {
+function observationHeaders(runId, instance, options) {
+    const id = value => typeof value === 'string' && /^[a-f0-9]{48}$/.test(value);
+    if (!id(runId) || !id(instance) || !options || !['arm', 'consume'].includes(options.action) ||
+        Object.keys(options).some(key => !['action', 'generation'].includes(key)) ||
+        (options.action === 'arm' && options.generation !== undefined) ||
+        (options.action === 'consume' && !id(options.generation))) throw new Error('Invalid observation request');
+    return { 'x-st-test-run-id': runId, 'x-st-test-instance-id': instance,
+        ...(options.action === 'consume' ? { 'x-st-test-generation': options.generation } : {}) };
+}
+
+async function ownedBackendRequest(owner, port, instance, route, inspectListener = inspect, observation) {
+    const observerHeaders = observation ? observationHeaders(owner.runId, instance, observation) : null;
+    if (observation && route !== '/test/refresh-observation/' + observation.action) throw new Error('Invalid observation route');
     function verifyListener() {
         owner.verify();
         const metadata = inspectListener(owner.child.pid, port);
@@ -28,7 +40,7 @@ async function ownedBackendRequest(owner, port, instance, route, inspectListener
     const request = (url, method, headers = {}) => new Promise((resolve, reject) => {
         const req = http.request({ host: '127.0.0.1', port, path: url, method, headers, agent }, response => {
             let data = '';
-            response.on('data', chunk => { data += chunk; });
+            response.on('data', chunk => { data += chunk; if (data.length > 65536) req.destroy(new Error('Backend response too large')); });
             response.on('end', () => resolve({ status: response.statusCode, body: data }));
             response.on('error', reject);
         });
@@ -50,11 +62,11 @@ async function ownedBackendRequest(owner, port, instance, route, inspectListener
         authenticated = true;
         if (!pinned || pinned.destroyed) throw new Error('Backend proof socket closed');
         verifyListener();
-        const result = await request(route, 'POST', { 'x-st-test-run-id': owner.runId });
+        const result = await request(route, 'POST', observerHeaders || { 'x-st-test-run-id': owner.runId });
         verifyListener();
         if (result.status !== 200) throw new Error('Owned backend cleanup not acknowledged: ' + result.status);
         return result;
     } finally { agent.destroy(); }
 }
 
-module.exports = { ownedBackendRequest };
+module.exports = { ownedBackendRequest, observationHeaders };

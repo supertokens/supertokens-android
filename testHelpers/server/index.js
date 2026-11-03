@@ -252,6 +252,12 @@ app.post("/test/shutdown-core", async (req, res, next) => {
     res.json({ stopped: true });
 });
 
+const refreshObservation = require('./refreshObservation').createRefreshObservation({
+    runId: process.env.ST_TEST_RUN_ID, instance: process.env.ST_TEST_INSTANCE_ID
+});
+app.post('/test/refresh-observation/arm', refreshObservation.arm);
+app.post('/test/refresh-observation/consume', refreshObservation.consume);
+app.use(refreshObservation.observe);
 app.use(middleware());
 coreProtocol.install(app);
 
@@ -327,6 +333,7 @@ app.post("/test/transfer-method", async (req, res) => {
 });
 
 app.post("/beforeeach", async (req, res, next) => {
+    refreshObservation.invalidate();
     try { await coreProtocol.cleanupOwners(); } catch (error) { return next(error); }
     transferMethod = process.env.TRANSFER_METHOD;
     noOfTimesRefreshCalledDuringTest = 0;
@@ -339,6 +346,7 @@ app.post("/beforeeach", async (req, res, next) => {
 });
 
 app.post("/after", async (req, res, next) => {
+    refreshObservation.invalidate();
     try { await coreProtocol.cleanupOwners(); } catch (error) { return next(error); }
     await stopST();
     await cleanST();

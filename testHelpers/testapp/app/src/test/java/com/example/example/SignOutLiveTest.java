@@ -96,6 +96,11 @@ class LiveFixture implements AutoCloseable {
     final List<EventHandler.EventType> events = Collections.synchronizedList(new ArrayList<>());
 
     LiveFixture(String method, boolean urlConnection) throws java.net.MalformedURLException {
+        this(method, urlConnection, null);
+    }
+
+    LiveFixture(String method, boolean urlConnection, com.supertokens.session.CustomHeaderProvider provider)
+            throws java.net.MalformedURLException {
         com.example.TestUtils.beforeEach();
         com.example.TestUtils.startST(3);
         this.urlConnection = urlConnection;
@@ -108,7 +113,7 @@ class LiveFixture implements AutoCloseable {
         cookies = new CookieManager(null, CookiePolicy.ACCEPT_ALL);
         CookieHandler.setDefault(cookies);
         try {
-            new SuperTokens.Builder(context, Constants.apiDomain).tokenTransferMethod(method).eventHandler(events::add).build();
+            new SuperTokens.Builder(context, Constants.apiDomain).tokenTransferMethod(method).customHeaderProvider(provider).eventHandler(events::add).build();
         } catch (java.net.MalformedURLException | RuntimeException | Error error) {
             CookieHandler.setDefault(previous);
             SuperTokens.resetForTests();

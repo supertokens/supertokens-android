@@ -5,6 +5,7 @@ const { OwnedProcess } = require('./ownedProcess');
 const { OwnedCommandGroup } = require('./ownedCommandGroup');
 const { ownedBackendRequest } = require('./ownedBackendRequest');
 const { environment, snapshotDependencies, digestTree } = require('./ordinaryEnvironment');
+const { inventory, verify } = require('./backendSourceInventory');
 
 async function main() {
     const [source, temporary, backendPortText, corePortText, ...command] = process.argv.slice(2);
@@ -18,6 +19,7 @@ async function main() {
     const runId = crypto.randomBytes(24).toString('hex');
     fs.writeFileSync(path.join(root, 'owner.json'), JSON.stringify({ root, runId }), { mode: 0o600 });
     fs.copyFileSync(path.join(source, 'version.yaml'), path.join(root, 'version.yaml'));
+    const backendSources = inventory(__dirname);
     const serverDirectory = path.join(root, 'backend');
     fs.mkdirSync(serverDirectory);
     for (const name of fs.readdirSync(__dirname)) {
@@ -25,6 +27,8 @@ async function main() {
             fs.copyFileSync(path.join(__dirname, name), path.join(serverDirectory, name));
         }
     }
+    verify(backendSources, serverDirectory);
+    fs.writeFileSync(path.join(root, 'backend-source-inventory.json'), JSON.stringify(backendSources), { mode: 0o600 });
     const dependencies = snapshotDependencies(fs.realpathSync(path.join(__dirname, 'node_modules')), path.join(serverDirectory, 'node_modules'));
     fs.writeFileSync(path.join(root, 'dependencies.sha256'), dependencies + '\n');
     for (const directory of ['core', 'plugin-interface', 'ee']) {
@@ -40,6 +44,7 @@ async function main() {
     const log = fs.openSync(path.join(root, 'backend.log'), 'a');
     let ready = false;
     let commandSucceeded = false;
+    let primaryError;
     const test = new OwnedCommandGroup(runId, entry => fs.appendFileSync(path.join(root, 'process-tree.jsonl'), JSON.stringify(entry) + '\n'));
     let interrupted = false;
     let resolveInterrupted;
@@ -67,11 +72,18 @@ async function main() {
         }
         if (!ready || interrupted) throw new Error('Backend startup interrupted or timed out');
         console.log(JSON.stringify({ root, backendPid: backend.child.pid, backendPort, corePort, instance }));
+        env.ST_TEST_BACKEND_PID = String(backend.child.pid);
+        env.ST_TEST_BACKEND_FINGERPRINT = backend.fingerprint;
+        env.ST_TEST_BACKEND_CWD = backend.launch.cwd;
         await test.start(command, { env, cwd: process.cwd() });
         const code = await Promise.race([test.done, interruption]);
         commandSucceeded = code === 0 && !interrupted;
         process.exitCode = code || (interrupted ? 130 : 0);
+    } catch (error) {
+        primaryError = error;
     } finally {
+        let cleanupError;
+        try {
         try { await test.drain(); }
         catch (error) {
             try {
@@ -106,12 +118,28 @@ async function main() {
         await backend.stop(runId);
         fs.appendFileSync(path.join(root, 'process-tree.jsonl'), JSON.stringify({ action: 'BACKEND_STOPPED' }) + '\n');
         fs.closeSync(log);
+        } catch (error) {
+            cleanupError = error;
+        }
+        let sourceMismatch = false;
+        try {
+            verify(backendSources, __dirname);
+            verify(backendSources, serverDirectory);
+        } catch (_) {
+            sourceMismatch = true;
+            try { fs.writeFileSync(path.join(root, 'backend-source-mismatch.json'), JSON.stringify({ code: 'BACKEND_SOURCE_MISMATCH' }), { mode: 0o600 }); } catch (_) { }
+            try { fs.writeSync(2, 'BACKEND_SOURCE_MISMATCH\n'); } catch (_) { }
+        }
+        if (cleanupError) throw cleanupError;
+        if (primaryError) throw primaryError;
+        if (sourceMismatch && !process.exitCode) throw new Error('Backend source inventory changed');
+        if (sourceMismatch) return;
         if (digestTree(path.join(serverDirectory, 'node_modules')) !== dependencies) throw new Error('Private dependency snapshot mutated during run');
         if (commandSucceeded && !interrupted) {
             const lifecycle = fs.readFileSync(path.join(root, 'process-tree.jsonl'));
             fs.writeFileSync(path.join(root, 'lifecycle-completed.json'), JSON.stringify({
                 schema: 1, root, runId, instance, command, exitCode: 0,
-                dependenciesSha256: dependencies,
+                dependenciesSha256: dependencies, backendSourceSha256: backendSources.sha256,
                 lifecycleSha256: crypto.createHash('sha256').update(lifecycle).digest('hex'),
             }), { flag: 'wx' });
         }

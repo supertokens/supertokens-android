@@ -75,7 +75,7 @@ Module._load = function(name, parent, ...args) {
         async start(command, args, options) {
             this.child = cp.spawn(process.execPath, ['-e', 'setInterval(()=>{},1000)', ${JSON.stringify(root)}], {stdio:'ignore'});
             fs.writeFileSync(${JSON.stringify(path.join(root, 'backend.pid'))}, String(this.child.pid));
-            this.fingerprint = 'fixture'; return this.child;
+            this.fingerprint = 'fixture'; this.launch = { cwd: options.cwd }; return this.child;
         }
         verifyDetachedGroup() {}
         async stop() { fs.writeFileSync(${JSON.stringify(path.join(root, 'backend-stopped'))}, 'yes'); this.child.kill(); }

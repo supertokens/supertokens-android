@@ -192,11 +192,13 @@ New testapp classes only; restored 0.5.4 test classes stay unmodified (D5).
 | Test class (testapp) | Scenario | Backend support needed |
 |---|---|---|
 | `TransferMethodMismatchLiveTest` | Header-config SDK with the server forcing cookie transfer: login, protected request, expiry refresh, `signOut`, for OkHttp, Retrofit and URLConnection. Also the reverse. | Runtime toggle `POST /test/transfer-method` (the `TRANSFER_METHOD` env var is process-wide) |
-| `RefreshWithoutClearLiveTest` | Cookie mode: drop `sRefreshToken` from the cookie jar, let access expire, make a request. Assert `IOException`, front token retained, one `UNAUTHORISED`. This is Node's real `clearTokens: false` path. | None |
+| `MissingRefreshCookieLiveTest` | Genuine owned Node/Core: cookie mode, drop `sRefreshToken`, let access expire, and verify both transports send no refresh cookie/header. For a pair whose actual refresh response is 401 with explicit front-token removal, assert returned 401, absent session and one `UNAUTHORISED`; capture the sanitized wire observation. Node 17.1.5 has this behavior; other pairs require independent evidence and remain blocking if the response differs. | Owned, sanitized refresh-observation endpoint; no response rewriting |
 | `SignOutLiveTest` | `SuperTokens.signOut` in the ordinary lane: header and cookie, both transports, events, sign-out without a session, sign-out after access expiry (reactive refresh). | None |
 | `LegacyEventsLiveTest` | Recording `EventHandler` across login, refresh, payload update (`/update-jwt`), revoke (`/revokeAll`), sign-out; compare with the sequence from the M0 oracle matrix. | None |
 | `ParallelSessionLiveTest` | 20 parallel 401s → exactly one refresh; parallel login and sign-out; no request carries another owner's token. | None |
 | `AuthHeaderMismatchLiveTest` | Fixed copy of `okhttpHeaders_testThatAuthHeaderIsNotIgnoredIfItDoesntMatchTheStoredAccessToken`. The original sends `request` instead of `request2`, so it tests nothing (bug inherited from master); leave it untouched. | None |
+
+A separate controlled-response regression remains required on both transports for a refresh 401 **without** removal: assert the approved caller outcome, retained session identity and one `UNAUTHORISED`. Controlled evidence is not a genuine live Node/Core no-clear result. The missing-cookie requirement was revised because Node 17.1.4 changed the generic missing-refresh path to clear tokens (and earlier 17.1.x already cleared when an access cookie was present); no other pair is qualified by that source finding.
 
 Qualification gates (all on the **final** commit SHA):
 
