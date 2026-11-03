@@ -78,12 +78,17 @@ public class FrontTokenLockInstrumentedTest {
         } finally {
             abortReader.set(!completed);
             releaseReader.countDown();
-            try { reader.get(5, TimeUnit.SECONDS); }
-            catch (ExecutionException e) { if (completed) throw e; }
-            if (writer != null) writer.get(5, TimeUnit.SECONDS);
-            prefs.unregisterOnSharedPreferenceChangeListener(listener);
-            workers.shutdownNow();
-            assertTrue(workers.awaitTermination(5, TimeUnit.SECONDS));
+            try {
+                try { reader.get(5, TimeUnit.SECONDS); }
+                catch (ExecutionException e) { if (completed) throw e; }
+                if (writer != null) writer.get(5, TimeUnit.SECONDS);
+            } finally {
+                try { prefs.unregisterOnSharedPreferenceChangeListener(listener); }
+                finally {
+                    workers.shutdownNow();
+                    assertTrue(workers.awaitTermination(5, TimeUnit.SECONDS));
+                }
+            }
         }
         if (callbackFailure.get() != null) throw new AssertionError(callbackFailure.get());
         assertTrue("preference callback blocked behind a paused front-token reader", completed);
