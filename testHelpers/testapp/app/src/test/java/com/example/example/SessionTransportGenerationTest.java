@@ -199,6 +199,58 @@ public class SessionTransportGenerationTest {
         assertEquals("rotated-csrf", snapshot.antiCsrfToken);
     }
 
+    @Test public void requestPreparedDuringSameGenerationRotationUsesCoherentCredentials() throws Exception {
+        long generation = SuperTokens.getSessionSnapshot(context).generation;
+        if (transport.equals("okhttp")) {
+            client = client.newBuilder().addNetworkInterceptor(chain -> {
+                if (chain.request().url().encodedPath().equals("/ordinary")) {
+                    entered.countDown();
+                    try {
+                        if (!release.await(5, TimeUnit.SECONDS)) throw new java.io.IOException("gate timed out");
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        throw new java.io.IOException(e);
+                    }
+                }
+                return chain.proceed(chain.request());
+            }).build();
+        }
+        server.setDispatcher(new Dispatcher() {
+            @Override public MockResponse dispatch(RecordedRequest request) {
+                if (request.getPath().equals("/rotate")) return tokens("rotated").setHeader("front-token", front("old"));
+                return new MockResponse().setBody("ok");
+            }
+        });
+        Future<Integer> pending = worker.submit(() -> {
+            if (transport.equals("okhttp")) return request("/ordinary");
+            HttpURLConnection connection = SuperTokensHttpURLConnection.newRequest(server.url("/ordinary").url(), con -> {
+                entered.countDown();
+                try {
+                    if (!release.await(5, TimeUnit.SECONDS)) throw new java.io.IOException("gate timed out");
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new java.io.IOException(e);
+                }
+            });
+            try { return connection.getResponseCode(); } finally { connection.disconnect(); }
+        });
+        assertTrue(entered.await(5, TimeUnit.SECONDS));
+        assertEquals(200, request("/rotate"));
+        assertEquals(generation, SuperTokens.getSessionSnapshot(context).generation);
+        release.countDown();
+        assertEquals(200, (int) pending.get(5, TimeUnit.SECONDS));
+        RecordedRequest rotated = server.takeRequest(5, TimeUnit.SECONDS);
+        RecordedRequest ordinary = server.takeRequest(5, TimeUnit.SECONDS);
+        assertNotNull(rotated);
+        assertNotNull(ordinary);
+        assertEquals("/rotate", rotated.getPath());
+        assertEquals("/ordinary", ordinary.getPath());
+        assertEquals("Bearer old-access", ordinary.getHeader("Authorization"));
+        assertEquals("old-csrf", ordinary.getHeader("anti-csrf"));
+        assertEquals("rotated-access", SuperTokens.getSessionSnapshot(context).accessToken);
+        assertEquals("rotated-csrf", SuperTokens.getSessionSnapshot(context).antiCsrfToken);
+    }
+
     @Test public void eventHandlerCanRefreshWithoutReadLockUpgradeDeadlock() throws Exception {
         SuperTokens.resetForTests();
         AtomicInteger refreshEvents = new AtomicInteger();
@@ -406,6 +458,7 @@ public class SessionTransportGenerationTest {
     }
 
     @Test public void currentRefreshDisconnectPropagatesAndLaterRequestRecovers() throws Exception {
+        long generation = SuperTokens.getSessionSnapshot(context).generation;
         AtomicInteger refreshes = new AtomicInteger();
         java.util.concurrent.atomic.AtomicBoolean healthy = new java.util.concurrent.atomic.AtomicBoolean();
         CountDownLatch bothOrdinary = new CountDownLatch(2);
@@ -451,10 +504,52 @@ public class SessionTransportGenerationTest {
             assertTrue(concurrent.awaitTermination(5, TimeUnit.SECONDS));
         }
         assertEquals("old-access", SuperTokens.getSessionSnapshot(context).accessToken);
+        assertEquals("old-refresh", SuperTokens.getSessionSnapshot(context).refreshToken);
+        assertEquals(front("old"), SuperTokens.getSessionSnapshot(context).frontToken);
+        assertEquals("old-csrf", SuperTokens.getSessionSnapshot(context).antiCsrfToken);
+        assertEquals(generation, SuperTokens.getSessionSnapshot(context).generation);
         assertFalse(events.contains(EventHandler.EventType.UNAUTHORISED));
+        assertFalse(events.contains(EventHandler.EventType.REFRESH_SESSION));
+        assertFalse(events.contains(EventHandler.EventType.SIGN_OUT));
         healthy.set(true);
         assertEquals(200, (int) worker.submit(() -> request("/ordinary")).get(5, TimeUnit.SECONDS));
         assertTrue(refreshes.get() >= 2);
+        assertEquals(1, java.util.Collections.frequency(events, EventHandler.EventType.REFRESH_SESSION));
+    }
+
+    @Test public void refreshReadTimeoutPreservesSessionAndLaterRecovers() throws Exception {
+        Assume.assumeTrue(transport.equals("okhttp") || "500".equals(System.getProperty("sun.net.client.defaultReadTimeout")));
+        client = client.newBuilder().readTimeout(500, TimeUnit.MILLISECONDS).build();
+        AtomicInteger refreshes = new AtomicInteger();
+        long generation = SuperTokens.getSessionSnapshot(context).generation;
+        server.setDispatcher(new Dispatcher() {
+            @Override public MockResponse dispatch(RecordedRequest request) throws InterruptedException {
+                if (request.getPath().equals("/auth/session/refresh")) {
+                    if (refreshes.incrementAndGet() == 1) return gated(tokens("old"));
+                    return tokens("rotated").setHeader("front-token", front("old"));
+                }
+                return "Bearer old-access".equals(request.getHeader("Authorization"))
+                        ? new MockResponse().setResponseCode(401) : new MockResponse().setBody("ok");
+            }
+        });
+        Future<Integer> failed = worker.submit(() -> request("/ordinary"));
+        assertTrue(entered.await(5, TimeUnit.SECONDS));
+        try {
+            failed.get(5, TimeUnit.SECONDS);
+            fail("Expected a refresh read timeout");
+        } catch (ExecutionException expected) {
+            assertTrue(expected.getCause() instanceof java.net.SocketTimeoutException);
+        } finally {
+            release.countDown();
+        }
+        SuperTokens.SessionSnapshot snapshot = SuperTokens.getSessionSnapshot(context);
+        assertEquals(generation, snapshot.generation);
+        assertEquals("old-access", snapshot.accessToken);
+        assertEquals("old-refresh", snapshot.refreshToken);
+        assertEquals(front("old"), snapshot.frontToken);
+        assertEquals("old-csrf", snapshot.antiCsrfToken);
+        assertTrue(events.isEmpty());
+        assertEquals(200, (int) worker.submit(() -> request("/ordinary")).get(5, TimeUnit.SECONDS));
         assertEquals(1, java.util.Collections.frequency(events, EventHandler.EventType.REFRESH_SESSION));
     }
 
@@ -482,6 +577,9 @@ public class SessionTransportGenerationTest {
             assertEquals(401, (int) second.get(5, TimeUnit.SECONDS));
             assertNull(SuperTokens.getSessionSnapshot(context).frontToken);
             assertNull(SuperTokens.getSessionSnapshot(context).accessToken);
+            assertNull(SuperTokens.getSessionSnapshot(context).refreshToken);
+            assertNull(SuperTokens.getSessionSnapshot(context).antiCsrfToken);
+            assertTrue(events.contains(EventHandler.EventType.UNAUTHORISED));
             assertFalse(events.contains(EventHandler.EventType.REFRESH_SESSION));
         } finally {
             concurrent.shutdownNow();
