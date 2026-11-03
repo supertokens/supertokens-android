@@ -75,7 +75,9 @@ public class SuperTokens {
         void onSessionChanged(SessionSnapshot snapshot);
     }
 
-    /** A lifecycle event and the immutable state committed by its originating transition. */
+    /** A lifecycle event and the actual immutable state associated with its originating transition.
+     * Legacy refresh event types do not by themselves imply that the session was cleared.
+     */
     public static final class SessionEvent {
         public final EventHandler.EventType type;
         public final SessionSnapshot snapshot;

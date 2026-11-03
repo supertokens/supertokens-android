@@ -101,3 +101,8 @@ fencing cannot undo those writes. Header mode (the default) is fully fenced for 
 session state. The HttpURLConnection manual cookie-path workaround is ownership
 checked and serialized with session replacement; custom cookie handlers should
 not block waiting for session-changing work on another thread.
+
+For compatibility, a refresh response without a `front-token` can emit a legacy
+`UNAUTHORISED` or `SIGN_OUT` event without clearing the session. `SessionEvent`
+carries the actual snapshot and generation; its event type alone does not establish
+that credentials were removed.

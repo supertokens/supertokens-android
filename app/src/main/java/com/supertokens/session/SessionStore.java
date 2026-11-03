@@ -127,7 +127,8 @@ final class SessionStore {
         synchronized (lock) {
             SuperTokens.SessionSnapshot old = read(context);
             if (old.generation != generation) return null;
-            boolean remove = "remove".equalsIgnoreCase(front) || (refresh && status == SuperTokens.config.sessionExpiredStatusCode);
+            boolean remove = "remove".equalsIgnoreCase(front)
+                    || (refresh && status == SuperTokens.config.sessionExpiredStatusCode && front != null);
             boolean changed = legacy || remove || access != null || refreshToken != null || front != null || csrf != null;
             if (!changed) {
                 change = new Change(old, false);
@@ -143,12 +144,21 @@ final class SessionStore {
                 boolean payloadChanged = front != null && old.frontToken != null && !remove
                         && FrontToken.payloadChanged(old.frontToken, front);
                 change = write(context, next);
-                if (!legacy && remove && old.doesSessionExist()) {
+                if (!refresh && !legacy && remove && old.doesSessionExist()) {
                     change.events.add(status == SuperTokens.config.sessionExpiredStatusCode ? EventHandler.EventType.UNAUTHORISED : EventHandler.EventType.SIGN_OUT);
-                } else if (!legacy && created) {
+                } else if (!refresh && !legacy && created) {
                     change.events.add(EventHandler.EventType.SESSION_CREATED);
                 } else if (payloadChanged) {
                     change.events.add(EventHandler.EventType.ACCESS_TOKEN_PAYLOAD_UPDATED);
+                }
+            }
+            if (refresh && !legacy) {
+                boolean frontExistsForEvent = front != null && !"remove".equalsIgnoreCase(front);
+                if (old.doesSessionExist() && !frontExistsForEvent) {
+                    change.events.add(status == SuperTokens.config.sessionExpiredStatusCode
+                            ? EventHandler.EventType.UNAUTHORISED : EventHandler.EventType.SIGN_OUT);
+                } else if (!old.doesSessionExist() && frontExistsForEvent) {
+                    change.events.add(EventHandler.EventType.SESSION_CREATED);
                 }
             }
             if (refresh && status >= 200 && status < 300 && change.next.doesSessionExist()) {
