@@ -1,0 +1,8 @@
+#!/bin/sh
+set -eu
+serial=${ANDROID_SERIAL:?Set ANDROID_SERIAL to the exclusively assigned device}
+package=com.example.example
+runner=com.example.example.test/androidx.test.runner.AndroidJUnitRunner
+adb -s "$serial" shell am instrument -w -r -e restartPhase seed -e class 'com.example.example.SessionRestartInstrumentedTest#seedLegacyPreferences' "$runner" | tee /dev/stderr | grep -q 'OK (1 test)'
+adb -s "$serial" shell am force-stop "$package"
+adb -s "$serial" shell am instrument -w -r -e restartPhase verify -e class 'com.example.example.SessionRestartInstrumentedTest#restoreAfterExternalForceStop' "$runner" | tee /dev/stderr | grep -q 'OK (1 test)'

@@ -1,0 +1,38 @@
+#!/bin/sh
+set -eu
+serial=${ANDROID_SERIAL:?Set ANDROID_SERIAL to the exclusively assigned emulator}
+root=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
+name=base-android-regression-device-core
+runner=com.example.example.test/androidx.test.runner.AndroidJUnitRunner
+if docker inspect "$name" >/dev/null 2>&1; then
+    echo "Container $name already exists; refusing to replace it" >&2
+    exit 1
+fi
+if lsof -nP -iTCP:18082 -sTCP:LISTEN -iTCP:19082 >/dev/null 2>&1; then
+    echo "Required test ports 18082 or 19082 are in use" >&2
+    exit 1
+fi
+backend_pid=
+owned_core=
+cleanup() {
+    if [ -n "$backend_pid" ]; then kill "$backend_pid" 2>/dev/null || :; wait "$backend_pid" 2>/dev/null || :; fi
+    if [ -n "$owned_core" ]; then docker stop "$name" >/dev/null 2>&1 || :; fi
+}
+trap cleanup EXIT HUP INT TERM
+docker run -d --rm --name "$name" -p 127.0.0.1:19082:3567 -e ACCESS_TOKEN_VALIDITY=3 supertokens/supertokens-postgresql:12.4.1 >/dev/null
+owned_core=1
+ready=0
+for i in $(seq 1 60); do
+    if curl -fsS http://127.0.0.1:19082/hello >/dev/null 2>&1; then ready=1; break; fi
+    sleep 1
+done
+[ "$ready" = 1 ] || { echo "Owned Core did not become ready" >&2; exit 1; }
+(cd "$root/testHelpers/server" && exec env CORE_URI=http://127.0.0.1:19082 NODE_PORT=18082 node device-cookie-backend.js) >/dev/null 2>&1 &
+backend_pid=$!
+ready=0
+for i in $(seq 1 30); do
+    if curl -fsS http://127.0.0.1:18082/observations >/dev/null 2>&1; then ready=1; break; fi
+    sleep 1
+done
+[ "$ready" = 1 ] || { echo "Owned backend did not become ready" >&2; exit 1; }
+adb -s "$serial" shell am instrument -w -r -e deviceCookie 1 -e class com.example.example.CookieFlowInstrumentedTest "$runner" | tee /dev/stderr | grep -q 'OK (2 tests)'
