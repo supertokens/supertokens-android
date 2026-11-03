@@ -147,6 +147,8 @@ task compileLegacy054Driver(type: JavaCompile, dependsOn: extractLegacy054) {
     classpath = files(legacy054Jar, android.bootClasspath) + configurations.legacy054DriverDependencies
 }
 
+def controlledOracleExecution = [recorder: null, verified: false]
+
 task legacy054Test(type: Test, dependsOn: compileLegacy054Driver) {
     description = 'Runs isolated published-0.5.4 oracle tests (COMPATIBILITY_PLAN.md M0).'
     group = 'verification'
@@ -158,12 +160,44 @@ task legacy054Test(type: Test, dependsOn: compileLegacy054Driver) {
     inputs.dir legacy054DriverClasses
     systemProperty 'legacy054.jar', legacy054Jar.absolutePath
     systemProperty 'legacy054.driver', legacy054DriverClasses.absolutePath
+    inputs.file file('src/test/compatibility/controlled-oracle-recorder.groovy')
+    outputs.upToDateWhen { false }
+    outputs.cacheIf { false }
+    ignoreFailures = false
+    doFirst {
+        controlledOracleExecution.recorder = null
+        controlledOracleExecution.verified = false
+        def recorderFactory = new GroovyShell().evaluate(file('src/test/compatibility/controlled-oracle-recorder.groovy'))
+        controlledOracleExecution.recorder = recorderFactory()
+    }
+    afterTest { descriptor, result ->
+        controlledOracleExecution.recorder.record(descriptor.className, descriptor.name, result.resultType.name())
+    }
+    doLast {
+        try {
+            controlledOracleExecution.recorder.verify()
+            controlledOracleExecution.verified = true
+        } catch (IllegalStateException failure) {
+            throw new GradleException(failure.message, failure)
+        }
+    }
     afterSuite { descriptor, result ->
         if (descriptor.parent == null && result.testCount == 0) {
             throw new GradleException('legacy054Test discovered no tests')
         }
     }
 }
+
+task verifyRequiredLegacyRefreshCases {
+    doLast {
+        if (legacy054Test.state.failure != null) return
+        if (!legacy054Test.state.executed || legacy054Test.state.skipped ||
+                controlledOracleExecution.recorder == null || !controlledOracleExecution.verified) {
+            throw new GradleException('legacy054Test did not execute and verify required controlled oracle methods')
+        }
+    }
+}
+legacy054Test.finalizedBy verifyRequiredLegacyRefreshCases
 
 afterEvaluate {
     def androidTests = tasks.getByName('testDebugUnitTest')

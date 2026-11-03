@@ -40,8 +40,9 @@ saving response headers, and `newRequest` throws that exception at the retry
 limit. This is not a reflection access failure. The harness unwraps
 `InvocationTargetException` to its original cause.
 
-Reproduction: `./gradlew :app:legacy054Test --tests
-'com.supertokens.session.legacy054.Legacy401RetryOracleTest'` passes;
-historical 200 and removal-row failures and follow-up results are archived privately.
+The historical focused reproduction used `:app:legacy054Test --tests
+'com.supertokens.session.legacy054.Legacy401RetryOracleTest'`. It now fails the
+required controlled-oracle gate because that filter omits its required methods.
+Historical 200 and removal-row failures and follow-up results are archived privately.
 See the approved anti-CSRF exception in the adjacent provenance boundary. These runs
 do not establish final-candidate or release qualification.
