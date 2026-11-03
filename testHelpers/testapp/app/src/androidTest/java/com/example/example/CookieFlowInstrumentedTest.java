@@ -43,13 +43,15 @@ public class CookieFlowInstrumentedTest {
         Assume.assumeTrue("1".equals(InstrumentationRegistry.getArguments().getString("deviceCookie")));
         Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
         CookieHandler previous = CookieHandler.getDefault();
-        CookieManager cookies = new CookieManager(null, CookiePolicy.ACCEPT_ALL);
-        CookieHandler.setDefault(cookies);
-        PersistentCookieJar okhttpCookies = new PersistentCookieJar(new SetCookieCache(), new SharedPrefsCookiePersistor(context));
-        okhttpCookies.clear();
-        OkHttpClient client = new OkHttpClient.Builder().cookieJar(javaNetCookie ? new JavaNetCookieJar(cookies) : okhttpCookies)
-                .addInterceptor(new SuperTokensInterceptor()).readTimeout(5, TimeUnit.SECONDS).build();
+        PersistentCookieJar okhttpCookies = null;
+        OkHttpClient client = null;
         try {
+            CookieManager cookies = new CookieManager(null, CookiePolicy.ACCEPT_ALL);
+            CookieHandler.setDefault(cookies);
+            okhttpCookies = new PersistentCookieJar(new SetCookieCache(), new SharedPrefsCookiePersistor(context));
+            okhttpCookies.clear();
+            client = new OkHttpClient.Builder().cookieJar(javaNetCookie ? new JavaNetCookieJar(cookies) : okhttpCookies)
+                    .addInterceptor(new SuperTokensInterceptor()).readTimeout(5, TimeUnit.SECONDS).build();
             context.getSharedPreferences("supertokens-android-shared-preferences", Context.MODE_PRIVATE).edit().clear().commit();
             SuperTokens.resetForTests();
             new SuperTokens.Builder(context, base).tokenTransferMethod("cookie").build();
@@ -65,21 +67,28 @@ public class CookieFlowInstrumentedTest {
             assertEquals("redacted observations: " + readRaw("/observations"), 200, afterExpiry);
             assertEquals(200, request(okhttp, client, "/auth/signout", true));
             assertFalse(SuperTokens.doesSessionExist(context));
+            assertEquals(401, request(okhttp, client, "/protected", false));
             JSONArray seen = new JSONArray(readRaw("/observations"));
-            assertEquals(6, seen.length());
+            assertEquals(7, seen.length());
             assertRequest(seen.getJSONObject(0), "/login", 200, false, false, false);
             assertRequest(seen.getJSONObject(1), "/protected", 200, true, false, true);
             assertRequest(seen.getJSONObject(2), "/protected", 401, true, false, true);
             assertRequest(seen.getJSONObject(3), "/auth/session/refresh", 200, true, true, true);
             assertRequest(seen.getJSONObject(4), "/protected", 200, true, false, true);
             assertRequest(seen.getJSONObject(5), "/auth/signout", 200, true, false, true);
+            assertRequest(seen.getJSONObject(6), "/protected", 401, false, false, false);
         } finally {
-            client.connectionPool().evictAll();
-            client.dispatcher().executorService().shutdownNow();
-            okhttpCookies.clear();
-            CookieHandler.setDefault(previous);
-            SuperTokens.resetForTests();
-            context.getSharedPreferences("supertokens-android-shared-preferences", Context.MODE_PRIVATE).edit().clear().commit();
+            try {
+                if (client != null) {
+                    client.connectionPool().evictAll();
+                    client.dispatcher().executorService().shutdownNow();
+                }
+                if (okhttpCookies != null) okhttpCookies.clear();
+            } finally {
+                CookieHandler.setDefault(previous);
+                SuperTokens.resetForTests();
+                context.getSharedPreferences("supertokens-android-shared-preferences", Context.MODE_PRIVATE).edit().clear().commit();
+            }
         }
     }
 

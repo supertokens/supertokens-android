@@ -34,4 +34,4 @@ app.get("/protected", verifySession(), (req, res) => res.json({ status: "OK" }))
 app.get("/observations", (req, res) => res.json(observations));
 app.post("/reset-observations", (req, res) => { observations.length = 0; res.json({ status: "OK" }); });
 app.use(errorHandler());
-app.listen(port, "0.0.0.0");
+app.listen(port, "127.0.0.1");
