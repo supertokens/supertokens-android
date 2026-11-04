@@ -187,11 +187,20 @@ public class SuperTokensHttpURLConnection {
                 customConnection.setResponseChange(change);
                 final URL responseUrl = url;
                 final HttpURLConnection responseConnection = customConnection;
-                SessionStore.saveCookies(change, new SessionStore.CookieWrite() {
-                    public void run() throws IOException, IllegalAccessException {
-                        manuallySetCookiesFromResponse(responseUrl, responseConnection);
+                try {
+                    SessionStore.saveCookies(change, new SessionStore.CookieWrite() {
+                        public void run() throws IOException, IllegalAccessException {
+                            manuallySetCookiesFromResponse(responseUrl, responseConnection);
+                        }
+                    });
+                } catch (IOException | IllegalAccessException | RuntimeException | Error failure) {
+                    if (change != null) {
+                        change.events.remove(EventHandler.EventType.SIGN_OUT);
+                        change.events.remove(EventHandler.EventType.UNAUTHORISED);
+                        change.events.remove(EventHandler.EventType.SESSION_CREATED);
                     }
-                });
+                    throw failure;
+                }
             } catch (IOException | IllegalAccessException e) {
                 if (expectedGeneration != null && (change == null
                         ? SessionStore.read(applicationContext).generation != expectedGeneration.longValue()

@@ -96,6 +96,50 @@ public class SessionEventDeliveryTest {
         for (SuperTokens.SessionEvent event : events) assertNotEquals(EventHandler.EventType.REFRESH_SESSION, event.type);
     }
 
+    @Test public void cookieFailureNotifiesClearedStateButNotSignOut() throws Exception {
+        failManualCookieWrite();
+        List<SuperTokens.SessionSnapshot> snapshots = new CopyOnWriteArrayList<>();
+        List<SuperTokens.SessionEvent> events = new CopyOnWriteArrayList<>();
+        SuperTokens.addSessionListener(snapshots::add);
+        SuperTokens.addSessionEventListener(events::add);
+        server.enqueue(new MockResponse().setHeader("front-token", "remove").setHeader("Set-Cookie", "test=value; Path=/"));
+        try { request(); fail("expected cookie failure"); }
+        catch (IOException expected) { assertEquals("manual cookie failure", expected.getMessage()); }
+        assertNull(SuperTokens.getSessionSnapshot(context).frontToken);
+        assertEquals(1, snapshots.size());
+        assertNull(snapshots.get(0).frontToken);
+        assertTrue(events.isEmpty());
+        assertTrue(legacy.isEmpty());
+    }
+
+    @Test public void cookieFailureSuppressesUnauthorisedLifecycle() throws Exception {
+        failManualCookieWrite();
+        List<SuperTokens.SessionEvent> events = new CopyOnWriteArrayList<>();
+        SuperTokens.addSessionEventListener(events::add);
+        server.enqueue(new MockResponse().setResponseCode(401).setHeader("front-token", "remove").setHeader("Set-Cookie", "test=value; Path=/"));
+        try { request(); fail("expected cookie failure"); }
+        catch (IOException expected) { assertEquals("manual cookie failure", expected.getMessage()); }
+        assertNull(SuperTokens.getSessionSnapshot(context).frontToken);
+        assertTrue(events.isEmpty());
+        assertTrue(legacy.isEmpty());
+    }
+
+    @Test public void cookieFailureSuppressesSessionCreatedLifecycle() throws Exception {
+        assertTrue(SuperTokens.clearSession(context, SuperTokens.getSessionSnapshot(context).generation));
+        failManualCookieWrite();
+        List<SuperTokens.SessionEvent> events = new CopyOnWriteArrayList<>();
+        List<SuperTokens.SessionSnapshot> snapshots = new CopyOnWriteArrayList<>();
+        SuperTokens.addSessionEventListener(events::add);
+        SuperTokens.addSessionListener(snapshots::add);
+        server.enqueue(new MockResponse().setHeader("front-token", OLD).setHeader("Set-Cookie", "test=value; Path=/"));
+        try { request(); fail("expected cookie failure"); }
+        catch (IOException expected) { assertEquals("manual cookie failure", expected.getMessage()); }
+        assertEquals(OLD, SuperTokens.getSessionSnapshot(context).frontToken);
+        assertEquals(1, snapshots.size());
+        assertTrue(events.isEmpty());
+        assertTrue(legacy.isEmpty());
+    }
+
     private void install(String user, String front) {
         assertTrue(SuperTokens.installSession(context, SuperTokens.getSessionSnapshot(context).generation,
                 new SuperTokens.SessionTokens(user + "-access", user + "-refresh", front, user + "-csrf")));
