@@ -203,8 +203,8 @@ public class SuperTokensHttpURLConnection {
             } finally {
                 refreshAPILock.readLock().unlock();
                 SessionStore.leaveRefreshLock();
+                if (change != null) change.dispatch();
             }
-            if (change != null) change.dispatch();
             if (expectedGeneration != null && (change == null || !change.sameGeneration())) {
                 customConnection.disconnect();
                 return null;
@@ -298,7 +298,7 @@ public class SuperTokensHttpURLConnection {
 
             final int responseCode = refreshTokenConnection.getResponseCode();
             change = SessionStore.response(applicationContext, postLockLocalSessionState.snapshot.generation,
-                    new SuperTokensCustomHttpURLConnection(refreshTokenConnection, applicationContext, false, postLockLocalSessionState.snapshot), true);
+                    new SuperTokensCustomHttpURLConnection(refreshTokenConnection, applicationContext, false, postLockLocalSessionState.snapshot), true, false, false);
             if (change == null) return new Utils.Unauthorised(Utils.Unauthorised.UnauthorisedStatus.RETRY);
             final URL responseUrl = refreshTokenUrl;
             final HttpURLConnection responseConnection = refreshTokenConnection;
@@ -307,6 +307,9 @@ public class SuperTokensHttpURLConnection {
                     manuallySetCookiesFromResponse(responseUrl, responseConnection);
                 }
             });
+            if (responseCode >= 200 && responseCode < 300 && change.next.doesSessionExist() && change.current()) {
+                change.events.add(EventHandler.EventType.REFRESH_SESSION);
+            }
 
             if (responseCode >= 300) {
                 throw new IOException(refreshTokenConnection.getResponseMessage());

@@ -11,7 +11,7 @@ import org.jetbrains.annotations.TestOnly;
 /** The lock protects coherent reads/writes, never requests, listeners or event handlers. */
 final class SessionStore {
     private static final Object lock = new Object();
-    private static SuperTokens.SessionSnapshot snapshot;
+    private static volatile SuperTokens.SessionSnapshot snapshot;
     static final CopyOnWriteArrayList<SuperTokens.SessionListener> listeners = new CopyOnWriteArrayList<SuperTokens.SessionListener>();
     static final CopyOnWriteArrayList<SuperTokens.SessionEventListener> eventListeners = new CopyOnWriteArrayList<SuperTokens.SessionEventListener>();
     private static volatile Runnable beforeEventDeliveryForTests;
@@ -43,6 +43,8 @@ final class SessionStore {
     }
 
     static SuperTokens.SessionSnapshot read(Context context) {
+        SuperTokens.SessionSnapshot current = snapshot;
+        if (current != null) return current;
         synchronized (lock) {
             if (snapshot == null) {
                 snapshot = readPreferences(context, 0);
@@ -108,7 +110,7 @@ final class SessionStore {
     static Change response(Context context, long generation, Response response, boolean refresh, boolean legacy) {
         return response(context, generation, response.header(Constants.ACCESS_TOKEN_HEADER_KEY),
                 response.header(Constants.REFRESH_TOKEN_HEADER_KEY), response.header(Constants.FRONT_TOKEN_HEADER_KEY),
-                response.header(Constants.CSRF_HEADER_KEY), response.code(), refresh, legacy);
+                response.header(Constants.CSRF_HEADER_KEY), response.code(), refresh, legacy, true);
     }
 
     static Change response(Context context, long generation, SuperTokensCustomHttpURLConnection response, boolean refresh) throws IOException {
@@ -116,13 +118,17 @@ final class SessionStore {
     }
 
     static Change response(Context context, long generation, SuperTokensCustomHttpURLConnection response, boolean refresh, boolean legacy) throws IOException {
+        return response(context, generation, response, refresh, legacy, true);
+    }
+
+    static Change response(Context context, long generation, SuperTokensCustomHttpURLConnection response, boolean refresh, boolean legacy, boolean refreshSuccess) throws IOException {
         return response(context, generation, response.getHeaderField(Constants.ACCESS_TOKEN_HEADER_KEY),
                 response.getHeaderField(Constants.REFRESH_TOKEN_HEADER_KEY), response.getHeaderField(Constants.FRONT_TOKEN_HEADER_KEY),
-                response.getHeaderField(Constants.CSRF_HEADER_KEY), response.getResponseCode(), refresh, legacy);
+                response.getHeaderField(Constants.CSRF_HEADER_KEY), response.getResponseCode(), refresh, legacy, refreshSuccess);
     }
 
     private static Change response(Context context, long generation, String access, String refreshToken,
-                                   String front, String csrf, int status, boolean refresh, boolean legacy) {
+                                   String front, String csrf, int status, boolean refresh, boolean legacy, boolean refreshSuccess) {
         Change change;
         synchronized (lock) {
             SuperTokens.SessionSnapshot old = read(context);
@@ -161,7 +167,7 @@ final class SessionStore {
                     change.events.add(EventHandler.EventType.SESSION_CREATED);
                 }
             }
-            if (refresh && status >= 200 && status < 300 && change.next.doesSessionExist()) {
+            if (refreshSuccess && refresh && status >= 200 && status < 300 && change.next.doesSessionExist()) {
                 change.events.add(EventHandler.EventType.REFRESH_SESSION);
             }
         }
