@@ -69,6 +69,7 @@ public class Utils {
     }
 
     static class LocalSessionState {
+        SuperTokens.SessionSnapshot snapshot;
         LocalSessionStateStatus status;
         @Nullable
         String lastAccessTokenUpdate;
@@ -76,6 +77,12 @@ public class Utils {
         LocalSessionState(LocalSessionStateStatus status, @Nullable String lastAccessTokenUpdate) {
             this.status = status;
             this.lastAccessTokenUpdate = lastAccessTokenUpdate;
+        }
+
+        LocalSessionState(SuperTokens.SessionSnapshot snapshot) {
+            this(snapshot.doesSessionExist() ? LocalSessionStateStatus.EXISTS : LocalSessionStateStatus.NOT_EXISTS,
+                    snapshot.lastAccessTokenUpdate);
+            this.snapshot = snapshot;
         }
     }
 
@@ -211,7 +218,12 @@ public class Utils {
         }
     }
 
+    @Deprecated
     public static void storeInStorage(String name, String value, Context context) {
+        if (SessionStore.isSessionKey(name)) {
+            SessionStore.legacy(context, name, value);
+            return;
+        }
         String storageKey = "st-storage-item-" + name;
         SharedPreferences sharedPreferences = getSharedPreferences(context);
 
@@ -227,6 +239,7 @@ public class Utils {
                 .apply();
     }
 
+    @Deprecated
     public static void saveLastAccessTokenUpdate(Context context) {
         String now = "" + System.currentTimeMillis();
 
@@ -239,14 +252,7 @@ public class Utils {
     }
 
     public static LocalSessionState getLocalSessionState(Context context) {
-        String lastAccessTokenUpdate = getFromStorage(Constants.LAST_ACCESS_TOKEN_UPDATE_PREFS_KEY, context);
-        boolean frontTokenExists = FrontToken.doesTokenExist(context);
-
-        if (frontTokenExists && lastAccessTokenUpdate != null) {
-            return new LocalSessionState(LocalSessionStateStatus.EXISTS, lastAccessTokenUpdate);
-        }
-
-        return new LocalSessionState(LocalSessionStateStatus.NOT_EXISTS, null);
+        return new LocalSessionState(SessionStore.read(context));
     }
 
     public static String getStorageName(TokenType tokenType) {
@@ -257,66 +263,33 @@ public class Utils {
         return Constants.REFRESH_TOKEN_PREFS_KEY;
     }
 
+    @Deprecated
     public static void setToken(TokenType tokenType, String value, Context context) {
         String name = getStorageName(tokenType);
         storeInStorage(name, value, context);
     }
 
+    @Deprecated
     public static void saveTokenFromHeaders(SuperTokensCustomHttpURLConnection connection, Context context) {
-        String refreshToken = connection.getHeaderField(Constants.REFRESH_TOKEN_HEADER_KEY);
-
-        if (refreshToken != null) {
-            setToken(TokenType.REFRESH, refreshToken, context);
-        }
-
-        String accessToken = connection.getHeaderField(Constants.ACCESS_TOKEN_HEADER_KEY);
-
-        if (accessToken != null) {
-            setToken(TokenType.ACCESS, accessToken, context);
-        }
-
-        String frontToken = connection.getHeaderField(Constants.FRONT_TOKEN_HEADER_KEY);
-
-        if (frontToken != null) {
-            FrontToken.setItem(context, frontToken);
-        }
-
-        String antiCSRF = connection.getHeaderField(Constants.CSRF_HEADER_KEY);
-        if (antiCSRF != null) {
-            LocalSessionState localSessionState = getLocalSessionState(context);
-            AntiCSRF.setToken(context, localSessionState.lastAccessTokenUpdate, antiCSRF);
-        }
+        try {
+            SessionStore.Change change = SessionStore.response(context, SessionStore.read(context).generation, connection, false, true);
+            if (change != null) {
+                change.dispatch();
+            }
+        } catch (IOException e) { throw new IllegalStateException(e); }
     }
 
+    @Deprecated
     public static void saveTokenFromHeaders(Response response, Context context) {
-        String refreshToken = response.header(Constants.REFRESH_TOKEN_HEADER_KEY);
-
-        if (refreshToken != null) {
-            setToken(TokenType.REFRESH, refreshToken, context);
-        }
-
-        String accessToken = response.header(Constants.ACCESS_TOKEN_HEADER_KEY);
-
-        if (accessToken != null) {
-            setToken(TokenType.ACCESS, accessToken, context);
-        }
-
-        String frontToken = response.header(Constants.FRONT_TOKEN_HEADER_KEY);
-
-        if (frontToken != null) {
-            FrontToken.setItem(context, frontToken);
-        }
-
-        String antiCSRF = response.header(Constants.CSRF_HEADER_KEY);
-        if (antiCSRF != null) {
-            LocalSessionState localSessionState = getLocalSessionState(context);
-            AntiCSRF.setToken(context, localSessionState.lastAccessTokenUpdate, antiCSRF);
+        SessionStore.Change change = SessionStore.response(context, SessionStore.read(context).generation, response, false, true);
+        if (change != null) {
+            change.dispatch();
         }
     }
 
     public static String getTokenForHeaderAuth(TokenType tokenType, Context context) {
-        String name = getStorageName(tokenType);
-        return getFromStorage(name, context);
+        SuperTokens.SessionSnapshot s = SessionStore.read(context);
+        return tokenType == TokenType.ACCESS ? s.accessToken : s.refreshToken;
     }
 
     // Checks if a key exists in a map regardless of case
@@ -335,8 +308,9 @@ public class Utils {
         // users to continue these sessions.
         // The new session preference should be applied at the start of the next
         // session, if the backend allows it.
-        String accessToken = getTokenForHeaderAuth(TokenType.ACCESS, context);
-        String refreshToken = getTokenForHeaderAuth(TokenType.REFRESH, context);
+        SuperTokens.SessionSnapshot snapshot = SessionStore.read(context);
+        String accessToken = snapshot.accessToken;
+        String refreshToken = snapshot.refreshToken;
 
         // We don't always need the refresh token because that's only required by the
         // refresh call
@@ -352,6 +326,12 @@ public class Utils {
         return null;
     }
 
+    /**
+     * Legacy event helper. This invokes only the configured EventHandler; it does not
+     * notify generation-bearing SessionEventListeners because it has no transition snapshot.
+     * @deprecated Session events are emitted by the SDK when a response is accepted.
+     */
+    @Deprecated
     public static void fireSessionUpdateEventsIfNecessary(
             boolean wasLoggedIn,
             int status,

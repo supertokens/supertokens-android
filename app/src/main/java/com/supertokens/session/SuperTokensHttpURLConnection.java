@@ -35,8 +35,8 @@ public class SuperTokensHttpURLConnection {
     private static final Object refreshTokenLock = new Object();
     private static final ReentrantReadWriteLock refreshAPILock = new ReentrantReadWriteLock();
 
-    private static void setAuthorizationHeaderIfRequired(SuperTokensCustomHttpURLConnection connection, Context context) {
-        String authHeader = Utils.getAuthorizationHeaderIfExists(false, context);
+    private static void setAuthorizationHeaderIfRequired(SuperTokensCustomHttpURLConnection connection, SuperTokens.SessionSnapshot snapshot) {
+        String authHeader = snapshot.authorization(false);
 
         // NOTE: We do not check for existing Auth headers here because they are added after this function runs.
         // The `setRequestProperty` method in SuperTokensCustomHttpURLConnection is overridden to prevent users from adding
@@ -46,8 +46,8 @@ public class SuperTokensHttpURLConnection {
         }
     }
 
-    private static void setAuthorizationHeaderIfRequiredForRefresh(HttpURLConnection connection, Context context) {
-        String authHeader = Utils.getAuthorizationHeaderIfExists(true, context);
+    private static void setAuthorizationHeaderIfRequiredForRefresh(HttpURLConnection connection, SuperTokens.SessionSnapshot snapshot) {
+        String authHeader = snapshot.authorization(true);
         // NOTE: Checking for an existing auth header is not necessary for a refresh API call.
         if (authHeader != null) {
             connection.setRequestProperty("Authorization", authHeader);
@@ -115,6 +115,10 @@ public class SuperTokensHttpURLConnection {
     }
 
     public static HttpURLConnection newRequest(URL url, PreConnectCallback preConnectCallback) throws IllegalAccessException, IOException {
+        return newRequest(url, preConnectCallback, null);
+    }
+
+    static HttpURLConnection newRequest(URL url, PreConnectCallback preConnectCallback, Long expectedGeneration) throws IllegalAccessException, IOException {
         if ( !SuperTokens.isInitCalled ) {
             throw new IllegalAccessException("SuperTokens.init function needs to be called before using newRequest");
         }
@@ -138,16 +142,19 @@ public class SuperTokensHttpURLConnection {
         while (true) {
             Utils.LocalSessionState preRequestLocalSessionState;
             int responseCode;
+            SessionStore.Change change = null;
             // TODO: write comment as to why we have this lock here. Do we also have this lock for iOS and website package?
             refreshAPILock.readLock().lock();
+            SessionStore.enterRefreshLock();
             try {
                 boolean wasAuthHeaderRemovedInitially = customConnection != null && customConnection.getWasAuthHeaderRemovedInitially();
+                preRequestLocalSessionState = Utils.getLocalSessionState(applicationContext);
+                if (expectedGeneration != null && preRequestLocalSessionState.snapshot.generation != expectedGeneration.longValue()) return null;
                 connection = (HttpURLConnection) url.openConnection();
-                customConnection = new SuperTokensCustomHttpURLConnection(connection, applicationContext, wasAuthHeaderRemovedInitially);
+                customConnection = new SuperTokensCustomHttpURLConnection(connection, applicationContext, wasAuthHeaderRemovedInitially, preRequestLocalSessionState.snapshot);
 
                 // Add antiCSRF token, if present in storage, to the request headers
-                preRequestLocalSessionState = Utils.getLocalSessionState(applicationContext);
-                String antiCSRFToken = AntiCSRF.getToken(applicationContext, preRequestLocalSessionState.lastAccessTokenUpdate);
+                String antiCSRFToken = preRequestLocalSessionState.snapshot.antiCsrfToken;
 
                 if (antiCSRFToken != null) {
                     customConnection.setRequestProperty(Constants.CSRF_HEADER_KEY, antiCSRFToken);
@@ -165,7 +172,7 @@ public class SuperTokensHttpURLConnection {
                 }
 
                 customConnection.setRequestProperty("st-auth-mode", SuperTokens.config.tokenTransferMethod);
-                setAuthorizationHeaderIfRequired(customConnection, applicationContext);
+                setAuthorizationHeaderIfRequired(customConnection, preRequestLocalSessionState.snapshot);
 
                 // This will allow the user to set headers or modify request in anyway they want
                 // TODO NEMI: Replace this with pre api hook when implemented
@@ -176,16 +183,40 @@ public class SuperTokensHttpURLConnection {
                 customConnection.connect();
 
                 responseCode = customConnection.getResponseCode();
-                Utils.saveTokenFromHeaders(customConnection, applicationContext);
-                manuallySetCookiesFromResponse(url, customConnection);
-
-                Utils.fireSessionUpdateEventsIfNecessary(
-                        preRequestLocalSessionState.status == Utils.LocalSessionStateStatus.EXISTS,
-                        responseCode,
-                        customConnection.getHeaderField(Constants.FRONT_TOKEN_HEADER_KEY)
-                );
+                change = SessionStore.response(applicationContext, preRequestLocalSessionState.snapshot.generation, customConnection, false);
+                customConnection.setResponseChange(change);
+                final URL responseUrl = url;
+                final HttpURLConnection responseConnection = customConnection;
+                try {
+                    SessionStore.saveCookies(change, new SessionStore.CookieWrite() {
+                        public void run() throws IOException, IllegalAccessException {
+                            manuallySetCookiesFromResponse(responseUrl, responseConnection);
+                        }
+                    });
+                } catch (IOException | IllegalAccessException | RuntimeException | Error failure) {
+                    if (change != null) {
+                        change.events.remove(EventHandler.EventType.SIGN_OUT);
+                        change.events.remove(EventHandler.EventType.UNAUTHORISED);
+                        change.events.remove(EventHandler.EventType.SESSION_CREATED);
+                    }
+                    throw failure;
+                }
+            } catch (IOException | IllegalAccessException e) {
+                if (expectedGeneration != null && (change == null
+                        ? SessionStore.read(applicationContext).generation != expectedGeneration.longValue()
+                        : !change.sameGeneration())) {
+                    if (customConnection != null) customConnection.disconnect();
+                    return null;
+                }
+                throw e;
             } finally {
                 refreshAPILock.readLock().unlock();
+                SessionStore.leaveRefreshLock();
+                if (change != null) change.dispatch();
+            }
+            if (expectedGeneration != null && (change == null || !change.sameGeneration())) {
+                customConnection.disconnect();
+                return null;
             }
 
             if (responseCode == SuperTokens.config.sessionExpiredStatusCode) {
@@ -195,6 +226,10 @@ public class SuperTokensHttpURLConnection {
                  * The maximum number of retry attempts is defined by maxRetryAttemptsForSessionRefresh config variable.
                  */
                 if (sessionRefreshAttempts >= SuperTokens.config.maxRetryAttemptsForSessionRefresh) {
+                    if (expectedGeneration != null && !change.sameGeneration()) {
+                        customConnection.disconnect();
+                        return null;
+                    }
                     String errorMsg = "Received a 401 response from " + url + ". Attempted to refresh the session and retry the request with the updated session tokens " + SuperTokens.config.maxRetryAttemptsForSessionRefresh + " times, but each attempt resulted in a 401 error. The maximum session refresh limit has been reached. Please investigate your API. To increase the session refresh attempts, update maxRetryAttemptsForSessionRefresh in the config.";
                     System.err.println(errorMsg);
                     throw new IllegalAccessException(errorMsg);
@@ -208,6 +243,10 @@ public class SuperTokensHttpURLConnection {
                 if (unauthorisedResponse.status != Utils.Unauthorised.UnauthorisedStatus.RETRY) {
 
                     if (unauthorisedResponse.error != null) {
+                        if (expectedGeneration != null && SessionStore.read(applicationContext).generation != expectedGeneration.longValue()) {
+                            customConnection.disconnect();
+                            return null;
+                        }
                         throw unauthorisedResponse.error;
                     }
 
@@ -226,19 +265,18 @@ public class SuperTokensHttpURLConnection {
     static Utils.Unauthorised onUnauthorisedResponse(Utils.LocalSessionState preRequestLocalSessionState, Context applicationContext) {
         // this is intentionally not put in a loop because the loop in other projects is because locking has a timeout
         HttpURLConnection refreshTokenConnection = null;
+        SessionStore.Change change = null;
         try {
             refreshAPILock.writeLock().lock();
+            SessionStore.enterRefreshLock();
             Utils.LocalSessionState postLockLocalSessionState = Utils.getLocalSessionState(applicationContext);
-            if ( postLockLocalSessionState.status == Utils.LocalSessionStateStatus.NOT_EXISTS ) {
-                SuperTokens.config.eventHandler.handleEvent(EventHandler.EventType.UNAUTHORISED);
-                return new Utils.Unauthorised(Utils.Unauthorised.UnauthorisedStatus.SESSION_EXPIRED);
-            }
-
-            if ( postLockLocalSessionState.status != preRequestLocalSessionState.status ||
-                    (postLockLocalSessionState.status == Utils.LocalSessionStateStatus.EXISTS &&
-                            preRequestLocalSessionState.status == Utils.LocalSessionStateStatus.EXISTS &&
-                            postLockLocalSessionState.lastAccessTokenUpdate != preRequestLocalSessionState.lastAccessTokenUpdate) ) {
+            if (postLockLocalSessionState.snapshot != preRequestLocalSessionState.snapshot) {
                 return new Utils.Unauthorised(Utils.Unauthorised.UnauthorisedStatus.RETRY);
+            }
+            if (postLockLocalSessionState.status == Utils.LocalSessionStateStatus.NOT_EXISTS) {
+                change = new SessionStore.Change(postLockLocalSessionState.snapshot, false);
+                change.events.add(EventHandler.EventType.UNAUTHORISED);
+                return new Utils.Unauthorised(Utils.Unauthorised.UnauthorisedStatus.SESSION_EXPIRED);
             }
 
             URL refreshTokenUrl = new URL(SuperTokens.refreshTokenUrl);
@@ -246,7 +284,7 @@ public class SuperTokensHttpURLConnection {
             refreshTokenConnection.setRequestMethod("POST");
 
             if (preRequestLocalSessionState.status == Utils.LocalSessionStateStatus.EXISTS) {
-                String antiCSRFToken = AntiCSRF.getToken(applicationContext, preRequestLocalSessionState.lastAccessTokenUpdate);
+                String antiCSRFToken = postLockLocalSessionState.snapshot.antiCsrfToken;
 
                 if (antiCSRFToken != null) {
                     refreshTokenConnection.setRequestProperty(Constants.CSRF_HEADER_KEY, antiCSRFToken);
@@ -256,7 +294,7 @@ public class SuperTokensHttpURLConnection {
             refreshTokenConnection.setRequestProperty("rid", SuperTokens.rid);
             refreshTokenConnection.setRequestProperty("fdi-version", Utils.join(Version.supported_fdi, ","));
             refreshTokenConnection.setRequestProperty("st-auth-mode", SuperTokens.config.tokenTransferMethod);
-            setAuthorizationHeaderIfRequiredForRefresh(refreshTokenConnection, applicationContext);
+            setAuthorizationHeaderIfRequiredForRefresh(refreshTokenConnection, postLockLocalSessionState.snapshot);
 
             Map<String, String> customRefreshHeaders = SuperTokens.config.customHeaderMapper.getRequestHeaders(CustomHeaderProvider.RequestType.REFRESH);
             if (customRefreshHeaders != null) {
@@ -267,24 +305,20 @@ public class SuperTokensHttpURLConnection {
 
             refreshTokenConnection.connect();
 
-            Utils.saveTokenFromHeaders(new SuperTokensCustomHttpURLConnection(refreshTokenConnection, applicationContext), applicationContext);
-            manuallySetCookiesFromResponse(refreshTokenUrl, refreshTokenConnection);
-
             final int responseCode = refreshTokenConnection.getResponseCode();
-
-            boolean isUnauthorised = responseCode == SuperTokens.config.sessionExpiredStatusCode;
-
-            if (isUnauthorised && refreshTokenConnection.getHeaderField(Constants.FRONT_TOKEN_HEADER_KEY) != null) {
-                FrontToken.setItem(applicationContext, "remove");
+            change = SessionStore.response(applicationContext, postLockLocalSessionState.snapshot.generation,
+                    new SuperTokensCustomHttpURLConnection(refreshTokenConnection, applicationContext, false, postLockLocalSessionState.snapshot), true, false, false);
+            if (change == null) return new Utils.Unauthorised(Utils.Unauthorised.UnauthorisedStatus.RETRY);
+            final URL responseUrl = refreshTokenUrl;
+            final HttpURLConnection responseConnection = refreshTokenConnection;
+            SessionStore.saveCookies(change, new SessionStore.CookieWrite() {
+                public void run() throws IOException, IllegalAccessException {
+                    manuallySetCookiesFromResponse(responseUrl, responseConnection);
+                }
+            });
+            if (responseCode >= 200 && responseCode < 300 && change.next.doesSessionExist() && change.current()) {
+                change.events.add(EventHandler.EventType.REFRESH_SESSION);
             }
-
-            String frontTokenInHeaders = refreshTokenConnection.getHeaderField(Constants.FRONT_TOKEN_HEADER_KEY);
-
-            Utils.fireSessionUpdateEventsIfNecessary(
-                    preRequestLocalSessionState.status == Utils.LocalSessionStateStatus.EXISTS,
-                    responseCode,
-                    frontTokenInHeaders == null ? "remove" : frontTokenInHeaders
-            );
 
             if (responseCode >= 300) {
                 throw new IOException(refreshTokenConnection.getResponseMessage());
@@ -300,9 +334,11 @@ public class SuperTokensHttpURLConnection {
                 return new Utils.Unauthorised(Utils.Unauthorised.UnauthorisedStatus.SESSION_EXPIRED);
             }
 
-            SuperTokens.config.eventHandler.handleEvent(EventHandler.EventType.REFRESH_SESSION);
             return new Utils.Unauthorised(Utils.Unauthorised.UnauthorisedStatus.RETRY);
         } catch (Exception e) {
+            if (change == null ? SessionStore.read(applicationContext).generation != preRequestLocalSessionState.snapshot.generation : !change.current()) {
+                return new Utils.Unauthorised(Utils.Unauthorised.UnauthorisedStatus.RETRY);
+            }
             IOException ioe = new IOException(e);
             if (e instanceof IOException) {
                 ioe = (IOException) e;
@@ -316,9 +352,11 @@ public class SuperTokensHttpURLConnection {
 
         } finally {
             refreshAPILock.writeLock().unlock();
+            SessionStore.leaveRefreshLock();
             if ( refreshTokenConnection != null ) {
                 refreshTokenConnection.disconnect();
             }
+            if (change != null) change.dispatch();
         }
     }
 

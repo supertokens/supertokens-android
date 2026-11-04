@@ -17,38 +17,22 @@
 package com.supertokens.session;
 
 import android.content.Context;
-import android.content.SharedPreferences;
 import android.util.Base64;
 
 import org.json.JSONException;
 import org.json.JSONObject;
+import org.jetbrains.annotations.TestOnly;
 
 import java.nio.charset.Charset;
 
 public class FrontToken {
     static final Object tokenLock = new Object();
-    private static String frontTokenInMemory;
-    private static final String FRONT_TOKEN_NAME = "sFrontToken";
+    private static volatile Runnable beforeSnapshotReadForTests;
+
+    @TestOnly static void setBeforeSnapshotReadForTests(Runnable hook) { beforeSnapshotReadForTests = hook; }
 
     private static String getFrontTokenFromStorage(Context context) {
-        if (frontTokenInMemory == null) {
-            frontTokenInMemory = Utils.getSharedPreferences(context).getString(Constants.FRONT_TOKEN_PREFS_KEY, null);
-        }
-
-        // If it is still null then there was no value in storage
-        if (frontTokenInMemory == null) {
-            return null;
-        }
-
-        return frontTokenInMemory;
-    }
-
-    private static String getFrontToken(Context context) {
-        if (Utils.getLocalSessionState(context).status == Utils.LocalSessionStateStatus.NOT_EXISTS) {
-            return null;
-        }
-
-        return getFrontTokenFromStorage(context);
+        return SessionStore.read(context).frontToken;
     }
 
     private static JSONObject parseFrontToken(String frontTokenDecoded) {
@@ -61,97 +45,38 @@ public class FrontToken {
     }
 
     static JSONObject getTokenInfo(Context context) {
-        synchronized (tokenLock) {
-            while (true) {
-                String frontToken = getFrontToken(context);
-                if (frontToken == null) {
-                    Utils.LocalSessionState localSessionState = Utils.getLocalSessionState(context);
-                    if (localSessionState.status == Utils.LocalSessionStateStatus.EXISTS) {
-                        try {
-                            tokenLock.wait();
-                        } catch (InterruptedException ignored) {}
-                    } else {
-                        return null;
-                    }
-                } else {
-                    return parseFrontToken(frontToken);
-                }
-            }
-        }
+        Runnable hook = beforeSnapshotReadForTests;
+        if (hook != null) hook.run();
+        SuperTokens.SessionSnapshot snapshot = SessionStore.read(context);
+        return snapshot.doesSessionExist() ? parseFrontToken(snapshot.frontToken) : null;
     }
 
     public static JSONObject getToken(Context context) throws JSONException {
         return getTokenInfo(context);
     }
 
-    private static void setFrontTokenToStorage(Context context, String frontToken) {
-        SharedPreferences.Editor editor = Utils.getSharedPreferences(context).edit();
-        editor.putString(Constants.FRONT_TOKEN_PREFS_KEY, frontToken);
-        editor.apply();
-        frontTokenInMemory = frontToken;
-    }
-
-    private static void setFrontToken(Context context, String frontToken) {
-        String oldToken = getFrontTokenFromStorage(context);
-
-        if (oldToken != null && frontToken != null) {
-            try {
-                JSONObject oldPayload = parseFrontToken(oldToken).getJSONObject("up");
-                JSONObject newPayload = parseFrontToken(frontToken).getJSONObject("up");
-
-                if (!oldPayload.toString().equals(newPayload.toString())) {
-                    SuperTokens.config.eventHandler.handleEvent(EventHandler.EventType.ACCESS_TOKEN_PAYLOAD_UPDATED);
-                }
-            } catch (JSONException e) {
-                throw new IllegalStateException(e);
-            }
+    static boolean payloadChanged(String oldToken, String newToken) {
+        try {
+            return !parseFrontToken(oldToken).getJSONObject("up").toString()
+                    .equals(parseFrontToken(newToken).getJSONObject("up").toString());
+        } catch (JSONException e) {
+            throw new IllegalStateException(e);
         }
-
-        setFrontTokenToStorage(context, frontToken);
     }
 
-    private static void removeTokenFromStorage(Context context) {
-        SharedPreferences.Editor editor = Utils.getSharedPreferences(context).edit();
-        editor.remove(Constants.FRONT_TOKEN_PREFS_KEY);
-        editor.apply();
-        frontTokenInMemory = null;
-    }
-
+    @Deprecated
     public static void removeToken(Context context) {
-        AntiCSRF.removeToken(context);
-        synchronized (tokenLock) {
-            removeTokenFromStorage(context);
-            // We are clearing all stored tokens here, because:
-            // 1. removing FrontToken signals that the session is being cleared
-            // 2. you can only have a single active session - this means that all tokens can be cleared from all auth-modes if one is being cleared
-            // 3. some proxies remove the empty headers used to clear the other tokens (i.e.: https://github.com/supertokens/supertokens-website/issues/218)
-            Utils.setToken(Utils.TokenType.ACCESS, "", context);
-            Utils.setToken(Utils.TokenType.REFRESH, "", context);
-            tokenLock.notifyAll();
-        }
+        SessionStore.legacy(context, Constants.FRONT_TOKEN_PREFS_KEY, null);
     }
 
+    @Deprecated
     public static void setToken(Context context, String frontToken) {
-        synchronized (tokenLock) {
-            setFrontToken(context, frontToken);
-            tokenLock.notifyAll();
-        }
+        SessionStore.legacy(context, Constants.FRONT_TOKEN_PREFS_KEY, frontToken, false, false);
     }
 
+    @Deprecated
     public static void setItem(Context context, String frontToken) {
-        // We update the refresh attempt info here as well, since this means that we've updated the session in some way
-        // This could be both by a refresh call or if the access token was updated in a custom endpoint
-        // By saving every time the access token has been updated, we cause an early retry if
-        // another request has failed with a 401 with the previous access token and the token still exists.
-        // Check the start and end of onUnauthorisedResponse
-        // As a side-effect we reload the anti-csrf token to check if it was changed by another tab.
-        Utils.saveLastAccessTokenUpdate(context);
-        if (frontToken.equalsIgnoreCase("remove")) {
-            FrontToken.removeToken(context);
-            return;
-        }
-
-        FrontToken.setFrontToken(context, frontToken);
+        SessionStore.legacy(context, Constants.FRONT_TOKEN_PREFS_KEY, frontToken);
     }
 
     public static boolean doesTokenExist(Context context) {

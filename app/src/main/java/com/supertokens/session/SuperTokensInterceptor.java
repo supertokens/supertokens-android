@@ -37,7 +37,7 @@ public class SuperTokensInterceptor implements Interceptor {
 
     // Returns true authorization header in the provided request matches the current local access token.
     // This is used to decide whether the authorization header should be removed before making the request.
-    private boolean shouldRemoveAuthHeader(Request request, Context context) {
+    private boolean shouldRemoveAuthHeader(Request request, SuperTokens.SessionSnapshot snapshot) {
         String originalHeader = request.header("Authorization");
 
         if (originalHeader == null) {
@@ -45,8 +45,8 @@ public class SuperTokensInterceptor implements Interceptor {
         }
 
         if (originalHeader != null) {
-            String accessToken = Utils.getTokenForHeaderAuth(Utils.TokenType.ACCESS, context);
-            String refreshToken = Utils.getTokenForHeaderAuth(Utils.TokenType.REFRESH, context);
+            String accessToken = snapshot.accessToken;
+            String refreshToken = snapshot.refreshToken;
 
             if (accessToken != null && refreshToken != null && (originalHeader.equals("Bearer " + accessToken) || originalHeader.equals("bearer " + accessToken))) {
                 return true;
@@ -57,8 +57,8 @@ public class SuperTokensInterceptor implements Interceptor {
     }
 
 
-    private static Request setAuthorizationHeaderIfRequired(Request request, Request.Builder builder, Context context, boolean addRefreshToken) {
-        String authHeader = Utils.getAuthorizationHeaderIfExists(addRefreshToken, context);
+    private static Request setAuthorizationHeaderIfRequired(Request request, Request.Builder builder, SuperTokens.SessionSnapshot snapshot, boolean addRefreshToken) {
+        String authHeader = snapshot.authorization(addRefreshToken);
         boolean hasExistingAuthHeader = request.header("Authorization") != null || request.header("authorization") != null;
 
         if (authHeader != null && !hasExistingAuthHeader) {
@@ -108,10 +108,12 @@ public class SuperTokensInterceptor implements Interceptor {
             Request.Builder requestBuilder = chain.request().newBuilder();
             Utils.LocalSessionState preRequestLocalSessionState;
             Response response;
+            SessionStore.Change change = null;
             refreshAPILock.readLock().lock();
+            SessionStore.enterRefreshLock();
             try {
                 preRequestLocalSessionState = Utils.getLocalSessionState(applicationContext);
-                String antiCSRFToken = AntiCSRF.getToken(applicationContext, preRequestLocalSessionState.lastAccessTokenUpdate);
+                String antiCSRFToken = preRequestLocalSessionState.snapshot.antiCsrfToken;
 
                 if (antiCSRFToken != null) {
                     requestBuilder.header(Constants.CSRF_HEADER_KEY, antiCSRFToken);
@@ -128,7 +130,7 @@ public class SuperTokensInterceptor implements Interceptor {
                 // Check if the Authorization header should be removed
                 // This is necessary to ensure that if the auth header was removed initially,
                 // it remains removed in subsequent retries even if the token has changed.
-                if (wasAuthHeaderRemovedInitially || shouldRemoveAuthHeader(request, applicationContext)) {
+                if (wasAuthHeaderRemovedInitially || shouldRemoveAuthHeader(request, preRequestLocalSessionState.snapshot)) {
                     Request.Builder builder = request.newBuilder();
                     builder.removeHeader("Authorization");
                     builder.removeHeader("authorization");
@@ -137,18 +139,15 @@ public class SuperTokensInterceptor implements Interceptor {
                     wasAuthHeaderRemovedInitially = true;
                 }
 
-                request = setAuthorizationHeaderIfRequired(request, request.newBuilder(), applicationContext, false);
+                request = setAuthorizationHeaderIfRequired(request, request.newBuilder(), preRequestLocalSessionState.snapshot, false);
 
                 response = makeRequest(chain, request);
-                Utils.saveTokenFromHeaders(response, applicationContext);
-                Utils.fireSessionUpdateEventsIfNecessary(
-                        preRequestLocalSessionState.status == Utils.LocalSessionStateStatus.EXISTS,
-                        response.code(),
-                        response.header(Constants.FRONT_TOKEN_HEADER_KEY)
-                );
+                change = SessionStore.response(applicationContext, preRequestLocalSessionState.snapshot.generation, response, false);
             } finally {
                 refreshAPILock.readLock().unlock();
+                SessionStore.leaveRefreshLock();
             }
+            if (change != null) change.dispatch();
 
             if (response.code() == SuperTokens.config.sessionExpiredStatusCode) {
                 /**
@@ -199,19 +198,18 @@ public class SuperTokensInterceptor implements Interceptor {
     private static Utils.Unauthorised onUnauthorisedResponse(Utils.LocalSessionState preRequestLocalSessionState, Context applicationContext, Chain chain) {
         // this is intentionally not put in a loop because the loop in other projects is because locking has a timeout
         Response refreshResponse = null;
+        SessionStore.Change change = null;
         try {
             refreshAPILock.writeLock().lock();
+            SessionStore.enterRefreshLock();
             Utils.LocalSessionState postLockLocalSessionState = Utils.getLocalSessionState(applicationContext);
-            if (postLockLocalSessionState.status == Utils.LocalSessionStateStatus.NOT_EXISTS) {
-                SuperTokens.config.eventHandler.handleEvent(EventHandler.EventType.UNAUTHORISED);
-                return new Utils.Unauthorised(Utils.Unauthorised.UnauthorisedStatus.SESSION_EXPIRED);
-            }
-
-            if ( postLockLocalSessionState.status != preRequestLocalSessionState.status ||
-                    (postLockLocalSessionState.status == Utils.LocalSessionStateStatus.EXISTS &&
-                            preRequestLocalSessionState.status == Utils.LocalSessionStateStatus.EXISTS &&
-                            postLockLocalSessionState.lastAccessTokenUpdate != preRequestLocalSessionState.lastAccessTokenUpdate) ) {
+            if (postLockLocalSessionState.snapshot != preRequestLocalSessionState.snapshot) {
                 return new Utils.Unauthorised(Utils.Unauthorised.UnauthorisedStatus.RETRY);
+            }
+            if (postLockLocalSessionState.status == Utils.LocalSessionStateStatus.NOT_EXISTS) {
+                change = new SessionStore.Change(postLockLocalSessionState.snapshot, false);
+                change.events.add(EventHandler.EventType.UNAUTHORISED);
+                return new Utils.Unauthorised(Utils.Unauthorised.UnauthorisedStatus.SESSION_EXPIRED);
             }
 
             Request.Builder refreshRequestBuilder = new Request.Builder();
@@ -221,7 +219,7 @@ public class SuperTokensInterceptor implements Interceptor {
             Request refreshRequest = refreshRequestBuilder.build();
 
             if (preRequestLocalSessionState.status == Utils.LocalSessionStateStatus.EXISTS) {
-                String antiCSRFToken = AntiCSRF.getToken(applicationContext, preRequestLocalSessionState.lastAccessTokenUpdate);
+                String antiCSRFToken = postLockLocalSessionState.snapshot.antiCsrfToken;
 
                 if (antiCSRFToken != null) {
                     refreshRequestBuilder.header(Constants.CSRF_HEADER_KEY, antiCSRFToken);
@@ -232,7 +230,7 @@ public class SuperTokensInterceptor implements Interceptor {
             refreshRequestBuilder.header("fdi-version", Utils.join(Version.supported_fdi, ","));
             refreshRequestBuilder.header("st-auth-mode", SuperTokens.config.tokenTransferMethod);
 
-            refreshRequestBuilder = setAuthorizationHeaderIfRequired(refreshRequest, refreshRequestBuilder, applicationContext, true).newBuilder();
+            refreshRequestBuilder = setAuthorizationHeaderIfRequired(refreshRequest, refreshRequestBuilder, postLockLocalSessionState.snapshot, true).newBuilder();
 
             Map<String, String> customRefreshHeaders = SuperTokens.config.customHeaderMapper.getRequestHeaders(CustomHeaderProvider.RequestType.REFRESH);
             if (customRefreshHeaders != null) {
@@ -244,22 +242,9 @@ public class SuperTokensInterceptor implements Interceptor {
             refreshRequest = refreshRequestBuilder.build();
             refreshResponse = makeRequest(chain, refreshRequest);
 
-            Utils.saveTokenFromHeaders(refreshResponse, applicationContext);
+            change = SessionStore.response(applicationContext, postLockLocalSessionState.snapshot.generation, refreshResponse, true);
+            if (change == null) return new Utils.Unauthorised(Utils.Unauthorised.UnauthorisedStatus.RETRY);
             final int code = refreshResponse.code();
-
-            boolean isUnauthorised = code == SuperTokens.config.sessionExpiredStatusCode;
-
-            if (isUnauthorised && refreshResponse.header(Constants.FRONT_TOKEN_HEADER_KEY) != null) {
-                FrontToken.setItem(applicationContext, "remove");
-            }
-
-            String frontTokenInHeaders = refreshResponse.header(Constants.FRONT_TOKEN_HEADER_KEY);
-
-            Utils.fireSessionUpdateEventsIfNecessary(
-                    preRequestLocalSessionState.status == Utils.LocalSessionStateStatus.EXISTS,
-                    code,
-                    frontTokenInHeaders == null ? "remove" : frontTokenInHeaders
-            );
 
             if (code < 200 || code >= 300) {
                 String responseMessage = refreshResponse.message();
@@ -276,10 +261,12 @@ public class SuperTokensInterceptor implements Interceptor {
                 return new Utils.Unauthorised(Utils.Unauthorised.UnauthorisedStatus.SESSION_EXPIRED);
             }
 
-            SuperTokens.config.eventHandler.handleEvent(EventHandler.EventType.REFRESH_SESSION);
             return new Utils.Unauthorised(Utils.Unauthorised.UnauthorisedStatus.RETRY);
 
         } catch (Exception e) {
+            if (change == null ? SessionStore.read(applicationContext).generation != preRequestLocalSessionState.snapshot.generation : !change.current()) {
+                return new Utils.Unauthorised(Utils.Unauthorised.UnauthorisedStatus.RETRY);
+            }
             IOException ioe = new IOException(e);
             if (e instanceof IOException) {
                 ioe = (IOException) e;
@@ -292,9 +279,11 @@ public class SuperTokensInterceptor implements Interceptor {
 
         } finally {
             refreshAPILock.writeLock().unlock();
+            SessionStore.leaveRefreshLock();
             if (refreshResponse != null) {
                 refreshResponse.close();
             }
+            if (change != null) change.dispatch();
         }
     }
 }

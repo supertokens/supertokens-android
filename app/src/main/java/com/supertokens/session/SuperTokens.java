@@ -37,6 +37,100 @@ import java.util.ArrayList;
 import java.util.Map;
 
 public class SuperTokens {
+    /** Immutable, coherent session read. Generation is process-local, not a persisted identity. */
+    public static final class SessionSnapshot {
+        public final long generation;
+        public final String accessToken, refreshToken, frontToken, antiCsrfToken, lastAccessTokenUpdate;
+
+        SessionSnapshot(long generation, String access, String refresh, String front, String csrf, String update) {
+            this.generation = generation;
+            accessToken = access;
+            refreshToken = refresh;
+            frontToken = front;
+            antiCsrfToken = csrf;
+            lastAccessTokenUpdate = update;
+        }
+
+        public boolean doesSessionExist() {
+            return frontToken != null && lastAccessTokenUpdate != null;
+        }
+
+        String authorization(boolean refresh) {
+            return accessToken != null && refreshToken != null ? "Bearer " + (refresh ? refreshToken : accessToken) : null;
+        }
+    }
+
+    public static final class SessionTokens {
+        public final String accessToken, refreshToken, frontToken, antiCsrfToken;
+
+        public SessionTokens(String accessToken, String refreshToken, String frontToken, String antiCsrfToken) {
+            this.accessToken = accessToken;
+            this.refreshToken = refreshToken;
+            this.frontToken = frontToken;
+            this.antiCsrfToken = antiCsrfToken;
+        }
+    }
+
+    public interface SessionListener {
+        void onSessionChanged(SessionSnapshot snapshot);
+    }
+
+    /** A lifecycle event and the actual immutable state associated with its originating transition.
+     * Legacy refresh event types do not by themselves imply that the session was cleared.
+     */
+    public static final class SessionEvent {
+        public final EventHandler.EventType type;
+        public final SessionSnapshot snapshot;
+        public final long generation;
+
+        SessionEvent(EventHandler.EventType type, SessionSnapshot snapshot) {
+            this.type = type;
+            this.snapshot = snapshot;
+            this.generation = snapshot.generation;
+        }
+    }
+
+    public interface SessionEventListener {
+        void onSessionEvent(SessionEvent event);
+    }
+
+    public static void addSessionEventListener(SessionEventListener listener) {
+        if (listener == null) throw new IllegalArgumentException("listener must not be null");
+        SessionStore.eventListeners.addIfAbsent(listener);
+    }
+
+    public static void removeSessionEventListener(SessionEventListener listener) {
+        SessionStore.eventListeners.remove(listener);
+    }
+
+    public static SessionSnapshot getSessionSnapshot(Context context) {
+        return SessionStore.read(context);
+    }
+
+    public static boolean installSession(Context context, long expectedGeneration, SessionTokens tokens) {
+        if (tokens == null) throw new IllegalArgumentException("tokens must not be null");
+        SessionStore.Change change = SessionStore.replace(context, expectedGeneration, tokens);
+        if (change == null) return false;
+        SessionStore.flushCallbacks();
+        change.dispatch();
+        return true;
+    }
+
+    public static boolean clearSession(Context context, long expectedGeneration) {
+        SessionStore.Change change = SessionStore.replace(context, expectedGeneration, null);
+        if (change == null) return false;
+        SessionStore.flushCallbacks();
+        change.dispatch();
+        return true;
+    }
+
+    public static void addSessionListener(SessionListener listener) {
+        SessionStore.listeners.addIfAbsent(listener);
+    }
+
+    public static void removeSessionListener(SessionListener listener) {
+        SessionStore.listeners.remove(listener);
+    }
     static String refreshTokenUrl;
     static String signOutUrl;
     static boolean isInitCalled = false;
@@ -79,6 +173,8 @@ public class SuperTokens {
 
     @TestOnly
     public static void resetForTests() {
+        FrontToken.setBeforeSnapshotReadForTests(null);
+        SessionStore.reset();
         SuperTokens.isInitCalled = false;
         SuperTokens.config = null;
         SuperTokens.refreshTokenUrl = null;
@@ -136,8 +232,14 @@ public class SuperTokens {
 
     @SuppressWarnings("unused")
     public static void signOut(Context context) throws IOException, IllegalAccessException, SuperTokensGeneralError {
+        final long generation = getSessionSnapshot(context).generation;
         if (!doesSessionExist(context)) {
-            SuperTokens.config.eventHandler.handleEvent(EventHandler.EventType.SIGN_OUT);
+            SessionSnapshot snapshot = getSessionSnapshot(context);
+            if (snapshot.generation == generation) {
+                SessionStore.Change change = new SessionStore.Change(snapshot, false);
+                change.events.add(EventHandler.EventType.SIGN_OUT);
+                change.dispatch();
+            }
             return;
         }
 
@@ -154,7 +256,12 @@ public class SuperTokens {
                     }
                 }
             }
-        });
+        }, generation);
+
+        if (connection == null) return;
+
+        SuperTokensCustomHttpURLConnection responseConnection = (SuperTokensCustomHttpURLConnection) connection;
+        if (!responseConnection.isResponseCurrent()) return;
 
         int responseCode = connection.getResponseCode();
 
@@ -164,6 +271,7 @@ public class SuperTokens {
         }
 
         if (responseCode >= 300) {
+            if (!responseConnection.isResponseCurrent()) return;
             throw new IOException("Sign out failed with response code " + responseCode);
         }
 
@@ -185,13 +293,18 @@ public class SuperTokens {
             if (statusFromResponse.equals("GENERAL_ERROR")) {
                 String messageFromResponse = jsonBody.getString("message");
 
+                if (!responseConnection.isResponseCurrent()) return;
                 throw new SuperTokensGeneralError(messageFromResponse);
             }
         } catch (JSONException e) {
             /*
              * Error when converting the body to json or reading from it
              */
+            if (!responseConnection.isResponseCurrent()) return;
             throw new IllegalStateException(e);
+        } catch (IOException e) {
+            if (!responseConnection.isResponseCurrent()) return;
+            throw e;
         }
 
         return;
